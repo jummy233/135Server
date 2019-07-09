@@ -115,11 +115,22 @@ class Location(db.Model):
 
     @classmethod
     def gen_fake(cls, count=10):
+        locs: Dict = {
+            "JiangSu": ("Nantong", "Suzhou", "Changzhou"),
+            "ZheJiang": ("Hangzhou",),
+            "Shanghai": ("Shanghai",),
+            "Chongqing": ("Chongqing",),
+            "SiChuan": ("Chengdu", "Yibin"),
+            "Gansu": ("Ningxia",),
+            "Anhui": ("Hefei",)
+        }
+
         for _ in range(count):
             try:
+                randprovince = choice(tuple(locs.keys()))
                 loc = cls(climate_area=choice(ClimateArea.query.all()),
-                          province=chr(randint(33, 127)),
-                          city=chr(randint(33, 127)))
+                          province=randprovince,
+                          city=choice(locs[randprovince]))
                 db.session.add(loc)
             except IndexError as e:
                 print("Error! Location.gen_fake: ", e)

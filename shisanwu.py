@@ -3,6 +3,7 @@ import sys
 from dotenv import load_dotenv
 import click
 from flask_migrate import Migrate
+from flask_cors import CORS
 from app import create_app, db
 from app.models import Permission, User
 from app.models import OutdoorSpot, OutdoorRecord, ClimateArea, Location
@@ -17,6 +18,7 @@ if os.path.exists(dotenv_path):
 
 app = create_app(os.getenv("FLASK_CONFIG") or 'default')
 migrate = Migrate(app, db)
+CORS(app, resources={r'/*': {'origin': '*'}})
 
 COV = None
 if os.environ.get("FLASK_COVERAGE"):
