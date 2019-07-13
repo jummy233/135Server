@@ -11,7 +11,7 @@ from flask_login import UserMixin, AnonymousUserMixin
 from sqlalchemy.exc import IntegrityError
 from . import db, login_manager
 from .utils import is_nice_time, normalize_time, rand_date_in
-from random import choice, randrange, randint
+from random import choice, randrange, randint, uniform
 import base64
 
 
@@ -116,13 +116,13 @@ class Location(db.Model):
     @classmethod
     def gen_fake(cls, count=10):
         locs: Dict = {
-            "JiangSu": ("Nantong", "Suzhou", "Changzhou"),
-            "ZheJiang": ("Hangzhou",),
-            "Shanghai": ("Shanghai",),
-            "Chongqing": ("Chongqing",),
-            "SiChuan": ("Chengdu", "Yibin"),
-            "Gansu": ("Ningxia",),
-            "Anhui": ("Hefei",)
+            "江苏": ("苏州", "南通", "常州"),
+            "浙江": ("杭州",),
+            "上海": ("上海",),
+            "重庆": ("重庆",),
+            "四川": ("成都", "宜宾"),
+            "甘肃": ("宁夏",),
+            "安徽": ("合肥",)
         }
 
         for _ in range(count):
@@ -153,6 +153,8 @@ class Project(db.Model):
     project_name = db.Column(db.String(64), unique=True)
     district = db.Column(db.String(64))
     floor = db.Column(db.Integer)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
     area = db.Column(db.Float)
     demo_area = db.Column(db.Float)
     building_type = db.Column(db.String(64))
@@ -176,6 +178,8 @@ class Project(db.Model):
                            project_name=offset + i,
                            district=chr(randint(33, 127)),
                            floor=randint(33, 127),
+                           longitude=uniform(30, 32),
+                           latitude=uniform(105, 120),
                            area=randint(1000, 3000),
                            demo_area=randint(1000, 3000),
                            building_type=chr(randint(33, 127)),
@@ -208,6 +212,8 @@ class Project(db.Model):
             project_name=self.project_name,
             district=self.district,
             floor=self.floor,
+            latitude=self.latitude,
+            longitude=self.longitude,
             area=self.area,
             demo_area=self.demo_area,
             building_type=self.building_type,

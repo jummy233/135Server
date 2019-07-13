@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS projects(
     company_id INTEGER,
     project_name NVARCHAR(40),
     floor INTEGER,
+    latitude FLOAT,
+    longitude FLOAT,
     district NVARCHAR(20),
     area FLOAT,
     demo_area FLOAT,

@@ -2,7 +2,7 @@
 Provide joined table search.
 Basic db query will be aggregated here and dispatched to frontend components.
 """
-from flask import jsonify
+from flask import jsonify, request
 from . import api
 from ..models import User, Location, Project, ProjectDetail
 from ..models import  ClimateArea, Company, Permission
@@ -27,25 +27,16 @@ def poject_generic_view():
     return jsonify(projects)
 
 
-@api.route('/view/project/detailed', methods=['GET'])
-def poject_detailed_view():
-    """combine `Project` and `ProjectDetails`, `ClimateArea`"""
-    projects = [p.to_json() for p in Project.query.all()]
+@api.route('/view/project/detailed/<pid>', methods=['GET'])
+def poject_detailed_view(pid):
+    """send project picture for given project"""
+    response_object = {'success': 'success'}
 
-    for proj in projects:  # add climate area info
-        climate_area = Location.query.                                         \
-            filter_by(location_id=proj["location"]["location_id"])             \
-            .first().climate_area.to_json()
+    project_images = ProjectDetail.query.filter_by(project_id=pid).all()
+    project_images_json = [p.to_json() for p in project_images]
+    response_object['image'] = project_images_json
 
-        try:
-            project_detail = ProjectDetail.query                               \
-                .filter_by(project_id=proj["project_id"]).first().to_json()
-        except AttributeError:
-            project_detail = {}
-
-        proj.update({"climate_area": climate_area,
-                     "project_detail": project_detail})
-    return jsonify(projects)
+    return jsonify(response_object)
 
 
 @api.route('/view/spots')
