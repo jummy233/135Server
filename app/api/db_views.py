@@ -39,12 +39,12 @@ def poject_detailed_view(pid):
     return jsonify(response_object)
 
 
-@api.route('/view/spots')
-def spot_generic_view():
+@api.route('/view/<pid>/spots')
+def spot_generic_view(pid: int):
     """combine Spot, Location, Project, OutdoorSpot"""
     spots = []
 
-    for s in Spot.query.all():
+    for s in Spot.query.filter_by(project_id=pid).all():
         spot = s.to_json()
         proj = Project.query.filter_by(project_id=s.project_id).first()
         od_spot = OutdoorSpot.query                                            \
@@ -56,8 +56,8 @@ def spot_generic_view():
     return jsonify(spots)
 
 
-@api.route('/view/spot_record/<sid>')
-def spot_detailed_view(sid):
+@api.route('/view/spot/<sid>/records')
+def spot_detailed_view(sid: int):
     """combine Spot, Location, Project, Climate area, Outdoor Record"""
     records = []
 

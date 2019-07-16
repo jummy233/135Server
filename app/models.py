@@ -95,7 +95,7 @@ class User(db.Model):
             # TODO  change api.get_user to real resftul api function.
             url='api.get_user',
             user_name=self.user_name,
-            last_seen=self.last_seen)
+            last_seen=datetime.ctime(self.last_seen))
 
     def __repr__(self):
         return "<User {}>".format(self.user_name)
@@ -159,9 +159,9 @@ class Project(db.Model):
     demo_area = db.Column(db.Float)
     building_type = db.Column(db.String(64))
     building_height = db.Column(db.Float)
-    finished_time = db.Column(db.Date)
-    record_started_from = db.Column(db.Date)
-    record_ended_by = db.Column(db.Date, default=datetime.date(datetime.utcnow()))
+    finished_time = db.Column(db.DateTime)
+    record_started_from = db.Column(db.DateTime)
+    record_ended_by = db.Column(db.DateTime, default=datetime.utcnow())
     description = db.Column(db.String(2048))
 
     project_detail = db.relationship("ProjectDetail", backref="project", uselist=False)
@@ -175,7 +175,7 @@ class Project(db.Model):
                 proj = cls(outdoor_spot=choice(OutdoorSpot.query.all()),
                            location=choice(Location.query.all()),
                            company=choice(Company.query.all()),
-                           project_name=offset + i,
+                           project_name=str(offset + i) + choice('abcdefghijklmno') * 30,
                            district=chr(randint(33, 127)),
                            floor=randint(33, 127),
                            longitude=uniform(30, 32),
@@ -218,9 +218,9 @@ class Project(db.Model):
             demo_area=self.demo_area,
             building_type=self.building_type,
             building_height=self.building_height,
-            finished_time=self.finished_time,
-            record_started_from=self.record_started_from,
-            record_ended_by=self.record_ended_by,
+            finished_time=self.finished_time.strftime("%Y-%m-%d"),
+            record_started_from=self.record_started_from.strftime("%Y-%m-%d"),
+            record_ended_by=self.record_ended_by.strftime("%Y-%m-%d"),
             description=self.description)
 
     def __repr__(self):
@@ -325,7 +325,7 @@ class OutdoorRecord(db.Model):
     def to_json(self):
         return dict(
             outdoor_spot_id=self.outdoor_spot_id,
-            outdoor_record_time=self.outdoor_record_time,
+            outdoor_record_time=self.outdoor_record_time.strftime("%Y-%m-%d:%H-%M"),
             outdoor_temperature=self.outdoor_temperature,
             outdoor_humidity=self.outdoor_humidity,
             chilling_temperature=self.chilling_temperature,
@@ -435,7 +435,7 @@ class SpotRecord(db.Model):
     window_opened = db.Column(db.Boolean)  # for xiaomi platform. noting to do with demoproj
     temperature = db.Column(db.Float)
     humidity = db.Column(db.Float)
-    energy_comsumption = db.Column(db.Float)
+    energy_consumption = db.Column(db.Float)
     pm25 = db.Column(db.Integer)
     co2 = db.Column(db.Integer)
 
@@ -453,7 +453,7 @@ class SpotRecord(db.Model):
                                   window_opened=bool(choice((0, 1))),
                                   temperature=randint(20, 30),
                                   humidity=randint(60, 80),
-                                  energy_comsumption=randint(2000, 3000),
+                                  energy_consumption=randint(2000, 3000),
                                   pm25=randint(20, 100),
                                   co2=randint(10, 30))
 
@@ -469,10 +469,10 @@ class SpotRecord(db.Model):
     def to_json(self):
         return dict(spot_id=self.spot_id,
                     spot_name=self.spot.spot_name,
-                    spot_record_time=self.spot_record_time,
+                    spot_record_time=self.spot_record_time.strftime("%Y-%m-%d:%H-%M"),
                     temperature=self.temperature,
                     humidity=self.humidity,
-                    energy_comsumption=self.energy_comsumption,
+                    energy_consumption=self.energy_consumption,
                     pm25=self.pm25,
                     co2=self.co2)
 
