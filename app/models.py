@@ -59,7 +59,8 @@ class User(db.Model):
         for _ in range(count):
             user = cls(user_name=chr(randint(33, 127)),
                        last_seen=rand_date(),
-                       passwd_hash=generate_password_hash(str(randint(10000, 99999))),
+                       passwd_hash=generate_password_hash(str(randint(10000,
+                                                                      99999))),
                        permission=choice(list(Permission)).value)
             db.session.add(user)
             try:
@@ -114,7 +115,7 @@ class Location(db.Model):
     project = db.relationship("Project", backref="location", lazy="dynamic")
 
     @classmethod
-    def gen_fake(cls, count=10):
+    def gen_fake(cls, count=20):
         locs: Dict = {
             "江苏": ("苏州", "南通", "常州"),
             "浙江": ("杭州",),
@@ -147,7 +148,8 @@ class Location(db.Model):
 class Project(db.Model):
     __tablename__ = "projects"
     project_id = db.Column(db.Integer, primary_key=True)
-    outdoor_spot_id = db.Column(db.Integer, db.ForeignKey("outdoor_spots.outdoor_spot_id"))
+    outdoor_spot_id = db.Column(db.Integer,
+                                db.ForeignKey("outdoor_spots.outdoor_spot_id"))
     location_id = db.Column(db.Integer, db.ForeignKey("locations.location_id"))
     company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
     project_name = db.Column(db.String(64), unique=True)
@@ -164,11 +166,12 @@ class Project(db.Model):
     record_ended_by = db.Column(db.DateTime, default=datetime.utcnow())
     description = db.Column(db.String(2048))
 
-    project_detail = db.relationship("ProjectDetail", backref="project", uselist=False)
+    project_detail = db.relationship("ProjectDetail", backref="project",
+                                     uselist=False)
     spot = db.relationship("Spot", backref="project", lazy="dynamic")
 
     @classmethod
-    def gen_fake(cls, count=10):
+    def gen_fake(cls, count=38):
         offset = randint(10, 50)
         for i in range(count):
             try:
@@ -199,7 +202,6 @@ class Project(db.Model):
 
     def to_json(self) -> Dict:
         return dict(
-            url='api.get_projects',
             project_id=self.project_id,
             location=dict(
                 location_id=self.location.location_id,
@@ -229,7 +231,8 @@ class Project(db.Model):
 
 class ProjectDetail(db.Model):
     __tablename__ = "project_details"
-    project_id = db.Column(db.Integer, db.ForeignKey("projects.project_id"), primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.project_id"),
+                           primary_key=True)
     image = db.Column(db.Binary)
     image_description = db.Column(db.String(64))
 
@@ -259,7 +262,8 @@ class OutdoorSpot(db.Model):
     outdoor_spot_id = db.Column(db.Integer, primary_key=True)
     outdoor_spot_name = db.Column(db.String(64), unique=True)
 
-    outdoor_record = db.relationship("OutdoorRecord", backref="outdoor_spot", lazy="dynamic")
+    outdoor_record = db.relationship("OutdoorRecord", backref="outdoor_spot",
+                                     lazy="dynamic")
     project = db.relationship("Project", backref="outdoor_spot", lazy="dynamic")
 
     @classmethod
@@ -280,7 +284,8 @@ class OutdoorSpot(db.Model):
             outdoor_spot_name=self.outdoor_spot_name)
 
     def __repr__(self):
-        return "<OutdoorSpot {} {}>".format(self.outdoor_spot_id, self.outdoor_spot_name)
+        return "<OutdoorSpot {} {}>".format(self.outdoor_spot_id,
+                                            self.outdoor_spot_name)
 
 
 class OutdoorRecord(db.Model):
@@ -289,11 +294,12 @@ class OutdoorRecord(db.Model):
     """
     __tablename__ = "outdoor_records"
     outdoor_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
-    outdoor_spot_id = db.Column(db.Integer, db.ForeignKey("outdoor_spots.outdoor_spot_id"))
+    outdoor_spot_id = db.Column(db.Integer,
+                                db.ForeignKey("outdoor_spots.outdoor_spot_id"))
     outdoor_temperature = db.Column(db.Float)
     outdoor_humidity = db.Column(db.Float)
-    chilling_temperature = db.Column(db.Float)
-    wind_direction = db.Column(db.Float)
+    wind_chill= db.Column(db.Float)
+    solar_radiation = db.Column(db.Float)
     wind_speed = db.Column(db.Float)
 
     def __init__(self, **kwargs):
@@ -302,15 +308,15 @@ class OutdoorRecord(db.Model):
             self.outdoor_record_time = normalize_time(5)(self.outdoor_record_time)
 
     @classmethod
-    def gen_fake(cls, count=200):
+    def gen_fake(cls, count=2000):
         for _ in range(count):
             try:
                 record = cls(outdoor_record_time=rand_date(),
                              outdoor_spot=choice(OutdoorSpot.query.all()),
                              outdoor_temperature=randint(20, 30),
                              outdoor_humidity=randint(60, 80),
-                             chilling_temperature=randint(20, 30),
-                             wind_direction=randint(0, 359),
+                             wind_chill=randint(20, 30),
+                             solar_radiation=randint(0, 20),
                              wind_speed=randint(0, 200))
 
                 db.session.add(record)
@@ -328,8 +334,8 @@ class OutdoorRecord(db.Model):
             outdoor_record_time=self.outdoor_record_time.strftime("%Y-%m-%d:%H-%M"),
             outdoor_temperature=self.outdoor_temperature,
             outdoor_humidity=self.outdoor_humidity,
-            chilling_temperature=self.chilling_temperature,
-            wind_direction=self.wind_direction,
+            wind_chill=self.wind_chill,
+            solar_radiation=self.solar_radiation,
             wind_speed=self.wind_speed)
 
     def __repr__(self):
@@ -348,7 +354,8 @@ class ClimateArea(db.Model):
 
     @classmethod
     def gen_fake(cls):
-        for code in [letter + num for letter in ['A', 'B', 'C'] for num in '1 2 3'.split()]:
+        for code in [letter + num for letter in ['A', 'B', 'C']
+                     for num in '1 2 3'.split()]:
             clm_area = cls(area_name=code)
             db.session.add(clm_area)
             try:
@@ -432,7 +439,7 @@ class SpotRecord(db.Model):
     __tablename__ = "spot_records"
     spot_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
     spot_id = db.Column(db.Integer, db.ForeignKey("spots.spot_id"))
-    window_opened = db.Column(db.Boolean)  # for xiaomi platform. noting to do with demoproj
+    window_opened = db.Column(db.Boolean)  # for xiaomi platform.
     temperature = db.Column(db.Float)
     humidity = db.Column(db.Float)
     energy_consumption = db.Column(db.Float)
@@ -445,7 +452,7 @@ class SpotRecord(db.Model):
             self.spot_record_time = normalize_time(5)(self.spot_record_time)
 
     @classmethod
-    def gen_fake(cls, count=200):
+    def gen_fake(cls, count=5000):
         for _ in range(count):
             try:
                 spot_record = cls(spot_record_time=rand_date(),

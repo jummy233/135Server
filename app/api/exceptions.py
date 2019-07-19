@@ -1,0 +1,2 @@
+class ValueExistedError(ValueError):
+    pass
