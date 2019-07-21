@@ -201,6 +201,11 @@ class Project(db.Model):
                 db.commit.rollback()
 
     def to_json(self) -> Dict:
+        odspot = (OutdoorSpot
+                  .query
+                  .filter_by(outdoor_spot_id=self.outdoor_spot_id)
+                  .first())
+
         return dict(
             project_id=self.project_id,
             location=dict(
@@ -212,6 +217,8 @@ class Project(db.Model):
                 tech_support_company=self.company.tech_support_company,
                 project_company=self.company.project_company),
             project_name=self.project_name,
+            outdoor_spot_id=self.outdoor_spot_id,
+            outdoor_spot_name=odspot.outdoor_spot_name,
             district=self.district,
             floor=self.floor,
             latitude=self.latitude,
@@ -425,12 +432,16 @@ class Spot(db.Model):
         return "<Spot {}>".format(self.spot_name)
 
     def to_json(self):
+        image_base64 = None
+        if self.image:
+            base64.encodebytes(self.image).decode()
+
         return dict(
             spot_id=self.spot_id,
             project_id=self.project_id,
             project_name=self.project.project_name,
             spot_name=self.spot_name,
-            image=base64.encodebytes(self.image).decode())
+            image=image_base64)
 
 class SpotRecord(db.Model):
     """
