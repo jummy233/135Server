@@ -1,5 +1,6 @@
 from  typing import Dict, Optional
 from .exceptions import ValueExistedError
+from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime
 from .models import User, Location, Project, ProjectDetail
 from .models import  ClimateArea, Company, Permission
@@ -10,6 +11,16 @@ from . import db
 
 def interface(f):
     return f
+
+
+@interface
+def commit():
+    try:  # commit after all transaction are successed.
+        db.session.commit()
+    except IndexError:
+        db.commit.rollback()
+    except:
+        raise
 
 
 @interface
@@ -60,6 +71,9 @@ def add_by_project_generic_view(post_data) -> None:
     except ValueError as e:
         print("Error! add_generic_view with unmatched value", e)
         raise
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
+        raise
 
 
 @interface
@@ -78,6 +92,47 @@ def add_by_spot_record_view(post_data) -> None:
         raise
     except ValueError as e:
         print("Error! add_generic_view with unmatched value", e)
+        raise
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
+        raise
+
+
+@interface
+def delete_by_project_generic_view(pid) -> None:
+    project = Project.query.filter_by(project_id=pid).first()
+    company = project.company
+    project_details = (ProjectDetail
+                       .query
+                       .filter_by(project_id=pid)
+                       .all())
+
+    try:
+        if (project_details):
+            for pd in project_details:
+                db.session.delete(pd)
+        if (company and len(company.project.all()) == 1):
+            db.session.delete(company)
+        db.session.delete(project)
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
+        raise
+    except Exception as e:
+        print('Error when delete by project_generic_view', e)
+        raise
+
+
+@interface
+def delete_by_spot_record_view(sid) -> None:
+    spot = Project.query.filter_by(project_id=sid)
+
+    try:
+        db.session.delete(spot)
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
+        raise
+    except Exception as e:
+        print('Error delete by spot_generic_view', e)
         raise
 
 
@@ -108,6 +163,9 @@ def add_company(company_data: Dict) -> Optional[Company]:
         raise
     except ValueError as e:
         print("Error! add_company with unmatched value", e)
+        raise
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
         raise
 
     return new_company
@@ -141,6 +199,10 @@ def add_outdoor_spot(od_spot_data: Dict) -> Optional[OutdoorSpot]:
     except ValueError as e:
         print("Error! add_outdoor_spot with unmatched value", e)
         raise
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
+        raise
+
     return new_od_spot
 
 
@@ -174,9 +236,14 @@ def add_location(location_data: Dict) -> Optional[Location]:
     except ValueError as e:
         print("Error! add_location with unmatched value", e)
         raise
+    except IntegrityError as e:
+        print("Error! add_generic_view: ", e)
+        raise
+
     except:
         raise
 
     return new_loc
+
 
 
