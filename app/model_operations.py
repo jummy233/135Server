@@ -123,8 +123,8 @@ def delete_by_project_generic_view(pid) -> None:
 
 
 @interface
-def delete_by_spot_record_view(sid) -> None:
-    spot = Project.query.filter_by(project_id=sid)
+def delete_by_spot_record_view(sid: int) -> None:
+    spot = Spot.query.filter_by(spot_id=sid).first()
 
     try:
         db.session.delete(spot)

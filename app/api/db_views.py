@@ -183,7 +183,6 @@ def project_pic_view(pid):
 @api.route('/view/project/generic/<pid>', methods=["PUT", "DELETE"])
 def project_generic_view_update_delete(pid: int):
     response_object = {'status': 'success'}
-    print('here')
     if request.method == 'PUT':
         pass
     if request.method == 'DELETE':
@@ -193,14 +192,26 @@ def project_generic_view_update_delete(pid: int):
             commit()
         except Exception as e:
             response_object["status"] = "failed"
-            response_object["message"] = "project remove failed: " + e
+            response_object["message"] = f"project remove failed: {e}"
 
     return jsonify(response_object)
 
 
-@api.route('/view/<pid>/spots', methods=["PUT", "DELETE"])
-def spot_generic_view_update_delete(pid: int):
-    pass
+@api.route('/view/<pid>/spots/<sid>', methods=["PUT", "DELETE"])
+def spot_generic_view_update_delete(pid: int, sid: int):
+    response_object = {'status': 'success'}
+    if request.method == 'PUT':
+        pass
+    if request.method == 'DELETE':
+        response_object["message"] = "spot removed!"
+        try:
+            delete_by_spot_record_view(sid)
+            commit()
+        except Exception as e:
+            response_object["status"] = "failed"
+            response_object["message"] = f"spot remove failed: {e}"
+
+    return jsonify(response_object)
 
 
 
