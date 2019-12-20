@@ -4,7 +4,7 @@ from typing import NewType, Dict, Optional, Tuple, TypedDict, List
 import urllib.parse
 from operator import itemgetter
 import json
-from utils import _currentTimestamp
+from utils import currentTimestamp
 
 ################
 #  auth types  #
@@ -44,15 +44,6 @@ DataPointParam = (
                'endTime': str}))  # time format: yyyy-MM-ddTHH:mm:ss
 
 
-auth: AuthData = AuthData(account='esic_syp',
-                          password='a123456',
-                          base_url='http://hkzk.esic010.com/',
-                          auth_url='v1/businessUser/auth',
-                          device_url='/v1/device/devices',
-                          attr_url='/v1/history/deviceAttrs/',
-                          datapoint_url='/v1/data/datapoints')
-
-
 #  @pysnooper.snoop()
 def _get_token(auth: AuthData) -> Optional[AuthToken]:
     """
@@ -65,7 +56,7 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
 
     # construct request
     url: str = urllib.parse.urljoin(base_url, auth_url)
-    timestamp: int = _currentTimestamp(digit=13)
+    timestamp: int = currentTimestamp(digit=13)
 
     md5pw: str = md5(password.encode('ascii')).hexdigest()
     sign: str = md5((md5pw + str(timestamp)).encode('ascii')).hexdigest()
@@ -90,7 +81,7 @@ def _get_device_list(auth: AuthData, params: Dict) -> Optional[List]:
     """
 
     method: str = 'POST'
-    timestamp: int = _currentTimestamp(13)
+    timestamp: int = currentTimestamp(13)
     params_json: str = json.dumps(params)
     authtoken = _get_token(auth)
     if authtoken:
@@ -127,7 +118,7 @@ def _get_device_attrs(auth: AuthData, gid: str) -> Optional[List]:
     """
 
     method: str = 'GET'
-    timestamp: int = _currentTimestamp(13)
+    timestamp: int = currentTimestamp(13)
 
     authtoken = _get_token(auth)
     if authtoken:
@@ -159,7 +150,7 @@ def _get_device_attrs(auth: AuthData, gid: str) -> Optional[List]:
 def _get_data_points(auth: AuthData, params: DataPointParam) -> Optional[List]:
     """ return data """
     method: str = 'POST'
-    timestamp: int = _currentTimestamp(13)
+    timestamp: int = currentTimestamp(13)
     param_json = json.dumps(params)
 
     authtoken = _get_token(auth)
