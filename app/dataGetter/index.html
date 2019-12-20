@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html >
+
+	<head>
+		 <meta charset="UTF-8">
+		 <!-- saved from url=(0014)about:internet -->
+		<title>建院数据获取测试接口</title>
+		   <script src="js/jquery-3.1.1.min.js"></script>
+		    <script src="js/md5.js"></script>
+			<script src="js/sha1.js"></script>
+	</head>
+
+	<body>
+
+		<div >
+				<button   onclick="getToken();">建院数据获取测试</button>
+
+				<!--<button   onclick="getDataPoints();">查询设备数据</button> -->
+
+			</div>
+
+
+		<script type="text/javascript">
+
+	var urlbase = "http://hkzk.esic010.com";
+
+     /***
+	 **	  第一步获取token
+	 */
+     function getToken() {
+
+			var timestamp = (new Date()).valueOf();
+			var sign = hex_md5(hex_md5("a123456")+timestamp);
+			 //console.log("获取token,加密后字符= "+sign);
+           $.ajax({
+                type: "post",
+                url:urlbase+"/v1/businessUser/auth",
+                dataType:"json",
+                contentType:"application/json",
+                data: JSON.stringify({
+                  "account":"esic_syp",
+                  "sign":sign,
+                  "ts":timestamp,
+                  "ukey":""
+                }),
+             success: (data) => {
+                  console.log("token认证信息=");
+                  console.log(data);
+                  queryDevices(data.token,data.uid);
+                }
+            });
+        }
+
+
+	/***
+	* 第二步由token+参数查询设备列表
+	*/
+	function queryDevices(token,uid) {
+
+	   var method = "POST";
+
+	   var timestamp = (new Date()).valueOf();
+
+	   var url= "/v1/device/devices";
+
+       var params =JSON.stringify({"companyId":"HKZ",
+         "start":1,"size":10,"pageNo":1,"pageSize":10});
+
+	   var sign = CryptoJS.SHA1(method + url + params + timestamp + token).toString();
+
+           $.ajax({
+                type: method,
+                url:urlbase+url,
+                dataType:"json",
+                contentType:"application/json",
+				headers: {'Content-Type': 'application/json;charset=UTF-8','ts':timestamp,'uid':uid,'sign':sign},
+                data:params,
+				success: function (data)
+				{
+					if(data.code == '0' && data.data.total > 0)
+					{
+						console.log("设备列表==");
+
+						var devs = data.data.devs;
+
+						for(var i=0;i < devs.length;i++)
+						{
+							   console.log(devs[i]);
+
+							   var dev = devs[i];
+
+							   queryDeviceAttrs(token,uid,devs[i].gid,function(aid)
+							   {
+							   		 getDataPoints(token,uid,dev,aid);
+							   }) ;
+						}
+
+						alert("接口调用成功，F12查看打印数据内容");
+					}
+
+                }
+            });
+  }
+
+  /***
+	*	 第三步由token+属性ID参数查询属性表
+	*/
+	function queryDeviceAttrs(token,uid,gid,callback) {
+
+	   var method = "GET";
+
+	   var timestamp = (new Date()).valueOf();
+
+	   var url= "/v1/history/deviceAttrs/"+gid;
+
+	   var sign = CryptoJS.SHA1(method + url + timestamp + token).toString();
+
+           $.ajax({
+                type: method,
+                url:urlbase+url,
+                dataType:"json",
+                contentType:"application/json",
+				headers: {'Content-Type': 'application/json;charset=UTF-8','ts':timestamp,'uid':uid,'sign':sign},
+				success: function (data)
+				{
+					//console.log(data);
+
+					var aid = "" ;
+
+					if(data.code == '0' && data.data.jsonArray.length > 0)
+					{
+						console.log("属性表=");
+
+						var deviceAttrs = data.data.jsonArray;
+
+						for(var i=0;i < deviceAttrs.length;i++)
+						{
+							   console.log(deviceAttrs[i]);
+
+							   aid +=  deviceAttrs[i].deviceValueId ;
+
+							   if(i < deviceAttrs.length-1)
+							    aid += ",";
+						}
+					}
+
+					 callback && callback(aid);
+                }
+            });
+  }
+
+
+		 /***
+	 **	  第四步由token+device参数等获取设备接口数据
+	 */
+		function getDataPoints(token,uid,device,aid) {
+
+		    var method = "POST";
+
+			var timestamp = (new Date()).valueOf();
+
+			var url= "/v1/data/datapoints";
+
+            var params =JSON.stringify({'gid':device.gid,'did':device.deviceId,'aid':aid,'startTime':'2019-12-16T00:00:00','endTime':'2019-12-17T00:00:00'});
+
+            var sign = CryptoJS.SHA1(method + url + params + timestamp + token).toString();
+
+            $.ajax({
+                type: method,
+                url:urlbase+url,
+                dataType:"json",
+                contentType:"application/json",
+
+				headers: {'Content-Type': 'application/json;charset=UTF-8','ts':timestamp,'uid':uid,'sign':sign},
+
+                data:params,
+
+				success: function (data)
+				{
+					console.log("设备接口数据=");
+					console.log(data);
+                }
+            });
+        }
+</script>
+	</body>
+</html>
