@@ -41,6 +41,6 @@ xauth: 'x.AuthData' = dict(account='15123025720',
                            refresh_token='',
 
                            api_query_base_url='https://aiot-open-3rd.aqara.cn/3rd/v1.0/',
-                           api_query_pos_url='/open/position/query',
-                           api_query_dev_url='/open/device/query',
-                           api_query_resrouce_url='/open/resource/query')
+                           api_query_pos_url='open/position/query',
+                           api_query_dev_url='open/device/query',
+                           api_query_resrouce_url='open/resource/query')

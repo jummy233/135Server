@@ -74,7 +74,9 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
     return None
 
 
-def _get_device_list(auth: AuthData, params: Dict) -> Optional[List]:
+def _get_device_list(auth: AuthData,
+                     authtoken: Optional[AuthToken],
+                     params: Dict) -> Optional[List]:
     """
     (token + params) return device list as dict by given param
     only return the Array with data.
@@ -83,9 +85,9 @@ def _get_device_list(auth: AuthData, params: Dict) -> Optional[List]:
     method: str = 'POST'
     timestamp: int = currentTimestamp(13)
     params_json: str = json.dumps(params)
-    authtoken = _get_token(auth)
-    if authtoken:
-        token, uid = authtoken
+    if not authtoken:
+        return None
+    token, uid = authtoken
 
     # construct request
     base_url, device_url = itemgetter('base_url', 'device_url')(auth)
@@ -111,7 +113,9 @@ def _get_device_list(auth: AuthData, params: Dict) -> Optional[List]:
     return rj['data']['devs']
 
 
-def _get_device_attrs(auth: AuthData, gid: str) -> Optional[List]:
+def _get_device_attrs(auth: AuthData,
+                      authtoken: Optional[AuthToken],
+                      gid: str) -> Optional[List]:
     """
     (token + attrId) return paramter attri table
     only return the Array with data.
@@ -120,9 +124,9 @@ def _get_device_attrs(auth: AuthData, gid: str) -> Optional[List]:
     method: str = 'GET'
     timestamp: int = currentTimestamp(13)
 
-    authtoken = _get_token(auth)
-    if authtoken:
-        token, uid = authtoken
+    if not authtoken:
+        return None
+    token, uid = authtoken
 
     # construct request.
     base_url, attr_url = itemgetter('base_url', 'attr_url')(auth)
@@ -147,15 +151,18 @@ def _get_device_attrs(auth: AuthData, gid: str) -> Optional[List]:
     return rj['data']['jsonArray']
 
 
-def _get_data_points(auth: AuthData, params: DataPointParam) -> Optional[List]:
+def _get_data_points(auth: AuthData,
+                     authtoken: Optional[AuthToken],
+                     params: DataPointParam) -> Optional[List]:
     """ return data """
     method: str = 'POST'
     timestamp: int = currentTimestamp(13)
     param_json = json.dumps(params)
 
     authtoken = _get_token(auth)
-    if authtoken:
-        token, uid = authtoken
+    if not authtoken:
+        return None
+    token, uid = authtoken
 
     # construct request.
     base_url, datapoint_url = itemgetter('base_url', 'datapoint_url')(auth)

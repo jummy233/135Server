@@ -1,15 +1,11 @@
 import requests
 from hashlib import md5, sha1
-from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Callable, cast
+from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Callable, cast, TypeVar
 from operator import itemgetter
 import urllib.parse
 from datetime import datetime as dt
 from utils import currentTimestamp
 import json
-
-from authConfig import xauth as auth  # TODO: Debug. remove after development.
-
-Token = NewType('Token', str)
 
 AuthData = (
     TypedDict('AuthData',
@@ -55,7 +51,6 @@ DeviceParam = (
                'pageNum': int,
                'pageSize': int}, total=False))
 
-###########################################
 # Nested type declaration
 OneResourceParam = (
     TypedDict('OneResourceParam',
@@ -65,20 +60,53 @@ OneResourceParam = (
 
 class ResourceParam(TypedDict):
     data: List[OneResourceParam]
-###########################################
 
 
-TokenDict = TypedDict('TokenDict',
-                      {'access_token': str,
-                       'refresh_token': str,
-                       'openId': str,
-                       'state': str,
-                       'token_type': str,
-                       'expires_in': int})
+TokenResult = TypedDict('TokenResult',
+                        {'access_token': str,
+                         'refresh_token': str,
+                         'openId': str,
+                         'state': str,
+                         'token_type': str,
+                         'expires_in': int})
+
+PosData = TypedDict('PosData',
+                    {'positionName': str,
+                     'positionId': str,
+                     'description': str,
+                     'createTime': str})
+
+
+class PosResult(TypedDict):
+    data: List[PosData]
+    totalCount: int
+
+
+DeviceData = TypedDict('DeviceData',
+                       {'did': str,
+                        'name': str,
+                        'model': str,
+                        'parentId': str,
+                        'positionId': str,
+                        'state': int,
+                        'registerTime': str})
+
+
+class DeviceResult(TypedDict):
+    data: List[DeviceData]
+    totalCount: int
+
+
+ResourceData = TypedDict('ResourceData', {'did': str, 'attr': str, 'value': str, 'time': int})
+ResourceResult = List[ResourceData]
+
+###############################################
 
 
 def _get_auth_code(auth: AuthData) -> Optional[str]:
+
     """ return auth code """
+
     (client_id,
      auth_base_url,
      authorize_url,
@@ -111,11 +139,13 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     return query['code']
 
 
-def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenDict]:
+def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenResult]:
+
     """
     return token with given auth code
     if refresh token is passed, it is then used to retreive new token.
     """
+
     (client_id,
      client_secret,
      redirect_uri,
@@ -140,7 +170,7 @@ def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenD
                     'code': authcode,
                     'state': state}
     if refresh:
-        params.update({'refresh_token': refresh})
+        params.update({'refresh_token': refresh, 'grant_type': 'refresh_token'})
 
     response: requests.Response = requests.post(url, data=params)
     if response.status_code != 200:
@@ -152,22 +182,30 @@ def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenD
 ###################
 
 
-def _gen_sign(auth: AuthData, token: TokenDict) -> str:
+def _gen_sign(auth: AuthData, token: Optional[TokenResult]) -> Optional[str]:
+    if not token:
+        return None
 
     access_token: str = token['access_token']
     appId, appKey = itemgetter('appId', 'appKey')(auth)
 
+    # read Aqara doc about how to construct sign.
     sign_dict: Dict = {'accesstoken': access_token, 'appid': appId, 'time': str(currentTimestamp(13))}
     sign: str = md5((urllib.parse.urlencode(sign_dict).lower() + '&' + appKey).encode('ascii')).hexdigest()
-    print(urllib.parse.urlencode(sign_dict).lower() + '&' + appKey)
-    print(sign)
     return sign
 
 
-def _gen_header(auth: AuthData, token: TokenDict, sign: str) -> Dict:
+def _gen_header(auth: AuthData, token: Optional[TokenResult], sign: Optional[str]) -> Optional[Dict]:
+    if not token or sign:
+        return None
+
     access_token: str = token['access_token']
     appId: str = auth['appId']
-    return dict(Accesstoken=access_token, Appid=appId, Sign=sign, Time=str(currentTimestamp(13)))
+    return {'Accesstoken': access_token,
+            'Appid': appId,
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sign': sign,
+            'Time': str(currentTimestamp(13))}
 
 
 #####################
@@ -175,30 +213,68 @@ def _gen_header(auth: AuthData, token: TokenDict, sign: str) -> Dict:
 #####################
 
 
-def _get_pos(auth: AuthData, params: PosParam = {}):
-    (api_query_base_url, api_query_pos_url) = itemgetter('api_query_base_url', 'api_query_pos_url')(auth)
-    token: Optional[TokenDict] = _get_token(auth)
+def _get_pos(auth: AuthData,
+             token: Optional[TokenResult],
+             params: PosParam = {}) -> Optional[PosResult]:
+
+    (api_query_base_url, api_query_pos_url) = itemgetter('api_query_base_url',
+                                                         'api_query_pos_url')(auth)
     if not token:
         return None
 
-    sign: str = _gen_sign(auth, token)
-    headers: Dict = _gen_header(auth, token, sign)
+    sign: Optional[str] = _gen_sign(auth, token)
+    headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
-    response: requests.Response = requests.post(url, data=cast(Dict, params), headers=headers)
-    print(url)
+    response: requests.Response = requests.get(url, data=cast(Dict, params), headers=headers)
 
-    print(response.content)
-
-
-_get_pos(auth)
-
-def _get_device():
-    pass
+    if response.status_code != 200:
+        return None
+    return response.json()['result']
 
 
-def _get_resource():
-    pass
+def _get_device(auth: AuthData,
+                token: Optional[TokenResult],
+                params: DeviceParam = {}) -> Optional[DeviceResult]:
+
+    (api_query_base_url, api_query_pos_url) = itemgetter('api_query_base_url',
+                                                         'api_query_dev_url')(auth)
+
+    if not token:
+        return None
+
+    sign: Optional[str] = _gen_sign(auth, token)
+    headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
+
+    url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
+    response: requests.Response = requests.get(url, data=cast(Dict, params), headers=headers)
+
+    if response.status_code != 200:
+        return None
+    return response.json()['result']
+
+
+def _get_resource(auth: AuthData,
+                  token: Optional[TokenResult],
+                  params: ResourceParam) -> Optional[ResourceResult]:
+
+    (api_query_base_url, api_query_resrouce_url) = itemgetter('api_query_base_url',
+                                                              'api_query_resrouce_url')(auth)
+    if not token:
+        return None
+
+    sign: Optional[str] = _gen_sign(auth, token)
+    headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
+
+    url: str = urllib.parse.urljoin(api_query_base_url, api_query_resrouce_url)
+    response: requests.Response = requests.post(url, json=cast(Dict, params), headers=headers)
+
+    if response.status_code != 200:
+        return None
+    return response.json()['result']
+
+
+
 
 
 
