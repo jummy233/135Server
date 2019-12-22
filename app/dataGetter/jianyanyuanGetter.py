@@ -5,6 +5,22 @@ import urllib.parse
 from operator import itemgetter
 import json
 from utils import currentTimestamp
+import logging
+
+#############
+#  attr ids #
+#############
+attrs: Dict = {
+    # data collectors.
+    'pm25': '1',
+    'co2': '2',
+    'temperature': '3',
+    'humidity': '4',
+
+    # monitor devices.
+    'ac_power': '155'
+}
+
 
 ################
 #  auth types  #
@@ -43,8 +59,20 @@ DataPointParam = (
                'startTime': str,
                'endTime': str}))  # time format: yyyy-MM-ddTHH:mm:ss
 
+Gid = NewType('Gid', str)
 
-#  @pysnooper.snoop()
+###############
+#  Result Type#
+###############
+
+DeviceResult = NewType('DeviceResult', Dict)
+AttrResult = NewType('AttrResult', Dict)
+DataPointResult = TypedDict('DataPointResult',
+                            {'aid': int,
+                             'key': str,
+                             'value': str})
+
+
 def _get_token(auth: AuthData) -> Optional[AuthToken]:
     """
     get token
@@ -68,15 +96,16 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
         'ukey': ''}
 
     response: requests.Response = requests.post(url, json=request_data)
-    if response.status_code == 200:
-        rj = response.json()
-        return AuthToken((rj['token'], rj['uid']))
-    return None
+    if response.status_code != 200:
+        logging.error('error response %s', response)
+        return None
+    rj = response.json()
+    return AuthToken((rj['token'], rj['uid']))
 
 
 def _get_device_list(auth: AuthData,
                      authtoken: Optional[AuthToken],
-                     params: Dict) -> Optional[List]:
+                     params: Dict = {}) -> Optional[List[DeviceResult]]:
     """
     (token + params) return device list as dict by given param
     only return the Array with data.
@@ -86,6 +115,7 @@ def _get_device_list(auth: AuthData,
     timestamp: int = currentTimestamp(13)
     params_json: str = json.dumps(params)
     if not authtoken:
+        logging.error('token is None')
         return None
     token, uid = authtoken
 
@@ -106,18 +136,20 @@ def _get_device_list(auth: AuthData,
     rj: Dict = response.json()
 
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
 
     if rj['code'] != 0:
+        logging.error('error return code: %s', rj['code'])
         return None
     return rj['data']['devs']
 
 
 def _get_device_attrs(auth: AuthData,
                       authtoken: Optional[AuthToken],
-                      gid: str) -> Optional[List]:
+                      gid: str) -> Optional[List[AttrResult]]:
     """
-    (token + attrId) return paramter attri table
+    (token + attrId) return paramter attr table
     only return the Array with data.
     """
 
@@ -125,6 +157,7 @@ def _get_device_attrs(auth: AuthData,
     timestamp: int = currentTimestamp(13)
 
     if not authtoken:
+        logging.error('token is None')
         return None
     token, uid = authtoken
 
@@ -143,17 +176,19 @@ def _get_device_attrs(auth: AuthData,
 
     response: requests.Response = requests.get(url, headers=headers)
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
 
     rj: Dict = response.json()
     if rj['code'] != 0:
+        logging.error('error return code: ', rj['code'])
         return None
     return rj['data']['jsonArray']
 
 
 def _get_data_points(auth: AuthData,
                      authtoken: Optional[AuthToken],
-                     params: DataPointParam) -> Optional[List]:
+                     params: DataPointParam) -> Optional[List[DataPointResult]]:
     """ return data """
     method: str = 'POST'
     timestamp: int = currentTimestamp(13)
@@ -161,6 +196,7 @@ def _get_data_points(auth: AuthData,
 
     authtoken = _get_token(auth)
     if not authtoken:
+        logging.error('token is None')
         return None
     token, uid = authtoken
 
@@ -178,12 +214,17 @@ def _get_data_points(auth: AuthData,
 
     response: requests.Response = requests.post(url, data=param_json, headers=headers)
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
     rj = response.json()
     if rj['code'] != 0:
+        logging.error('error return code from server: %s', rj['code'])
         return None
+    if 'asData' not in rj['data'].keys():
+        logging.error('no data')
+        return None
+
+    print(response.json())
     return rj['data']['asData']
-
-
 
 

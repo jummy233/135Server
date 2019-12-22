@@ -3,6 +3,9 @@ import unittest
 import jianyanyuanGetter as j
 import xiaomiGetter as x
 import authConfig
+import dataMidware
+import time
+from sys import argv
 jauth = authConfig.jauth
 xauth = authConfig.xauth
 
@@ -57,6 +60,12 @@ class XiaomiGetterTest(unittest.TestCase):
         token: Optional[x.TokenResult] = x._get_token(xauth)
         self.assertTrue(token is not None and 'access_token' in token)
 
+    def test_get_token_refresh(self):
+        oldtoken = dict(**self.token)
+        self.token = x._get_token(xauth, refresh=self.token)
+
+        self.assertTrue(oldtoken['access_token'] != self.token['access_token'])
+
     def test_gen_sign(self):
         sign: Optional[str] = x._gen_sign(xauth, self.token)
         self.assertTrue(sign is not None)
@@ -75,3 +84,14 @@ class XiaomiGetterTest(unittest.TestCase):
         res: Optional[x.ResourceResult] = x._get_resource(xauth, self.token, params)
         self.assertTrue(res is not None)
 
+
+class SpotDataTest(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_JianyanyuanConstructor(self):
+        j = dataMidware.JianYanYuanData()
+        token1 = j.token
+        time.sleep(21)
+        token2 = j.token
+        self.assertTrue(token1 != token2)

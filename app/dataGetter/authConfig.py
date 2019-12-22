@@ -14,8 +14,8 @@ if TYPE_CHECKING:  # avoid circular importing.
 #################
 #  Jianyanyuan  #
 #################
-
-jauth: 'j.AuthData' = dict(account='esic_syp',
+# esic_syp is the test account. 135 project account is shisanwu.
+jauth: 'j.AuthData' = dict(account='shisanwu',
                            password='a123456',
                            base_url='http://hkzk.esic010.com/',
                            auth_url='v1/businessUser/auth',
@@ -44,3 +44,19 @@ xauth: 'x.AuthData' = dict(account='15123025720',
                            api_query_pos_url='open/position/query',
                            api_query_dev_url='open/device/query',
                            api_query_resrouce_url='open/resource/query')
+
+###############
+#  Test param #
+###############
+
+jdevice = {'companyId': 'HKZ',
+           'start': 1,
+           'size': 20,
+           'pageNo': 1,
+           'pageSize': '20'}
+
+jdatapoint = {'aid': '152,153,154,155,156,157,158,159,160',
+              'did': '20205754088917917696',
+              'endTime': '2019-12-23T00:00:00',
+              'gid': 'rkrbhj',
+              'startTime': '2019-12-22T00:00:00'}

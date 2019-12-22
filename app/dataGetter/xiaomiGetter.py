@@ -6,6 +6,7 @@ import urllib.parse
 from datetime import datetime as dt
 from utils import currentTimestamp
 import json
+import logging
 
 AuthData = (
     TypedDict('AuthData',
@@ -28,14 +29,6 @@ AuthData = (
                'api_query_pos_url': str,
                'api_query_dev_url': str,
                'api_query_resrouce_url': str}, total=False))
-
-
-def _auth_refresh_token(auth: AuthData, token: str) -> AuthData:
-    """ return auth data for refreshing token """
-    newauth: AuthData = auth.copy()
-    newauth['refresh_token'] = token
-    newauth['grant_type'] = 'refresh_token'
-    return newauth
 
 
 PosParam = (  # Method: Get
@@ -132,6 +125,7 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
 
     # get auth code from parameters in returned url.
     if 'code' not in response_url:
+        logging.error('authenticion error')
         return None
 
     returned_params: str = urllib.parse.urlsplit(response_url).query
@@ -139,12 +133,19 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     return query['code']
 
 
-def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenResult]:
+def _get_token(auth: AuthData, refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
 
     """
     return token with given auth code
     if refresh token is passed, it is then used to retreive new token.
     """
+    # TODO refresh
+    def _auth_refresh_token(params: Dict, token: TokenResult) -> Dict:
+        """ return auth data for refreshing token """
+        newparams = dict(**params)
+        newparams['refresh_token'] = token['refresh_token']
+        newparams['grant_type'] = 'refresh_token'
+        return newparams
 
     (client_id,
      client_secret,
@@ -155,10 +156,9 @@ def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenR
      state) = itemgetter('appId', 'appKey', 'redirect_uri', 'auth_base_url',
                          'token_url', 'grant_type', 'state')(auth)
 
-    # TODO refresh
-
     authcode: Optional[str] = _get_auth_code(auth)
     if not authcode:
+        logging.error('authcode is None')
         return None
 
     # construct request
@@ -170,10 +170,11 @@ def _get_token(auth: AuthData, refresh: Optional[str] = None) -> Optional[TokenR
                     'code': authcode,
                     'state': state}
     if refresh:
-        params.update({'refresh_token': refresh, 'grant_type': 'refresh_token'})
+        params = _auth_refresh_token(params, refresh)
 
     response: requests.Response = requests.post(url, data=params)
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
     return response.json()
 
@@ -196,7 +197,11 @@ def _gen_sign(auth: AuthData, token: Optional[TokenResult]) -> Optional[str]:
 
 
 def _gen_header(auth: AuthData, token: Optional[TokenResult], sign: Optional[str]) -> Optional[Dict]:
-    if not token or sign:
+    if not token:
+        logging.error('token is None')
+        return None
+    if not sign:
+        logging.error('sign is None')
         return None
 
     access_token: str = token['access_token']
@@ -220,6 +225,7 @@ def _get_pos(auth: AuthData,
     (api_query_base_url, api_query_pos_url) = itemgetter('api_query_base_url',
                                                          'api_query_pos_url')(auth)
     if not token:
+        logging.error('token is None')
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
@@ -229,6 +235,7 @@ def _get_pos(auth: AuthData,
     response: requests.Response = requests.get(url, data=cast(Dict, params), headers=headers)
 
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
     return response.json()['result']
 
@@ -241,6 +248,7 @@ def _get_device(auth: AuthData,
                                                          'api_query_dev_url')(auth)
 
     if not token:
+        logging.error('token is None')
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
@@ -250,6 +258,7 @@ def _get_device(auth: AuthData,
     response: requests.Response = requests.get(url, data=cast(Dict, params), headers=headers)
 
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
     return response.json()['result']
 
@@ -261,6 +270,7 @@ def _get_resource(auth: AuthData,
     (api_query_base_url, api_query_resrouce_url) = itemgetter('api_query_base_url',
                                                               'api_query_resrouce_url')(auth)
     if not token:
+        logging.error('token is None')
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
@@ -270,6 +280,7 @@ def _get_resource(auth: AuthData,
     response: requests.Response = requests.post(url, json=cast(Dict, params), headers=headers)
 
     if response.status_code != 200:
+        logging.error('error response %s', response)
         return None
     return response.json()['result']
 
