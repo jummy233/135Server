@@ -6,20 +6,7 @@ from operator import itemgetter
 import json
 from utils import currentTimestamp
 import logging
-
-#############
-#  attr ids #
-#############
-attrs: Dict = {
-    # data collectors.
-    'pm25': '1',
-    'co2': '2',
-    'temperature': '3',
-    'humidity': '4',
-
-    # monitor devices.
-    'ac_power': '155'
-}
+from typing import NewType, Dict, Optional, Tuple, TypedDict, List
 
 
 ################
@@ -71,6 +58,21 @@ DataPointResult = TypedDict('DataPointResult',
                             {'aid': int,
                              'key': str,
                              'value': str})
+
+
+#############
+#  attr ids #
+#############
+attrs: Dict = {
+    # data collectors.
+    'pm25': '1',
+    'co2': '2',
+    'temperature': '3',
+    'humidity': '4',
+
+    # monitor devices.
+    'ac_power': '155'
+}
 
 
 def _get_token(auth: AuthData) -> Optional[AuthToken]:
