@@ -8,7 +8,6 @@ from .models import OutdoorSpot, OutdoorRecord
 from .models import Spot, SpotRecord
 from . import db
 
-
 def interface(f):
     return f
 
@@ -19,7 +18,7 @@ def commit():
         db.session.commit()
     except IndexError:
         db.commit.rollback()
-    except:
+    except Exception:
         raise
 
 
@@ -136,6 +135,7 @@ def delete_by_spot_record_view(sid: int) -> None:
         raise
 
 
+@interface
 def add_company(company_data: Dict) -> Optional[Company]:
     """ if no such location fond, create a new location """
     new_company = None
@@ -171,6 +171,7 @@ def add_company(company_data: Dict) -> Optional[Company]:
     return new_company
 
 
+@interface
 def add_outdoor_spot(od_spot_data: Dict) -> Optional[OutdoorSpot]:
     """
     if no such location fond, create a new location
@@ -206,6 +207,7 @@ def add_outdoor_spot(od_spot_data: Dict) -> Optional[OutdoorSpot]:
     return new_od_spot
 
 
+@interface
 def add_location(location_data: Dict) -> Optional[Location]:
     """ if no such location fond, create a new location """
     new_loc = None

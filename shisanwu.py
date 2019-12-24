@@ -26,6 +26,8 @@ if os.environ.get("FLASK_COVERAGE"):
     COV = coverage.coverage(branch=True, include='app/*')
     COV.start()
 
+# init admin in databse
+
 
 @app.shell_context_processor
 def make_shell_context():

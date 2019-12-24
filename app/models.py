@@ -42,12 +42,13 @@ class Permission(Enum):
 
 
 class User(db.Model):
-    __tablename__ = "users"
+    __tablename__ = "user"
     user_id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(64), unique=True)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow())
     passwd_hash = db.Column(db.String(128))
     permission = db.Column(db.Integer)
+
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -55,12 +56,24 @@ class User(db.Model):
             self.permissions = Permission.NIL.value
 
     @classmethod
+    def gen_admin(cls):
+        user = cls(user_name='admin',
+                   last_seen=datetime.now(),
+                   passwd_hash=generate_password_hash('123456'),
+                   permission=Permission.ADMIN.value)
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+
+    @classmethod
     def gen_fake(cls, count=20):
         for _ in range(count):
             user = cls(user_name=chr(randint(33, 127)),
                        last_seen=rand_date(),
-                       passwd_hash=generate_password_hash(str(randint(10000,
-                                                                      99999))),
+                       passwd_hash=generate_password_hash(
+                           str(randint(10000, 99999))),
                        permission=choice(list(Permission)).value)
             db.session.add(user)
             try:
@@ -106,9 +119,9 @@ class Location(db.Model):
     """
     City, each city may contain multiple projects.
     """
-    __tablename__ = "locations"
+    __tablename__ = "location"
     location_id = db.Column(db.Integer, primary_key=True)
-    climate_area_id = db.Column(db.Integer, db.ForeignKey("climate_areas.climate_area_id"))
+    climate_area_id = db.Column(db.Integer, db.ForeignKey("climate_area.climate_area_id"))
     province = db.Column(db.String(64))
     city = db.Column(db.String(64), unique=True)
 
@@ -146,11 +159,11 @@ class Location(db.Model):
 
 
 class Project(db.Model):
-    __tablename__ = "projects"
+    __tablename__ = "project"
     project_id = db.Column(db.Integer, primary_key=True)
     outdoor_spot_id = db.Column(db.Integer,
-                                db.ForeignKey("outdoor_spots.outdoor_spot_id"))
-    location_id = db.Column(db.Integer, db.ForeignKey("locations.location_id"))
+                                db.ForeignKey("outdoor_spot.outdoor_spot_id"))
+    location_id = db.Column(db.Integer, db.ForeignKey("location.location_id"))
     company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
     project_name = db.Column(db.String(64), unique=True)
     district = db.Column(db.String(64))
@@ -237,8 +250,8 @@ class Project(db.Model):
 
 
 class ProjectDetail(db.Model):
-    __tablename__ = "project_details"
-    project_id = db.Column(db.Integer, db.ForeignKey("projects.project_id"),
+    __tablename__ = "project_detail"
+    project_id = db.Column(db.Integer, db.ForeignKey("project.project_id"),
                            primary_key=True)
     image = db.Column(db.Binary)
     image_description = db.Column(db.String(64))
@@ -265,7 +278,7 @@ class ProjectDetail(db.Model):
 
 
 class OutdoorSpot(db.Model):
-    __tablename__ = "outdoor_spots"
+    __tablename__ = "outdoor_spot"
     outdoor_spot_id = db.Column(db.Integer, primary_key=True)
     outdoor_spot_name = db.Column(db.String(64), unique=True)
 
@@ -299,15 +312,16 @@ class OutdoorRecord(db.Model):
     """
     Time interval is 1 hour per record.
     """
-    __tablename__ = "outdoor_records"
+    __tablename__ = "outdoor_record"
     outdoor_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
     outdoor_spot_id = db.Column(db.Integer,
-                                db.ForeignKey("outdoor_spots.outdoor_spot_id"))
+                                db.ForeignKey("outdoor_spot.outdoor_spot_id"))
     outdoor_temperature = db.Column(db.Float)
     outdoor_humidity = db.Column(db.Float)
-    wind_chill= db.Column(db.Float)
-    solar_radiation = db.Column(db.Float)
+    wind_direction = db.Column(db.Float)
     wind_speed = db.Column(db.Float)
+    wind_chill = db.Column(db.Float)
+    solar_radiation = db.Column(db.Float)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -322,9 +336,10 @@ class OutdoorRecord(db.Model):
                              outdoor_spot=choice(OutdoorSpot.query.all()),
                              outdoor_temperature=randint(20, 30),
                              outdoor_humidity=randint(60, 80),
+                             wind_direction=randint(0, 360),
+                             wind_speed=randint(0, 200),
                              wind_chill=randint(20, 30),
-                             solar_radiation=randint(0, 20),
-                             wind_speed=randint(0, 200))
+                             solar_radiation=randint(0, 20))
 
                 db.session.add(record)
             except IndexError as e:
@@ -342,6 +357,7 @@ class OutdoorRecord(db.Model):
             outdoor_temperature=self.outdoor_temperature,
             outdoor_humidity=self.outdoor_humidity,
             wind_chill=self.wind_chill,
+            wind_direction=self.wind_direction,
             solar_radiation=self.solar_radiation,
             wind_speed=self.wind_speed)
 
@@ -353,7 +369,7 @@ class ClimateArea(db.Model):
     """
     Climate area is assigned to each specific city.
     """
-    __tablename__ = "climate_areas"
+    __tablename__ = "climate_area"
     climate_area_id = db.Column(db.Integer, primary_key=True)
     area_name = db.Column(db.String(64), unique=True)
 
@@ -407,9 +423,9 @@ class Company(db.Model):
 
 
 class Spot(db.Model):
-    __tablename__ = "spots"
+    __tablename__ = "spot"
     spot_id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey("projects.project_id"))
+    project_id = db.Column(db.Integer, db.ForeignKey("project.project_id"))
     spot_name = db.Column(db.String(64))
     image = db.Column(db.Binary)
 
@@ -447,13 +463,13 @@ class SpotRecord(db.Model):
     """
     The time interval is 5 mins per record.
     """
-    __tablename__ = "spot_records"
+    __tablename__ = "spot_record"
     spot_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
-    spot_id = db.Column(db.Integer, db.ForeignKey("spots.spot_id"))
+    spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
     window_opened = db.Column(db.Boolean)  # for xiaomi platform.
     temperature = db.Column(db.Float)
     humidity = db.Column(db.Float)
-    energy_consumption = db.Column(db.Float)
+    ac_power = db.Column(db.Float)
     pm25 = db.Column(db.Integer)
     co2 = db.Column(db.Integer)
 
@@ -471,7 +487,7 @@ class SpotRecord(db.Model):
                                   window_opened=bool(choice((0, 1))),
                                   temperature=randint(20, 30),
                                   humidity=randint(60, 80),
-                                  energy_consumption=randint(2000, 3000),
+                                  ac_power=randint(2000, 3000),
                                   pm25=randint(20, 100),
                                   co2=randint(10, 30))
 
@@ -488,9 +504,10 @@ class SpotRecord(db.Model):
         return dict(spot_id=self.spot_id,
                     spot_name=self.spot.spot_name,
                     spot_record_time=self.spot_record_time.strftime("%Y-%m-%d:%H-%M"),
+                    window_opened=self.window_opened,
                     temperature=self.temperature,
                     humidity=self.humidity,
-                    energy_consumption=self.energy_consumption,
+                    ac_power=self.ac_power,
                     pm25=self.pm25,
                     co2=self.co2)
 

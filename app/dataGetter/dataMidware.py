@@ -1,5 +1,6 @@
 from threading import Timer
-from typing import NewType, Dict, Optional, Tuple, List, Generator, NamedTuple
+from typing import (
+    NewType, Dict, Optional, Tuple, List, Generator, NamedTuple, TypedDict, Iterator)
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from sys import maxsize
@@ -15,19 +16,19 @@ from dateSequence import DateSequence, date_sequence
 
 
 class Spot(NamedTuple):
-    project_id: int
+    #   project_id: int
     spot_name: str
 
 
 class SpotRecord(NamedTuple):
-    spot_id: int
+    # spot_id: int
     spot_record_time: dt
-    temperature: float
-    humidity: float
-    window_opened: bool
-    ac_power: float
-    pm25: int
-    co2: int
+    temperature: Optional[float]
+    humidity: Optional[float]
+    pm25: Optional[float]
+    co2: Optional[float]
+    window_opened: Optional[bool]
+    ac_power: Optional[float]
 
 
 class Device(NamedTuple):
@@ -43,7 +44,7 @@ class SpotData(ABC):
     datetime_time_eror_msg: str = 'Datetime error: Incorrect datetime'
 
     @abstractmethod
-    def spot_location(self) -> Generator[Spot, None, None]:
+    def spot_location(self) -> Optional[Generator[Optional[Spot], None, None]]:
         """
         Get spot location information.
         It returns a generator of the list of spot location information
@@ -51,14 +52,14 @@ class SpotData(ABC):
         """
 
     @abstractmethod
-    def spot_record(self) -> Generator[SpotRecord, dt, str]:
+    def spot_record(self) -> Optional[Generator[Optional[SpotRecord], None, None]]:
         """
         Get spot record data include temperature, humidity pm2.5 etc.
         value returned are used to fill `spot_record` table in database schema.
         """
 
     @abstractmethod
-    def device(self) -> Generator[Device, None, None]:
+    def device(self) -> Optional[Generator[Optional[Device], None, None]]:
         """
         Get device information
         value returned will be used to fill `device` table in database schema.
@@ -70,7 +71,7 @@ class RealTimeSpotData(ABC):
     datetime_time_eror_msg: str = 'Datetime error: Incorrect datetime'
 
     @abstractmethod
-    def rt_spot_record(self) -> Generator[SpotRecord, dt, str]:
+    def rt_spot_record(self) -> Optional[Generator[Optional[SpotRecord], dt, str]]:
         """
         Get spot record data include temperature, humidity pm2.5 etc in real time.
         value returned are used to fill `spot_record` table in database schema.
@@ -105,19 +106,19 @@ class XiaoMiData(SpotData, RealTimeSpotData):
         self.timer = Timer(self.token['expires_in'] - 200, _refresh_token)  # spin timer.
         self.timer.start()
 
-    def spot_location(self) -> Generator[Spot, None, None]:
+    def spot_location(self) -> Optional[Generator[Optional[Spot], None, None]]:
         pass
 
-    def spot_record(self) -> Generator[SpotRecord, dt, str]:
+    def spot_record(self) -> Optional[Generator[Optional[SpotRecord], None, None]]:
         pass
 
-    def device(self) -> Generator[Device, None, None]:
+    def device(self) -> Optional[Generator[Optional[Device], None, None]]:
         pass
 
     def _query_device(self, params: jGetter.DeviceParam):
         pass
 
-    def rt_spot_record(self):
+    def rt_spot_record(self) -> Optional[Generator[Optional[SpotRecord], dt, str]]:
         pass
 
 
@@ -129,6 +130,15 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     expire_in: int = 20  # token is valid in 20 seconds.
     indoor_data_collector_pid: str = '001'
     monitor_pid: str = '003'
+
+    size: int = 300
+    device_params: jGetter.DeviceParam = {  # prepare device parameter.
+        'companyId': 'HKZ',
+        'start': 1,
+        'size': size,
+        'pageNo': 1,
+        'pageSize': str(size)
+    }
 
     def __init__(self, datetime_range: Optional[Tuple[dt, dt]] = None):
         self.auth: jGetter.AuthData = authConfig.jauth
@@ -153,20 +163,116 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         self.timer = Timer(JianYanYuanData.expire_in - 5, _refresh_token)
         self.timer.start()
 
-    def spot_location(self) -> Generator[Spot, None, None]:
-        pass
+        # common states
+        self.device_list = jGetter._get_device_list(
+            self.auth, self.token, JianYanYuanData.device_params)
 
-    def spot_record(self) -> Generator[SpotRecord, dt, str]:
-        pass
+    #############################
+    #  Implement spot_location  #
+    #############################
 
-    def device(self) -> Generator[Device, None, None]:
-        pass
+    def spot_location(self) -> Optional[Generator[Optional[Spot], None, None]]:
+        """
+        return location in standard format
+        """
 
-    def rt_spot_record(self):
-        pass
+        # define utils.
+        location_attrs: Tuple[str, ...] = (
+            'cityIdLogin',
+            'provinceIdLogin',
+            'nickname',
+            'address',
+            'provinceLoginName',
+            'cityLoginName',
+            'location')
 
-    def _make_datapoint_param(self,
-                              dev_result: jGetter.DeviceResult,
+        if self.device_list is None:
+            logging.error('empty device list')
+            return None
+
+        attrses: Generator = (  # filter out subset of device_result that relates to location.
+            JianYanYuanData._filter_location_attrs(
+                device_result, location_attrs)
+            for device_result
+            in self.device_list)
+
+        return (JianYanYuanData.make_spot(attrs)
+                for attrs in attrses)
+
+    @staticmethod
+    def _filter_location_attrs(device_result: jGetter.DeviceResult,
+                               location_attrs: Tuple[str, ...]) -> Dict:
+        """
+        filter location attributes from device results
+        """
+        return {k: v for k, v
+                in device_result.items()
+                if k in location_attrs}
+
+    @staticmethod
+    def make_spot(attrs: Dict) -> Optional[Spot]:
+        """
+        construct `Spot` type from given location attrs.
+        """
+        # TODO: pick the most suitable infor from locatino attrs 2019-12-23 @1
+        # Location need to match with project.
+        # So this function need to be implemented with project information.
+
+    ###########################
+    #  Implement spot_record  #
+    ###########################
+
+    def spot_record(self) -> Optional[Generator[Optional[SpotRecord], None, None]]:
+        # make SpotRecord from datapoint data.
+
+        return (JianYanYuanData.make_spot_record(_) for _ in  )
+
+    def datapoint_param_iter(self) -> Optional[Iterator]:
+        """
+        datapoint paramter generator. Each paramter for each device.
+        """
+        datapoint_param_iter: Iterator = (
+            JianYanYuanData._make_datapoint_param(p)
+            for p
+            in self.device_list)
+
+        if not any(datapoint_param_iter):
+            logging.warning(JianYanYuanData.source + 'No datapoint parameter.')
+            return None
+
+    def datapoint_iter(self) -> Optional[Iterator[
+            Optional[List[jGetter.DataPointResult]]]]:
+        """
+        datapoint data generator. Is a iterator of list.
+        """
+
+        datapoint_iter = (jGetter._get_data_points(self.auth, self.token, param)
+                          for param
+                          in datapoint_param_iter)
+
+        if not any(datapoint_iter):
+            logging.warning(JianYanYuanData.source + 'No datapoint list.')
+            return None
+
+    @staticmethod
+    def make_spot_record(datapoint: Optional[jGetter.DataPointResult]) -> Optional[SpotRecord]:
+        """ construct `SpotRecord` from given datapoint_params """
+        if datapoint is None:
+            return None
+
+        aS: Dict = datapoint.get('as')
+        pm25: Optional[float] = aS.get(jGetter.attrs['pm25'])
+        co2: Optional[float] = aS.get(jGetter.attrs['co2'])
+        temperature: Optional[float] = aS.get(jGetter.attrs['temperature'])
+        humidity: Optional[float] = aS.get(jGetter.attrs['humidity'])
+        ac_power: Optional[float] = aS.get(jGetter.attrs['ac_power'])
+
+        time = str_to_datetime(datapoint.get('key'))
+
+        return SpotRecord(time, temperature, humidity, pm25, co2, None, ac_power)
+
+    @staticmethod
+    def _make_datapoint_param(device_result: jGetter.DeviceResult,
                               time_range: Optional[Tuple[str, str]] = None
                               ) -> Optional[jGetter.DataPointParam]:
         """
@@ -181,16 +287,14 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         modelName, prodcutId for devices: 'ESIC-SN\\d{2,2}',     '001', indoor data
                                           'ESIC-DTU-RB-RF06-2G', '003', AC power
         """
-        if not dev_result:
+        if not device_result:
+            logging.error('no device result')
             return None
 
         (gid,
          did,
          productId,
-         createTime) = itemgetter('gid',
-                                  'deviceId',
-                                  'productId',
-                                  'createTime')(dev_result)
+         createTime) = itemgetter('gid', 'deviceId', 'productId', 'createTime')(device_result)
 
         # Don't need get attrs since we already know what to get,
         # attrs: Optional[List[jGetter.AttrResult]] = (
@@ -203,30 +307,45 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         else:
             startTime, endTime = time_range
             if str_to_datetime(startTime) < str_to_datetime(createTime):
-                raise ValueError(self.source, SpotData.datetime_time_eror_msg, startTime, createTime)
+                raise ValueError(JianYanYuanData.source, SpotData.datetime_time_eror_msg, startTime, createTime)
             if str_to_datetime(endTime) > dt.utcnow():
-                raise ValueError(self.source, SpotData.datetime_time_eror_msg, endTime)
+                raise ValueError(JianYanYuanData.source, SpotData.datetime_time_eror_msg, endTime)
 
-        # set attr id
-        # Here ignored all haier devices.
-        def _get_aid() -> str:
-            if productId == JianYanYuanData.indoor_data_collector_pid:
-                return '{},{},{},{}'.format(jGetter.attrs['pm25'],
-                                            jGetter.attrs['co2'],
-                                            jGetter.attrs['temperature'],
-                                            jGetter.attrs['humidity'])
-            if productId == JianYanYuanData.monitor_pid:
-                return jGetter.attrs['ac_power']
-            return ''
-        aid: str = _get_aid()
+        aid: str = JianYanYuanData._get_aid(productId)
 
         datapoint_params: Optional[jGetter.DataPointParam] = (
-            jGetter.DataPointParam(gid=gid,
-                                   did=did,
-                                   aid=aid,
-                                   startTime=startTime,
-                                   endTime=endTime))
+            jGetter.DataPointParam(
+                gid=gid,
+                did=did,
+                aid=aid,
+                startTime=startTime,
+                endTime=endTime))
         return datapoint_params
+
+    # set attr id
+    # Here ignored all haier devices.
+    @staticmethod
+    def _get_aid(productId) -> str:
+        if productId == JianYanYuanData.indoor_data_collector_pid:
+            return '{},{},{},{}'.format(
+                jGetter.attrs['pm25'],
+                jGetter.attrs['co2'],
+                jGetter.attrs['temperature'],
+                jGetter.attrs['humidity'])
+
+        if productId == JianYanYuanData.monitor_pid:
+            return jGetter.attrs['ac_power']
+        return ''
+
+    ######################
+    #  Implement device  #
+    ######################
+
+    def device(self) -> Optional[Generator[Optional[Device], None, None]]:
+        pass
+
+    def rt_spot_record(self):
+        pass
 
 
 # TODO Outdoor data

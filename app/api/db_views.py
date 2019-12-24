@@ -2,16 +2,16 @@
 Provide joined table search.
 Basic db query will be aggregated here and dispatched to frontend components.
 """
-from  typing import Dict, Optional, List
+from  typing import Dict, Optional, List, Tuple, Callable
 from datetime import timedelta, datetime
 from flask import jsonify, request
 from . import api
 from ..exceptions import ValueExistedError
-from ..model_operations import add_by_project_generic_view
-from ..model_operations import add_by_spot_record_view
-from ..model_operations import delete_by_project_generic_view
-from ..model_operations import delete_by_spot_record_view
-from ..model_operations import commit
+from ..modelOperations import add_by_project_generic_view
+from ..modelOperations import add_by_spot_record_view
+from ..modelOperations import delete_by_project_generic_view
+from ..modelOperations import delete_by_spot_record_view
+from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail
 from ..models import  ClimateArea, Company, Permission
 from ..models import OutdoorSpot, OutdoorRecord
@@ -20,41 +20,24 @@ from .. import db
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
 
-
+# Query all data from the databse. Bad performance.
 @api.route('/view/project/generic', methods=['GET', 'POST'])
 def poject_generic_view():
     """combine project and climate area"""
-    response_object = {
+    response_object: Dict = {
         'status': 'success',
         'message': 'project added successfully',
     }
     if request.method == 'POST':  # add new project.
-        post_data = request.get_json()
+        post_data: Dict = request.get_json()
 
         # send failure responses accroding to the exception captures.
-        try:
-            add_by_project_generic_view(post_data)
-            commit()
-        except ValueExistedError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"project already existed: {e}"
-            return jsonify(response_object)
-        except IndexError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"Failed to add project: {e}"
-            return jsonify(response_object)
-        except ValueError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"Unmatched value type: {e}"
-            return jsonify(response_object)
-        except IntegrityError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"IntegrityError: {e}"
-            return jsonify(response_object)
-        except Exception as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"Error: {e}"
-            return jsonify(response_object)
+        response_object = do_db_operation(
+            response_object,
+            add_by_project_generic_view,
+            post_data,
+            'project')
+        return jsonify(response_object)
 
     else:  # post successful or get. resent the updated reponse.
         projects = [p.to_json() for p in Project.query.all()]
@@ -81,26 +64,12 @@ def spot_generic_view(pid: int):
         post_data = request.get_json()
 
         # send failure responses accroding to the exception captures.
-        try:
-            add_by_spot_record_view(post_data)
-            commit()
-        except ValueExistedError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"spot already existed: {e}"
-            return jsonify(response_object)
-        except IndexError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"Failed to add spot: {e}"
-            return jsonify(response_object)
-        except ValueError as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"Unmatched value type: {e}"
-            return jsonify(response_object)
-        except Exception as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"Error: {e}"
-            return jsonify(response_object)
-
+        response_object = do_db_operation(
+            response_object,
+            add_by_spot_record_view,
+            post_data,
+            'spot')
+        return jsonify(response_object)
 
     else:
         for s in Spot.query.filter_by(project_id=pid).all():
@@ -116,6 +85,15 @@ def spot_generic_view(pid: int):
             spots.append(spot)
         response_object["spot_generic_views"] = spots
     return jsonify(response_object)
+
+# TODO 2019-12-12 add paging request instead of sending all data at once.
+@api.route('/view/spot/<sid>/records/<page>/pagelen')
+def spot_record_view_paged(sid: int, pagelen: int):
+    """ Return a specific page of data"""
+
+    # return desired range of record ids
+    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
+        pass
 
 
 @api.route('/view/spot/<sid>/records')
@@ -143,10 +121,11 @@ def spot_record_view(sid: int):
         od_rec = (OutdoorRecord
                   .query
                   .filter(and_(
-                      OutdoorRecord
-                      .outdoor_record_time >= spot_rec_hour,
-                      OutdoorRecord
-                      .outdoor_record_time < spot_rec_hour + dhour))
+                      OutdoorRecord.
+                      outdoor_record_time >= spot_rec_hour,
+
+                      OutdoorRecord.
+                      outdoor_record_time < spot_rec_hour + dhour))
                   .first())
 
         spot_rec_json = spot_rec.to_json()
@@ -214,4 +193,29 @@ def spot_generic_view_update_delete(pid: int, sid: int):
     return jsonify(response_object)
 
 
+#####################################
+#  run operation and handle error   #
+#####################################
 
+def do_db_operation(response_object: Dict, op: Callable[[Callable], None], post_data: Dict, name: str) -> Dict:
+    try:
+        op(post_data)
+        commit()
+    except ValueExistedError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"{name} already existed: {e}"
+    except IndexError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"Failed to add {name} : {e}"
+    except ValueError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"Unmatched value type: {e}"
+    except IntegrityError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"IntegrityError: {e}"
+    except Exception as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"Error: {e}"
+    finally:
+        return response_object
+    return response_object

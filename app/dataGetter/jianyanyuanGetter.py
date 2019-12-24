@@ -55,9 +55,8 @@ Gid = NewType('Gid', str)
 DeviceResult = NewType('DeviceResult', Dict)
 AttrResult = NewType('AttrResult', Dict)
 DataPointResult = TypedDict('DataPointResult',
-                            {'aid': int,
-                             'key': str,
-                             'value': str})
+                            {'as': Dict,
+                             'key': str})
 
 
 #############
@@ -71,8 +70,7 @@ attrs: Dict = {
     'humidity': '4',
 
     # monitor devices.
-    'ac_power': '155'
-}
+    'ac_power': '155'}
 
 
 def _get_token(auth: AuthData) -> Optional[AuthToken]:
@@ -171,10 +169,11 @@ def _get_device_attrs(auth: AuthData,
     sign: str = sha1(
         (method + attr_url_gid + str(timestamp) + token).encode('ascii')).hexdigest()
 
-    headers: Dict = {'Content-Type': 'application/json;charset=UTF-8',
-                     'ts': str(timestamp),
-                     'uid': uid,
-                     'sign': sign}
+    headers: Dict = {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'ts': str(timestamp),
+        'uid': uid,
+        'sign': sign}
 
     response: requests.Response = requests.get(url, headers=headers)
     if response.status_code != 200:
@@ -208,7 +207,6 @@ def _get_data_points(auth: AuthData,
 
     sign: str = sha1(
         (method + datapoint_url + param_json + str(timestamp) + token).encode('ascii')).hexdigest()
-
     headers: Dict = {'Content-Type': 'application/json;charset=UTF-8',
                      'ts': str(timestamp),
                      'uid': uid,
@@ -219,14 +217,15 @@ def _get_data_points(auth: AuthData,
         logging.error('error response %s', response)
         return None
     rj = response.json()
+
     if rj['code'] != 0:
         logging.error('error return code from server: %s', rj['code'])
         return None
+
     if 'asData' not in rj['data'].keys():
         logging.error('no data')
         return None
 
-    print(response.json())
     return rj['data']['asData']
 
 

@@ -24,7 +24,9 @@ class TimeAccuracy(Enum):
 
 
 def is_nice_time(step_len: int) -> Callable:
-    # @param: step: int, in terms of minutes.
+    """
+    step len in minute
+    """
 
     def f(dt: datetime) -> bool:
         return dt.minute % step_len == 0
@@ -32,7 +34,9 @@ def is_nice_time(step_len: int) -> Callable:
 
 
 def normalize_time(step_len: int) -> Callable:
-    # @param step: int, in terms of mintues.
+    """
+    step len in minute
+    """
 
     assert step_len % 2 == 0 or step_len % 3 == 0 or step_len % 5 == 0, "time step is not divisible by 60"
 
