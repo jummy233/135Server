@@ -17,8 +17,6 @@ create table if not exists outdoor_record(
     outdoor_record_time datetime primary key not null unique,
     outdoor_temperature float,
     outdoor_humidity float,
-    -- sun_radiation
-    chilling_temperature float,
     wind_direction float,
     wind_speed float,
     wind_chill float,
@@ -83,22 +81,10 @@ create table if not exists spot(
     spot_id integer primary key not null,
     project_id integer not null,
     spot_name nvarchar(20),
+    spot_type nvarchar(20),
     image blob,
 
     foreign key(project_id) references project(project_id)
-    on delete cascade
-);
-
-create table if not exists spot_record(
-    spot_id integer not null,
-    spot_record_time datetime primary key not null,
-    temperature float,
-    humidity float,
-    window_opened boolean,
-    ac_power float,
-    pm25 integer,
-    co2 integer,
-    foreign key(spot_id) references spot(spot_id)
     on delete cascade
 );
 
@@ -111,3 +97,18 @@ create table if not exists device(
     foreign key(device_id) references spot(spot_id)
     on delete cascade
 );
+
+create table if not exists spot_record(
+    spot_id integer not null,
+    spot_record_time datetime primary key not null,
+    temperature float,
+    humidity float,
+    window_opened boolean,
+    ac_power float,
+    pm25 integer,
+    co2 integer,
+    foreign key(spot_id) references device(device_id)
+    on delete cascade
+);
+
+

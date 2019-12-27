@@ -77,10 +77,8 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
     """
     get token
     """
-    (account,
-     password,
-     base_url,
-     auth_url) = itemgetter('account', 'password', 'base_url', 'auth_url')(auth)
+    (account, password, base_url, auth_url) = itemgetter(
+            'account', 'password', 'base_url', 'auth_url')(auth)
 
     # construct request
     url: str = urllib.parse.urljoin(base_url, auth_url)

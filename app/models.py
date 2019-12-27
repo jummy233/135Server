@@ -427,6 +427,7 @@ class Spot(db.Model):
     spot_id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey("project.project_id"))
     spot_name = db.Column(db.String(64))
+    spot_name = db.Column(db.String(64))
     image = db.Column(db.Binary)
 
     spot_record = db.relationship("SpotRecord", backref="spot", lazy="dynamic")
@@ -459,13 +460,14 @@ class Spot(db.Model):
             spot_name=self.spot_name,
             image=image_base64)
 
+
 class SpotRecord(db.Model):
     """
     The time interval is 5 mins per record.
     """
     __tablename__ = "spot_record"
     spot_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
-    spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
+    spot_id = db.Column(db.Integer, db.ForeignKey("device.device_id"))
     window_opened = db.Column(db.Boolean)  # for xiaomi platform.
     temperature = db.Column(db.Float)
     humidity = db.Column(db.Float)
@@ -513,3 +515,12 @@ class SpotRecord(db.Model):
 
     def __repr__(self):
         return "<SpotRecord {} {}>".format(self.spot, self.spot_record_time)
+
+
+class Device(db.Model):
+    """aggregated models from different sources """
+    __tablename__ = "device"
+    device_id = db.Column(db.DateTime, primary_key=True, nullable=False)
+    spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
+    window_opened = db.Column(db.Boolean)  # for xiaomi platform.
+

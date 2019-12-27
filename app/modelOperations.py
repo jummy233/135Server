@@ -1,4 +1,4 @@
-from  typing import Dict, Optional
+from  typing import Dict, Optional, Callable
 from .exceptions import ValueExistedError
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime
@@ -76,7 +76,7 @@ def add_by_project_generic_view(post_data) -> None:
 
 
 @interface
-def add_by_spot_record_view(post_data) -> None:
+def add_spot(post_data) -> None:
     post_project_id = post_data.get('project_id')
     post_spot_name = post_data.get('post_name')
     if Spot.query.filter_by(spot_name=post_spot_name).all():
@@ -95,6 +95,10 @@ def add_by_spot_record_view(post_data) -> None:
     except IntegrityError as e:
         print("Error! add_generic_view: ", e)
         raise
+
+@interface
+def add_spot_record(post_data) -> None:
+    post_spot_id =
 
 
 @interface
@@ -122,7 +126,7 @@ def delete_by_project_generic_view(pid) -> None:
 
 
 @interface
-def delete_by_spot_record_view(sid: int) -> None:
+def delete_spot(sid: int) -> None:
     spot = Spot.query.filter_by(spot_id=sid).first()
 
     try:
@@ -242,10 +246,42 @@ def add_location(location_data: Dict) -> Optional[Location]:
         print("Error! add_generic_view: ", e)
         raise
 
-    except:
+    except Exception:
         raise
 
     return new_loc
 
+#####################################
+#  run operation and handle error   #
+#####################################
 
 
+def do_db_operation(response_object: Dict, op: Callable[[Dict], None], post_data: Dict, name: str) -> Dict:
+    try:
+        op(post_data)
+        commit()
+
+    except ValueExistedError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"{name} already existed: {e}"
+
+    except IndexError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"Failed to add {name} : {e}"
+
+    except ValueError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"Unmatched value type: {e}"
+
+    except IntegrityError as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"IntegrityError: {e}"
+
+    except Exception as e:
+        response_object["status"] = "failed"
+        response_object["message"] = f"Error: {e}"
+
+    finally:
+        return response_object
+
+    return response_object

@@ -11,7 +11,7 @@ if TYPE_CHECKING:  # avoid circular importing.
     import jianyanyuanGetter as j
     import xiaomiGetter as x
 
-with open('auth.json', 'r') as authdata:
+with open('./static/auth.json', 'r') as authdata:
     authdict = json.loads(authdata.read())
 
     ###############

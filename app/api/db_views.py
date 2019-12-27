@@ -7,10 +7,11 @@ from datetime import timedelta, datetime
 from flask import jsonify, request
 from . import api
 from ..exceptions import ValueExistedError
+from ..modelOperations import do_db_operation
 from ..modelOperations import add_by_project_generic_view
-from ..modelOperations import add_by_spot_record_view
+from ..modelOperations import add_spot
 from ..modelOperations import delete_by_project_generic_view
-from ..modelOperations import delete_by_spot_record_view
+from ..modelOperations import delete_spot
 from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail
 from ..models import  ClimateArea, Company, Permission
@@ -66,7 +67,7 @@ def spot_generic_view(pid: int):
         # send failure responses accroding to the exception captures.
         response_object = do_db_operation(
             response_object,
-            add_by_spot_record_view,
+            add_spot,
             post_data,
             'spot')
         return jsonify(response_object)
@@ -87,8 +88,8 @@ def spot_generic_view(pid: int):
     return jsonify(response_object)
 
 # TODO 2019-12-12 add paging request instead of sending all data at once.
-@api.route('/view/spot/<sid>/records/<page>/pagelen')
-def spot_record_view_paged(sid: int, pagelen: int):
+@api.route('/api/v1/spot', method=['POST'])
+def spot_paged(sid: int, pagelen: int):
     """ Return a specific page of data"""
 
     # return desired range of record ids
@@ -146,6 +147,15 @@ def spot_record_view(sid: int):
 
     return jsonify(records)
 
+# TODO 2019-12-12 add paging request instead of sending all data at once.
+@api.route('/api/v1/spot_record', method=['POST'])
+def spot_record_paged(sid: int, pagelen: int):
+    """ Return a specific page of data"""
+
+    # return desired range of record ids
+    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
+        pass
+
 
 @api.route('/view/project/pic/<pid>', methods=['GET'])
 def project_pic_view(pid):
@@ -184,7 +194,7 @@ def spot_generic_view_update_delete(pid: int, sid: int):
     if request.method == 'DELETE':
         response_object["message"] = "spot removed!"
         try:
-            delete_by_spot_record_view(sid)
+            delete_spot(sid)
             commit()
         except Exception as e:
             response_object["status"] = "failed"
@@ -193,29 +203,5 @@ def spot_generic_view_update_delete(pid: int, sid: int):
     return jsonify(response_object)
 
 
-#####################################
-#  run operation and handle error   #
-#####################################
 
-def do_db_operation(response_object: Dict, op: Callable[[Callable], None], post_data: Dict, name: str) -> Dict:
-    try:
-        op(post_data)
-        commit()
-    except ValueExistedError as e:
-        response_object["status"] = "failed"
-        response_object["message"] = f"{name} already existed: {e}"
-    except IndexError as e:
-        response_object["status"] = "failed"
-        response_object["message"] = f"Failed to add {name} : {e}"
-    except ValueError as e:
-        response_object["status"] = "failed"
-        response_object["message"] = f"Unmatched value type: {e}"
-    except IntegrityError as e:
-        response_object["status"] = "failed"
-        response_object["message"] = f"IntegrityError: {e}"
-    except Exception as e:
-        response_object["status"] = "failed"
-        response_object["message"] = f"Error: {e}"
-    finally:
-        return response_object
-    return response_object
+
