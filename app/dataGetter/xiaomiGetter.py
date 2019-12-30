@@ -4,7 +4,7 @@ from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Callable, ca
 from operator import itemgetter
 import urllib.parse
 from datetime import datetime as dt
-from utils import currentTimestamp
+from .utils import currentTimestamp
 import json
 import logging
 

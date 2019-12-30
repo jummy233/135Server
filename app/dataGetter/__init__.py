@@ -1,5 +1,2 @@
-import authConfig
-import dataMidware
-import jianyanyuanGetter
-import xiaomiGetter
-import dateSequence
+from . import authConfig, dataMidware
+from . import jianyanyuanGetter, xiaomiGetter, dateSequence

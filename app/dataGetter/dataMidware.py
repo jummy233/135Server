@@ -1,31 +1,32 @@
 from threading import Timer
 from typing import (
     NewType, Dict, Optional, Tuple, List, Generator, NamedTuple,
-    TypedDict, Iterator, Callable)
+    TypedDict, Iterator, Callable, cast)
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from sys import maxsize
 from datetime import datetime as dt
 from operator import itemgetter
-import xiaomiGetter as xGetter
-from jianyanyuanGetter import (
+import logging
+from functools import partial
+
+from . import xiaomiGetter as xGetter
+from . import jianyanyuanGetter as jGetter
+from .jianyanyuanGetter import (
     DataPointParam as JdpParam,
     DataPointResult as JdpResult,
     DeviceParam as JdevParam,
     DeviceResult as JdevResult)
-import jianyanyuanGetter as jGetter
-from functools import partial
-import authConfig
-import pysnooper
-from utils import str_to_datetime, datetime_to_str
-import logging
-from dateSequence import DateSequence, date_sequence
+from . import authConfig
+from .utils import str_to_datetime, datetime_to_str
+from .dateSequence import DateSequence, date_sequence
 
 
 class Location(NamedTuple):
     climate_area: str
     province: str
     city: str
+
 
 class Spot(NamedTuple):
     project_id: int
@@ -182,7 +183,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         # common states
         self.device_list = jGetter._get_device_list(
-            self.auth, self.token, JianYanYuanData.device_params)
+            self.auth, self.token, cast(Dict, JianYanYuanData.device_params))
 
     def spot_location(self) -> Optional[Generator]:
         """
@@ -256,6 +257,8 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         """
         datapoint paramter generator. Each paramter for each device.
         """
+        if self.device_list is None:
+            return None
 
         datapoint_param_iter: Iterator = (
             JianYanYuanData._make_datapoint_param(p)
@@ -296,11 +299,21 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         """ construct `SpotRecord` from given datapoint_params """
 
         if datapoint is None:
+            logging.error('datapoint is empty')
             return None
 
-        aS: Dict = datapoint.get('as')
+        aS: Optional[Dict] = datapoint.get('as')
 
-        time = str_to_datetime(datapoint.get('key'))
+        if aS is None:
+            logging.error('datapoint `as` record is empty')
+            return None
+
+        key: Optional[str] = datapoint.get('key')
+        if key is None:
+            logging.error('datapoint `key` record is empty')
+            return None
+
+        time = str_to_datetime(key)
 
         pm25: Optional[float] = aS.get(jGetter.attrs['pm25'])
         co2: Optional[float] = aS.get(jGetter.attrs['co2'])
@@ -395,27 +408,4 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 class OutdoorData:
     pass
 
-
-# TODO Project Data got input from json file.
-class ProjectData:
-    pass
-
-
-class LocationData:
-    def __init__(self):
-        pass
-
-    def make_location(self):
-        pass
-
-    def get_location(self):
-        pass
-
-
-class ClimateAreaData:
-    def __init__(self):
-        pass
-
-    def get_climate_areas(self) -> List
-        pass
 

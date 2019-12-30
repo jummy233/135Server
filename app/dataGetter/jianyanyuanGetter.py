@@ -4,9 +4,8 @@ from typing import NewType, Dict, Optional, Tuple, TypedDict, List
 import urllib.parse
 from operator import itemgetter
 import json
-from utils import currentTimestamp
+from .utils import currentTimestamp
 import logging
-from typing import NewType, Dict, Optional, Tuple, TypedDict, List
 
 
 ################
