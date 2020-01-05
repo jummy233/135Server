@@ -7,10 +7,10 @@ from datetime import timedelta, datetime
 from flask import jsonify, request
 from . import api
 from ..exceptions import ValueExistedError
-from ..modelOperations import do_db_operation
-from ..modelOperations import add_by_project_generic_view
+from ..modelOperations import commit_db_operation
+from ..modelOperations import add_project
 from ..modelOperations import add_spot
-from ..modelOperations import delete_by_project_generic_view
+from ..modelOperations import delete_project
 from ..modelOperations import delete_spot
 from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail
@@ -20,6 +20,11 @@ from ..models import Spot, SpotRecord
 from .. import db
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
+
+
+#############
+#  Generic  #
+#############
 
 # Query all data from the databse. Bad performance.
 @api.route('/view/project/generic', methods=['GET', 'POST'])
@@ -33,19 +38,20 @@ def poject_generic_view():
         post_data: Dict = request.get_json()
 
         # send failure responses accroding to the exception captures.
-        response_object = do_db_operation(
+        response_object = commit_db_operation(
             response_object,
-            add_by_project_generic_view,
+            add_project,
             post_data,
             'project')
         return jsonify(response_object)
 
-    else:  # post successful or get. resent the updated reponse.
+    else:  # post successful or get. resend the updated reponse.
         projects = [p.to_json() for p in Project.query.all()]
         for proj in projects:
             climate_area = (Location.query
-                            .filter_by(location_id=proj["location"]
-                                                       ["location_id"])
+                            .filter_by(
+                                location_id=proj["location"]
+                                ["location_id"])
                             .first()
                             .climate_area.to_json())
             proj.update({"climate_area": climate_area})
@@ -65,7 +71,7 @@ def spot_generic_view(pid: int):
         post_data = request.get_json()
 
         # send failure responses accroding to the exception captures.
-        response_object = do_db_operation(
+        response_object = commit_db_operation(
             response_object,
             add_spot,
             post_data,
@@ -87,19 +93,9 @@ def spot_generic_view(pid: int):
         response_object["spot_generic_views"] = spots
     return jsonify(response_object)
 
-# TODO 2019-12-12 add paging request instead of sending all data at once.
-@api.route('/api/v1/spot', method=['POST'])
-def spot_paged(sid: int, pagelen: int):
-    """ Return a specific page of data"""
 
-    # return desired range of record ids
-    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
-        pass
-
-
-@api.route('/view/spot/<sid>/records')
+@api.route('/api/view/spot/<sid>/records', methods=['GET'])
 def spot_record_view(sid: int):
-    """combine Spot, Location, Project, Climate area, Outdoor Record"""
     records = []
 
     for spot_rec in SpotRecord.query.filter_by(spot_id=sid):
@@ -147,17 +143,8 @@ def spot_record_view(sid: int):
 
     return jsonify(records)
 
-# TODO 2019-12-12 add paging request instead of sending all data at once.
-@api.route('/api/v1/spot_record', method=['POST'])
-def spot_record_paged(sid: int, pagelen: int):
-    """ Return a specific page of data"""
 
-    # return desired range of record ids
-    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
-        pass
-
-
-@api.route('/view/project/pic/<pid>', methods=['GET'])
+@api.route('/api/view/project/pic/<pid>', methods=['GET'])
 def project_pic_view(pid):
     """send project picture for given project"""
     response_object = {'success': 'success'}
@@ -169,7 +156,7 @@ def project_pic_view(pid):
     return jsonify(response_object)
 
 
-@api.route('/view/project/generic/<pid>', methods=["PUT", "DELETE"])
+@api.route('/api/view/project/generic/<pid>', methods=["PUT", "DELETE"])
 def project_generic_view_update_delete(pid: int):
     response_object = {'status': 'success'}
     if request.method == 'PUT':
@@ -177,7 +164,7 @@ def project_generic_view_update_delete(pid: int):
     if request.method == 'DELETE':
         response_object["message"] = "project removed!"
         try:
-            delete_by_project_generic_view(pid)
+            delete_project(pid)
             commit()
         except Exception as e:
             response_object["status"] = "failed"
@@ -186,7 +173,7 @@ def project_generic_view_update_delete(pid: int):
     return jsonify(response_object)
 
 
-@api.route('/view/<pid>/spots/<sid>', methods=["PUT", "DELETE"])
+@api.route('/api/view/<pid>/spots/<sid>', methods=["PUT", "DELETE"])
 def spot_generic_view_update_delete(pid: int, sid: int):
     response_object = {'status': 'success'}
     if request.method == 'PUT':
@@ -203,5 +190,35 @@ def spot_generic_view_update_delete(pid: int, sid: int):
     return jsonify(response_object)
 
 
+###########
+#  Paged  #
+###########
+
+@api.route('/api/v1/project', methods=['POST'])
+def project_paged(sid: int, pagelen: int):
+    """ Return a specific page of data"""
+
+    # return desired range of record ids
+    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
+        pass
+
+
+# TODO 2019-12-12 add paging request instead of sending all data at once.
+@api.route('/api/v1/spot', methods=['POST'])
+def spot_paged(sid: int, pagelen: int):
+    """ Return a specific page of data"""
+
+    # return desired range of record ids
+    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
+        pass
+
+# TODO 2019-12-12 add paging request instead of sending all data at once.
+@api.route('/api/v1/spot_record', methods=['POST'])
+def spot_record_paged(sid: int, pagelen: int):
+    """ Return a specific page of data"""
+
+    # return desired range of record ids
+    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
+        pass
 
 

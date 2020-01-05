@@ -32,14 +32,16 @@ create table if not exists location(
     province nvarchar(20),
     city nvarchar(20),
     foreign key(climate_area_id) references climate_area(climate_area_id)
-    on delete
+    on update cascade on delete set null
 );
 
 create table if not exists project(
     project_id integer primary key autoincrement not null,
     outdoor_spot_id integer,
     location_id integer,
-    company_id integer,
+    construction_company_id integer,
+    tech_support_company_id integer,
+    project_company_id integer,
     project_name nvarchar(40),
     floor integer,
     latitude float,
@@ -49,13 +51,26 @@ create table if not exists project(
     demo_area float,
     building_type nvarchar(40),
     building_height float,
+    started_time datetime,
     finished_time datetime,
     record_started_from datetime,
-    record_ended_by datetime,
     description nvarchar(800),
-    foreign key(location_id) references location(location_id),
-    foreign key(outdoor_spot_id) references outdoor_spot(outdoor_spot_id),
-    foreign key(company_id) references company(company_id)
+
+    foreign key(location_id) references location(location_id)
+    on update cascade on delete cascade,
+
+    foreign key(outdoor_spot_id) references outdoor_spot(outdoor_spot_id)
+    on update cascade on delete cascade,
+
+    foreign key(construction_company_id) references company(company_id)
+    on update cascade on delete cascade
+
+    foreign key(tech_support_company_id) references company(company_id)
+    on update cascade on delete cascade
+
+    foreign key(project_company_id) references company(company_id)
+    on update cascade on delete cascade
+
 );
 
 create table if not exists climate_area(
@@ -65,9 +80,7 @@ create table if not exists climate_area(
 
 create table if not exists company(
     company_id integer primary key autoincrement not null,
-    construction_company nvarchar(40),
-    tech_support_company nvarchar(40),
-    project_company nvarchar(40)
+    company_name nvarchar(40)
 );
 
 create table if not exists project_detail(
@@ -83,32 +96,32 @@ create table if not exists spot(
     spot_name nvarchar(20),
     spot_type nvarchar(20),
     image blob,
-
     foreign key(project_id) references project(project_id)
     on delete cascade
 );
 
 create table if not exists device(
     device_id integer primary key autoincrement not null,
+    device_name nvarchar(20),
+    device_type nvarchar(20),
     spot_id integer not null,
     create_time datetime,
-    modified_time datetime,
-    device_name int not null,
+    modify_time datetime,
     foreign key(device_id) references spot(spot_id)
-    on delete cascade
+    on update cascade on delete cascade
 );
 
 create table if not exists spot_record(
-    spot_id integer not null,
     spot_record_time datetime primary key not null,
+    device_id integer not null,
     temperature float,
     humidity float,
     window_opened boolean,
     ac_power float,
     pm25 integer,
     co2 integer,
-    foreign key(spot_id) references device(device_id)
-    on delete cascade
+    foreign key(device_id) references device(device_id)
+    on update cascade on delete cascade
 );
 
 

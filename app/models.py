@@ -164,7 +164,11 @@ class Project(db.Model):
     outdoor_spot_id = db.Column(db.Integer,
                                 db.ForeignKey("outdoor_spot.outdoor_spot_id"))
     location_id = db.Column(db.Integer, db.ForeignKey("location.location_id"))
-    company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
+
+    tech_support_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
+    project_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
+    construction_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
+
     project_name = db.Column(db.String(64), unique=True)
     district = db.Column(db.String(64))
     floor = db.Column(db.Integer)
@@ -174,13 +178,33 @@ class Project(db.Model):
     demo_area = db.Column(db.Float)
     building_type = db.Column(db.String(64))
     building_height = db.Column(db.Float)
+    started_time = db.Column(db.DateTime)
     finished_time = db.Column(db.DateTime)
     record_started_from = db.Column(db.DateTime)
-    record_ended_by = db.Column(db.DateTime, default=datetime.utcnow())
     description = db.Column(db.String(2048))
 
+    spot = db.relationship("Spot", backref="project", uselist=False)
     project_detail = db.relationship("ProjectDetail", backref="project",
                                      uselist=False)
+
+    tech_support_company = db.relationship(
+        "Company",
+        backref="tech_support_company",
+        uselist=False,
+        foreign_keys=[tech_support_company_id])
+
+    project_company = db.relationship(
+        "Company",
+        backref="project_company",
+        uselist=False,
+        foreign_keys=[project_company_id])
+
+    construction_company = db.relationship(
+        "Company",
+        backref="construction_company",
+        uselist=False,
+        foreign_keys=[construction_company_id])
+
     spot = db.relationship("Spot", backref="project", lazy="dynamic")
 
     @classmethod
@@ -190,7 +214,7 @@ class Project(db.Model):
             try:
                 proj = cls(outdoor_spot=choice(OutdoorSpot.query.all()),
                            location=choice(Location.query.all()),
-                           company=choice(Company.query.all()),
+                           company=choice(Company.query.all()),  # TODO deprecated
                            project_name=str(offset + i) + choice('abcdefghijklmno') * 30,
                            district=chr(randint(33, 127)),
                            floor=randint(33, 127),
@@ -200,9 +224,9 @@ class Project(db.Model):
                            demo_area=randint(1000, 3000),
                            building_type=chr(randint(33, 127)),
                            building_height=randint(33, 127),
+                           started_time=rand_date(),
                            finished_time=rand_date(),
                            record_started_from=rand_date(),
-                           record_ended_by=rand_date(),
                            description=chr(randint(33, 127)))
                 db.session.add(proj)
             except IndexError as e:
@@ -225,10 +249,10 @@ class Project(db.Model):
                 location_id=self.location.location_id,
                 province=self.location.province,
                 city=self.location.city),
-            company=dict(
-                construction_company=self.company.construction_company,
-                tech_support_company=self.company.tech_support_company,
-                project_company=self.company.project_company),
+            tech_support_company=dict(company_name=self.tech_support_company.company_name),
+            project_company=dict(company_name=self.project_company.company_name),
+            construction_company=dict(company_name=self.construction_company.company_name),
+
             project_name=self.project_name,
             outdoor_spot_id=self.outdoor_spot_id,
             outdoor_spot_name=odspot.outdoor_spot_name,
@@ -240,9 +264,9 @@ class Project(db.Model):
             demo_area=self.demo_area,
             building_type=self.building_type,
             building_height=self.building_height,
+            started_time=self.started_time.strftime("%Y-%m-%d"),
             finished_time=self.finished_time.strftime("%Y-%m-%d"),
             record_started_from=self.record_started_from.strftime("%Y-%m-%d"),
-            record_ended_by=self.record_ended_by.strftime("%Y-%m-%d"),
             description=self.description)
 
     def __repr__(self):
@@ -400,11 +424,7 @@ class Company(db.Model):
     """
     __tablename__ = "company"
     company_id = db.Column(db.Integer, primary_key=True)
-    construction_company = db.Column(db.String(64))
-    tech_support_company = db.Column(db.String(64))
-    project_company = db.Column(db.String(64))
-
-    project = db.relationship("Project", backref="company", lazy="dynamic")
+    company_name = db.Column(db.String(40))
 
     @classmethod
     def gen_fake(cls, count=5):
@@ -427,16 +447,17 @@ class Spot(db.Model):
     spot_id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey("project.project_id"))
     spot_name = db.Column(db.String(64))
-    spot_name = db.Column(db.String(64))
+    spot_type = db.Column(db.String(64))
     image = db.Column(db.Binary)
 
-    spot_record = db.relationship("SpotRecord", backref="spot", lazy="dynamic")
+    device = db.relationship("Device", backref="spot", lazy="dynamic")
 
     @classmethod
     def gen_fake(cls, count=20):
         for _ in range(count):
             spot = cls(project=choice(Project.query.all()),
                        spot_name=chr(randint(33, 127)),
+                       spot_type=chr(randint(33, 127)),
                        image=b'asdadasd')
             db.session.add(spot)
 
@@ -458,7 +479,29 @@ class Spot(db.Model):
             project_id=self.project_id,
             project_name=self.project.project_name,
             spot_name=self.spot_name,
+            spot_type=self.spot_type,
             image=image_base64)
+
+
+class Device(db.Model):
+    """aggregated models from different sources """
+    __tablename__ = "device"
+    device_id = db.Column(db.DateTime, primary_key=True, nullable=False)
+    spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
+    create_time = db.Column(db.DateTime)
+    modify_time = db.Column(db.DateTime)
+    device_name = db.Column(db.String(64))
+    device_type = db.Column(db.String(64))
+
+    spot_record = db.relationship("SpotRecord", backref="device", lazy="dynamic")
+
+    def to_json(self):
+        return dict(device_id=self.device_id,
+                    spot_id=self.spot_id,
+                    create_time=self.create_time.strftime("%y-%m-%d:%h-%m"),
+                    modify_time=self.modify_time.strftime("%y-%m-%d:%h-%m"),
+                    device_name=self.device_name,
+                    device_type=self.device_type)
 
 
 class SpotRecord(db.Model):
@@ -467,7 +510,7 @@ class SpotRecord(db.Model):
     """
     __tablename__ = "spot_record"
     spot_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
-    spot_id = db.Column(db.Integer, db.ForeignKey("device.device_id"))
+    device_id = db.Column(db.Integer, db.ForeignKey("device.device_id"))
     window_opened = db.Column(db.Boolean)  # for xiaomi platform.
     temperature = db.Column(db.Float)
     humidity = db.Column(db.Float)
@@ -503,9 +546,8 @@ class SpotRecord(db.Model):
                 db.session.rollback()
 
     def to_json(self):
-        return dict(spot_id=self.spot_id,
-                    spot_name=self.spot.spot_name,
-                    spot_record_time=self.spot_record_time.strftime("%Y-%m-%d:%H-%M"),
+        return dict(device_id=self.device_id,
+                    spot_record_time=self.spot_record_time.strftime("%y-%m-%d:%h-%m"),
                     window_opened=self.window_opened,
                     temperature=self.temperature,
                     humidity=self.humidity,
@@ -516,11 +558,4 @@ class SpotRecord(db.Model):
     def __repr__(self):
         return "<SpotRecord {} {}>".format(self.spot, self.spot_record_time)
 
-
-class Device(db.Model):
-    """aggregated models from different sources """
-    __tablename__ = "device"
-    device_id = db.Column(db.DateTime, primary_key=True, nullable=False)
-    spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
-    window_opened = db.Column(db.Boolean)  # for xiaomi platform.
 

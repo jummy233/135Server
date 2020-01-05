@@ -10,6 +10,7 @@ from app.models import OutdoorSpot, OutdoorRecord, ClimateArea, Location
 from app.models import Project, ProjectDetail, Company
 from app.models import Spot, SpotRecord
 from app.models import gen_fake_db
+from app.db_init import db_init, create_db
 
 # load environment var
 dotenv_path = os.path.join(os.path.dirname(__name__), '.env')
@@ -44,7 +45,9 @@ def make_shell_context():
         Location=Location,
         Spot=Spot,
         SpotRecord=SpotRecord,
-        gen_fake_db=gen_fake_db)
+        gen_fake_db=gen_fake_db,
+        db_init=db_init,
+        create_db=create_db)
 
 
 @app.cli.command()
