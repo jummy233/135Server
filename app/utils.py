@@ -23,27 +23,29 @@ class TimeAccuracy(Enum):
     DAY_ACCURACY = 2
 
 
-def is_nice_time(step_len: int) -> Callable:
+def is_nice_time(step_min: int) -> Callable:
     """
     step len in minute
     """
 
     def f(dt: datetime) -> bool:
-        return dt.minute % step_len == 0
+        return dt.minute % step_min == 0
     return f
 
 
-def normalize_time(step_len: int) -> Callable:
+def normalize_time(step_min: int) -> Callable:
     """
     step len in minute
     """
 
-    assert step_len % 2 == 0 or step_len % 3 == 0 or step_len % 5 == 0, "time step is not divisible by 60"
+    assert (step_min % 2 == 0 or
+            step_min % 3 == 0 or
+            step_min % 5 == 0), "time step is not divisible by 60"
 
     def f(dt: datetime) -> datetime:
-        if step_len < 60:                       # within an hour.
-            step_num = round(dt.minute / step_len)
-            minute = step_num * step_len
+        if step_min < 60:                       # within an hour.
+            step_num = round(dt.minute / step_min)
+            minute = step_num * step_min
 
             if minute == 60:
                 normalized_time = datetime(
@@ -57,8 +59,8 @@ def normalize_time(step_len: int) -> Callable:
 
             return normalized_time
         else:                                    # cross hours, accurate to nearest hour
-            step_num = round((dt.hour * 60 + dt.minute) / step_len)
-            minutes = step_num * step_len          # e,g ((240 + 32) / 120) * 120 = 240
+            step_num = round((dt.hour * 60 + dt.minute) / step_min)
+            minutes = step_num * step_min          # e,g ((240 + 32) / 120) * 120 = 240
             hour = minutes / 60                    # 240 / 60 = 4
             normalized_time = datetime(dt.year, dt.month, dt.day) + timedelta(hours=hour)
             return normalized_time

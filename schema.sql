@@ -91,7 +91,7 @@ create table if not exists project_detail(
 );
 
 create table if not exists spot(
-    spot_id integer primary key not null,
+    spot_id integer primary key autoincrement not null,
     project_id integer not null,
     spot_name nvarchar(20),
     spot_type nvarchar(20),
@@ -107,7 +107,7 @@ create table if not exists device(
     spot_id integer not null,
     create_time datetime,
     modify_time datetime,
-    foreign key(device_id) references spot(spot_id)
+    foreign key(spot_id) references spot(spot_id)
     on update cascade on delete cascade
 );
 

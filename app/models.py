@@ -49,7 +49,6 @@ class User(db.Model):
     passwd_hash = db.Column(db.String(128))
     permission = db.Column(db.Integer)
 
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if self.permission is None:
@@ -484,9 +483,9 @@ class Spot(db.Model):
 
 
 class Device(db.Model):
-    """aggregated models from different sources """
+    """ Device model """
     __tablename__ = "device"
-    device_id = db.Column(db.DateTime, primary_key=True, nullable=False)
+    device_id = db.Column(db.Integer, primary_key=True)
     spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
     create_time = db.Column(db.DateTime)
     modify_time = db.Column(db.DateTime)
@@ -520,7 +519,7 @@ class SpotRecord(db.Model):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not is_nice_time(step_len=5)(self.spot_record_time):
+        if not is_nice_time(step_min=5)(self.spot_record_time):
             self.spot_record_time = normalize_time(5)(self.spot_record_time)
 
     @classmethod

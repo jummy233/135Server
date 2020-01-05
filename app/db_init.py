@@ -118,24 +118,6 @@ def load_projects():
         proj_json['project_company'] = {'company_name': proj_json['project_company']}
         proj_json['construction_company'] = {'company_name': proj_json['construction_company']}
 
-        def convert(val: str, typ) -> Union[None, int, float]:
-            if not val:
-                return None
-            return typ(val)
-
-        def json_convert(jsondata, key, typ) -> None:
-            jsondata[key] = convert(jsondata[key], typ)
-
-        json_convert(proj_json, 'floor', int)
-        json_convert(proj_json, 'longitude', float)
-        json_convert(proj_json, 'latitude', float)
-        json_convert(proj_json, 'area', float)
-        json_convert(proj_json, 'demo_area', float)
-        json_convert(proj_json, 'building_height', float)
-        json_convert(proj_json, 'started_time', lambda s: s.split('T')[0])
-        json_convert(proj_json, 'finished_time', lambda s: s.split('T')[0])
-        json_convert(proj_json, 'record_started_from', lambda s: s.split('T')[0])
-
         add_project(proj_json)
 
 #################
