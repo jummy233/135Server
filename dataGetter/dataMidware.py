@@ -10,16 +10,16 @@ from operator import itemgetter
 import logging
 from functools import partial
 
-from . import xiaomiGetter as xGetter
-from . import jianyanyuanGetter as jGetter
-from .jianyanyuanGetter import (
+import xiaomiGetter as xGetter
+import jianyanyuanGetter as jGetter
+from jianyanyuanGetter import (
     DataPointParam as JdpParam,
     DataPointResult as JdpResult,
     DeviceParam as JdevParam,
     DeviceResult as JdevResult)
-from . import authConfig
-from .utils import str_to_datetime, datetime_to_str
-from .dateSequence import DateSequence, date_sequence
+import authConfig
+from utils import str_to_datetime, datetime_to_str
+from dateSequence import DateSequence, date_sequence
 
 
 class Location(NamedTuple):

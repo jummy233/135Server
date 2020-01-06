@@ -128,10 +128,7 @@ class TestModelOperation(unittest.TestCase):
         self._device()
         self._spot_record()
 
-        # query_res = m.SpotRecord.query.filter_by(
-        #     spot_record_time=datetime(2019, 4, 24, 12, 30)).first()
-        query_res = m.SpotRecord.query.first()
-        print(query_res.spot_record_time)
-        print(query_res.spot_record_time == datetime(2019, 9, 24, 12, 30))
+        query_res = m.SpotRecord.query.filter_by(
+            spot_record_time=datetime(2019, 9, 24, 12, 30)).first()
 
         self.assertTrue(query_res.window_opened and query_res.humidity == 89)

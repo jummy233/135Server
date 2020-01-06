@@ -13,7 +13,7 @@ from .models import ClimateArea, Company, Permission
 from .models import OutdoorSpot, OutdoorRecord
 from .models import Spot, SpotRecord, Device
 from datetime import datetime as dt
-from app.dataGetter.utils import str_to_datetime
+from dataGetter.utils import str_to_datetime
 from . import db
 
 PostData = Dict
@@ -237,7 +237,6 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
 
         # query with device id or device name?
         device = Device.query.filter_by(device_id=spot_record_data.get("device")).first()
-        print(spot_record_data)
 
         new_spot_record = SpotRecord(
             spot_record_time=spot_record_data["spot_record_time"],

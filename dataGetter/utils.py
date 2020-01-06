@@ -9,15 +9,15 @@ def currentTimestamp(digit: int) -> int:
 
 
 def str_to_datetime(sdate: str) -> dt:
-    return dt.strptime(sdate, '%Y-%m-%dT%M:%S:%f')
+    return dt.strptime(sdate, '%Y-%m-%dT%H:%M:%S')
 
 
 def datetime_to_str(datetime: dt) -> str:
     return '{}-{}-{}T{}:{}:{}'.format(datetime.year,
                                       datetime.month,
                                       datetime.day,
+                                      datetime.hour,
                                       datetime.minute,
-                                      datetime.second,
-                                      str(datetime.microsecond)[:2])
+                                      str(datetime.second)[:2])
 
 
