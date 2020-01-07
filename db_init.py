@@ -11,10 +11,10 @@ import logging
 
 from sqlalchemy.exc import IntegrityError
 
-from .models import ClimateArea, Location, Project
-from .modelOperations import add_location, add_project
-from . import db
-from . import dataGetter as D
+from app.models import ClimateArea, Location, Project
+from app.modelOperations import add_location, add_project
+from app import db
+import dataGetter as D
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
@@ -25,9 +25,8 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 
 def create_db(force=True) -> None:
     logging.debug('- createcreate init  db')
-    par_abs_path = os.path.join(current_dir, os.path.pardir)
-    db_path = os.path.join(par_abs_path, 'development.sqlite')
-    schema_path = os.path.join(par_abs_path, 'schema.sql')
+    db_path = os.path.join(current_dir, 'development.sqlite')
+    schema_path = os.path.join(current_dir, 'schema.sql')
 
     if not force and os.path.exists(db_path):
         return

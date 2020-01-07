@@ -130,9 +130,15 @@ def add_project(project_data: PostData) -> Optional[Project]:
     json_convert(project_data, 'area', float)
     json_convert(project_data, 'demo_area', float)
     json_convert(project_data, 'building_height', float)
-    json_convert(project_data, 'started_time', lambda s: fromisoformat(s.split('T')[0]))
-    json_convert(project_data, 'finished_time', lambda s: fromisoformat(s.split('T')[0]))
-    json_convert(project_data, 'record_started_from', lambda s: fromisoformat(s.split('T')[0]))
+
+    if not isinstance(project_data['started_time'], dt):
+        json_convert(project_data, 'started_time', lambda s: fromisoformat(s.split('T')[0]))
+
+    if not isinstance(project_data['finished_time'], dt):
+        json_convert(project_data, 'finished_time', lambda s: fromisoformat(s.split('T')[0]))
+
+    if not isinstance(project_data['record_started_from'], dt):
+        json_convert(project_data, 'record_started_from', lambda s: fromisoformat(s.split('T')[0]))
 
     try:
         new_proj = Project(
@@ -215,8 +221,10 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
     if not isinstance(spot_record_data, PostData):
         return None
 
-    spot_record_time: dt = str_to_datetime(spot_record_data['spot_record_time'])
-
+    # time can either be dt or string.
+    spot_record_time: Union[dt, str] = spot_record_data['spot_record_time']
+    if not isinstance(spot_record_time, dt):
+        spot_record_time = str_to_datetime(spot_record_data['spot_record_time'])
     spot_record = (SpotRecord
                    .query
                    .filter_by(spot_record_time=spot_record_time)
@@ -227,7 +235,6 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
     new_spot_record = None
 
     try:
-        json_convert(spot_record_data, 'spot_record_time', str_to_datetime)
         json_convert(spot_record_data, 'window_opened', json_to_bool)
         json_convert(spot_record_data, 'temperature', float)
         json_convert(spot_record_data, 'humidity', float)
@@ -239,7 +246,7 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
         device = Device.query.filter_by(device_id=spot_record_data.get("device")).first()
 
         new_spot_record = SpotRecord(
-            spot_record_time=spot_record_data["spot_record_time"],
+            spot_record_time=spot_record_time,
             device=device,
             window_opened=spot_record_data.get("window_opened"),
             temperature=spot_record_data.get("temperature"),
@@ -442,9 +449,11 @@ def add_device(device_data: PostData) -> Optional[Device]:
 
     try:
         # location must have a climate area.
+        if not isinstance(device_data['create_time'], dt):
+            json_convert(device_data, 'create_time', lambda s: fromisoformat(s.split('T')[0]))
 
-        json_convert(device_data, 'create_time', lambda s: fromisoformat(s.split('T')[0]))
-        json_convert(device_data, 'modify_time', lambda s: fromisoformat(s.split('T')[0]))
+        if not isinstance(device_data['modify_time'], dt):
+            json_convert(device_data, 'modify_time', lambda s: fromisoformat(s.split('T')[0]))
 
         new_device = Device(device_name=device_data.get("device_name"),
                             device_type=device_data.get("device_type"),

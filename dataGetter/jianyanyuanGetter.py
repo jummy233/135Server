@@ -1,10 +1,10 @@
 import requests
 from hashlib import md5, sha1
-from typing import NewType, Dict, Optional, Tuple, TypedDict, List
+from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Union, Iterator
 import urllib.parse
 from operator import itemgetter
 import json
-from utils import currentTimestamp
+from dataGetter.utils import currentTimestamp
 import logging
 
 
@@ -77,7 +77,7 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
     get token
     """
     (account, password, base_url, auth_url) = itemgetter(
-            'account', 'password', 'base_url', 'auth_url')(auth)
+        'account', 'password', 'base_url', 'auth_url')(auth)
 
     # construct request
     url: str = urllib.parse.urljoin(base_url, auth_url)
@@ -137,7 +137,7 @@ def _get_device_list(auth: AuthData,
         return None
 
     if rj['code'] != 0:
-        logging.error('error return code: %s', rj['code'])
+        logging.error('error return code: %s', rj)
         return None
     return rj['data']['devs']
 
@@ -179,8 +179,10 @@ def _get_device_attrs(auth: AuthData,
 
     rj: Dict = response.json()
     if rj['code'] != 0:
-        logging.error('error return code: ', rj['code'])
+        logging.error('error return code: ', rj)
         return None
+    # __import__('pprint').pprint(rj)
+    # print('------->')
     return rj['data']['jsonArray']
 
 
@@ -216,7 +218,7 @@ def _get_data_points(auth: AuthData,
     rj = response.json()
 
     if rj['code'] != 0:
-        logging.error('error return code from server: %s', rj['code'])
+        logging.error('error return code from server: %s', rj)
         return None
 
     if 'asData' not in rj['data'].keys():

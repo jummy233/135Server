@@ -1,6 +1,6 @@
 from threading import Timer
 from typing import (
-    NewType, Dict, Optional, Tuple, List, Generator, NamedTuple,
+    NewType, Dict, Optional, Tuple, List, Generator,
     TypedDict, Iterator, Callable, cast)
 from abc import ABC, abstractmethod
 from collections import namedtuple
@@ -10,34 +10,44 @@ from operator import itemgetter
 import logging
 from functools import partial
 
-import xiaomiGetter as xGetter
-import jianyanyuanGetter as jGetter
-from jianyanyuanGetter import (
-    DataPointParam as JdpParam,
-    DataPointResult as JdpResult,
+from dataGetter import xiaomiGetter as xGetter
+from dataGetter import jianyanyuanGetter as jGetter
+from dataGetter.jianyanyuanGetter import (
+    DataPointParam as JdatapointParam,
+    DataPointResult as JdatapointResult,
     DeviceParam as JdevParam,
     DeviceResult as JdevResult)
-import authConfig
-from utils import str_to_datetime, datetime_to_str
-from dateSequence import DateSequence, date_sequence
+from dataGetter import authConfig
+from dataGetter.utils import str_to_datetime, datetime_to_str
+from dataGetter.dateSequence import DateSequence, date_sequence
 
 
-class Location(NamedTuple):
-    climate_area: str
-    province: str
-    city: str
+######################################
+#  These are intermidiate data       #
+#   structrues!!                     #
+#  Datatype returned by midware.     #
+#  These data will be further piped  #
+#  into DBRecorder module to finally #
+#  into db.                          #
+######################################
+
+class Location(TypedDict):
+    province: Optional[str]
+    city: Optional[str]
+    address: Optional[str]
+    extra: Optional[str]    # extra useful informatino to determine spot
 
 
-class Spot(NamedTuple):
-    project_id: int
-    spot_id: int
-    spot_name: str
-    spot_type: str
+class Spot(TypedDict):
+    """ Spot is generate from location """
+    project_name: Optional[str]
+    spot_name: Optional[str]
+    spot_type: Optional[str]
 
 
-class SpotRecord(NamedTuple):
+class SpotRecord(TypedDict):
     # spot_id: int
-    spot_record_time: dt
+    spot_record_time: Optional[dt]
     temperature: Optional[float]
     humidity: Optional[float]
     pm25: Optional[float]
@@ -46,9 +56,13 @@ class SpotRecord(NamedTuple):
     ac_power: Optional[float]
 
 
-class Device(NamedTuple):
-    spot_id: int
-    device_name: str
+class Device(TypedDict):
+    location_info: Optional[Location]  # Location info help to deduce the spot.
+
+    device_name: Optional[str]
+    device_type: Optional[str]
+    create_time: Optional[dt]
+    modify_time: Optional[dt]
 
 
 class SpotData(ABC):
@@ -60,7 +74,7 @@ class SpotData(ABC):
     datetime_time_eror_msg: str = 'Datetime error: Incorrect datetime'
 
     @abstractmethod
-    def spot_location(self) -> Optional[Generator[Optional[Spot], None, None]]:
+    def spot(self) -> Optional[Generator[Optional[Spot], None, None]]:
         """
         Get spot location information.
         It returns a generator of the list of spot location information
@@ -133,6 +147,9 @@ class XiaoMiData(SpotData, RealTimeSpotData):
     def device(self) -> Optional[Generator]:
         pass
 
+    def spot(self) -> Optional[Generator]:
+        pass
+
     def rt_spot_record(self) -> Optional[Generator]:
         pass
 
@@ -152,7 +169,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         'start': 1,
         'size': size,
         'pageNo': 1,
-        'pageSize': str(size)
+        'pageSize': size  # @2020-01-06 could be str.
     }
 
     def __init__(self, datetime_range: Optional[Tuple[dt, dt]] = None):
@@ -185,9 +202,16 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         self.device_list = jGetter._get_device_list(
             self.auth, self.token, cast(Dict, JianYanYuanData.device_params))
 
-    def spot_location(self) -> Optional[Generator]:
+    def close(self):
+        """ tear down """
+        self.timer.cancel()
+        del self
+
+    @staticmethod
+    def make_location(device_result: JdevResult) -> Location:
         """
         return location in standard format
+        location will be used to make Spot and device info.
         """
 
         # define utils.
@@ -195,19 +219,20 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             'cityIdLogin', 'provinceIdLogin', 'nickname', 'address',
             'provinceLoginName', 'cityLoginName', 'location')
 
-        if self.device_list is None:
-            logging.error('empty device list')
-            return None
-
         # filter location attributes from device result lists.
         make_attrs: Callable = partial(
             JianYanYuanData._filter_location_attrs,
             location_attrs=location_attrs)
 
-        attrses: Iterator = map(make_attrs, self.device_list)
+        # attrses: Iterator = map(make_attrs, self.device_list)
 
-        make_spot = JianYanYuanData.make_spot
-        return (make_spot(attrs) for attrs in attrses)
+        # make_spot = JianYanYuanData.make_spot
+        # return (make_spot(attrs) for attrs in attrses)
+        return JianYanYuanData.make_spot(make_attrs(device_result))
+
+    def spot(self) -> Optional[Generator]:
+        """ return spot generator """
+        pass
 
     def spot_record(self) -> Optional[Generator]:
         """
@@ -216,7 +241,9 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         pass
 
     def device(self) -> Optional[Generator]:
-        pass
+        if not self.device_list:
+            return None
+        return (self.make_device(d) for d in self.device_list)
 
     ####################################
     #  spot_location helper functions  #
@@ -231,23 +258,6 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         return {k: v for k, v
                 in device_result.items()
                 if k in location_attrs}
-
-    @staticmethod
-    def make_spot(attrs: Dict) -> Optional[Spot]:
-        """
-        construct `Spot` type from given location attrs.
-
-        Priority of attrs:
-
-            address > nickname > cityLoginName > provinceLoginName > cityId or provinceId
-
-        if address and nickname both exsits, commbine them together as the spot name.
-        """
-        # TODO: pick the most suitable infor from locatino attrs 2019-12-23 @1
-        # Location need to match with project.
-        # So this function need to be implemented with project information.
-
-        return attrs
 
     ##################################
     #  spot_record helper functions  #
@@ -276,7 +286,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                        datapoint_param_iter: Optional[Iterator]
                        ) -> Optional[Iterator
                                      [Optional
-                                      [List[JdpResult]]]]:
+                                      [List[JdatapointResult]]]]:
         """ datapoint data generator. Is a iterator of list.  """
 
         if datapoint_param_iter is None:
@@ -295,38 +305,9 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         return datapoint_iter
 
     @staticmethod
-    def make_spot_record(datapoint: Optional[JdpResult]) -> Optional[SpotRecord]:
-        """ construct `SpotRecord` from given datapoint_params """
-
-        if datapoint is None:
-            logging.error('datapoint is empty')
-            return None
-
-        aS: Optional[Dict] = datapoint.get('as')
-
-        if aS is None:
-            logging.error('datapoint `as` record is empty')
-            return None
-
-        key: Optional[str] = datapoint.get('key')
-        if key is None:
-            logging.error('datapoint `key` record is empty')
-            return None
-
-        time = str_to_datetime(key)
-
-        pm25: Optional[float] = aS.get(jGetter.attrs['pm25'])
-        co2: Optional[float] = aS.get(jGetter.attrs['co2'])
-        temperature: Optional[float] = aS.get(jGetter.attrs['temperature'])
-        humidity: Optional[float] = aS.get(jGetter.attrs['humidity'])
-        ac_power: Optional[float] = aS.get(jGetter.attrs['ac_power'])
-
-        return SpotRecord(time, temperature, humidity, pm25, co2, None, ac_power)
-
-    @staticmethod
     def _make_datapoint_param(device_result: JdevResult,
                               time_range: Optional[Tuple[str, str]] = None
-                              ) -> Optional[JdpParam]:
+                              ) -> Optional[JdatapointParam]:
         """
         make query parameter datapoint query.
         DataPoint query parameter format:
@@ -359,20 +340,22 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             startTime, endTime = time_range
 
             if str_to_datetime(startTime) < str_to_datetime(createTime):
-                raise ValueError(JianYanYuanData.source,
-                                 SpotData.datetime_time_eror_msg,
-                                 startTime,
-                                 createTime)
+                raise ValueError(
+                    JianYanYuanData.source,
+                    SpotData.datetime_time_eror_msg,
+                    startTime,
+                    createTime)
 
             if str_to_datetime(endTime) > dt.utcnow():
-                raise ValueError(JianYanYuanData.source,
-                                 SpotData.datetime_time_eror_msg,
-                                 endTime)
+                raise ValueError(
+                    JianYanYuanData.source,
+                    SpotData.datetime_time_eror_msg,
+                    endTime)
 
         aid: str = JianYanYuanData._get_aid(productId)
 
-        datapoint_params: Optional[JdpParam] = (
-            jGetter.DataPointParam(
+        datapoint_params: JdatapointParam = (
+            JdatapointParam(
                 gid=gid,
                 did=did,
                 aid=aid,
@@ -402,6 +385,70 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
     def rt_spot_record(self):
         pass
+
+    ########################################
+    # Convert json result into TypedDict   #
+    ########################################
+
+    @staticmethod
+    def make_spot_record(datapoint: Optional[JdatapointResult]) -> Optional[SpotRecord]:
+        """ construct `SpotRecord` from given datapoint_params """
+
+        if datapoint is None:
+            logging.error('datapoint is empty')
+            return None
+
+        aS: Optional[Dict] = datapoint.get('as')
+
+        if aS is None:
+            logging.error('datapoint `as` record is empty')
+            return None
+
+        key: Optional[str] = datapoint.get('key')
+        if key is None:
+            logging.error('datapoint `key` record is empty')
+            return None
+
+        time = str_to_datetime(key)
+
+        pm25: Optional[float] = aS.get(jGetter.attrs['pm25'])
+        co2: Optional[float] = aS.get(jGetter.attrs['co2'])
+        temperature: Optional[float] = aS.get(jGetter.attrs['temperature'])
+        humidity: Optional[float] = aS.get(jGetter.attrs['humidity'])
+        ac_power: Optional[float] = aS.get(jGetter.attrs['ac_power'])
+
+        return SpotRecord(spot_record_time=time,
+                          temperature=temperature,
+                          humidity=humidity,
+                          pm25=pm25,
+                          co2=co2,
+                          window_opened=None,
+                          ac_power=ac_power)
+
+    @staticmethod
+    def make_spot(attrs: Dict) -> Optional[Spot]:
+        """
+        construct `Spot` type from given location attrs.
+
+        Priority of attrs:
+
+            address > nickname > cityLoginName > provinceLoginName > cityId or provinceId
+
+        if address and nickname both exsits, commbine them together as the spot name.
+        """
+        # TODO: pick the most suitable infor from locatino attrs 2019-12-23 @1
+        # Location need to match with project.
+        # So this function need to be implemented with project information.
+
+        return attrs
+
+    @staticmethod
+    def make_device(device_result: JdevResult) -> Device:
+        return Device(location_info=JianYanYuanData.make_location(device_result),
+                      device_name=device_result.get('deviceId'),
+                      device_type=device_result.get('productName'),
+                      create_time=device_result.get('createTime'),
+                      modify_time=device_result.get('modifyTime'))
 
 
 # TODO Outdoor data

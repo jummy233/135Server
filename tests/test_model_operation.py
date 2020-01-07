@@ -1,6 +1,7 @@
 import unittest
+
+import db_init
 from app import db, create_app
-from app import db_init
 from app import modelOperations as mops
 from app import models as m
 from datetime import datetime
@@ -49,7 +50,7 @@ class TestModelOperation(unittest.TestCase):
             "project_company": {"company_name": "ProjectCompany"},
             "outdoor_spot": "",
             "district": "Discrict",
-            "record_started_from": "2019-04-20T00:00:00",
+            "record_started_from": datetime(2019, 4, 20),
             "area": "2311.94"
         }
         mops.add_project(project)
@@ -69,13 +70,14 @@ class TestModelOperation(unittest.TestCase):
             "device_type": "Temperature",
             "spot": m.Spot.query.first().spot_id,
             "create_time": "2019-04-20T00:00:00",
-            "modify_time": "2019-04-24T00:00:00"
+            "modify_time": datetime(2019, 4, 24)
         }
         mops.add_device(device)
 
     def _spot_record(self):
         spot_record = {
-            "spot_record_time": "2019-09-24T12:30:00",
+            "spot_record_time": datetime(2019, 9, 24, 12, 30),
+            # "spot_record_time": "2019-09-24T12:30:00",
             "device": m.Device.query.first().device_id,
             "window_opened": "true",
             "temperature": "34",
