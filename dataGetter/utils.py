@@ -1,5 +1,6 @@
 from math import floor
 from datetime import datetime as dt
+from typing import Optional
 
 
 def currentTimestamp(digit: int) -> int:
@@ -8,16 +9,18 @@ def currentTimestamp(digit: int) -> int:
     return floor(dt.timestamp(dt.utcnow()) * factor)
 
 
-def str_to_datetime(sdate: str) -> dt:
+def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
+    if not sdate:
+        return None
     return dt.strptime(sdate, '%Y-%m-%dT%H:%M:%S')
 
 
-def datetime_to_str(datetime: dt) -> str:
-    return '{}-{}-{}T{}:{}:{}'.format(datetime.year,
-                                      datetime.month,
-                                      datetime.day,
-                                      datetime.hour,
-                                      datetime.minute,
-                                      str(datetime.second)[:2])
-
-
+def datetime_to_str(datetime: Optional[dt]) -> str:
+    if not datetime:
+        return ''
+    return '{}-{:02}-{:02}T{:02}:{:02}:{:02}'.format(datetime.year,
+                                                     datetime.month,
+                                                     datetime.day,
+                                                     datetime.hour,
+                                                     datetime.minute,
+                                                     datetime.second)

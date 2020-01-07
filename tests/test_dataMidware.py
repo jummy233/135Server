@@ -11,8 +11,12 @@ class TestdataMidware_JianYanYuanData(unittest.TestCase):
         self.j.close()
 
     def test_JianYanYuanData_make_spot_record(self):
-        datapoint = self.j._make_datapoint_param(self.j.device_list[2])
-        __import__('pprint').pprint(self.j.make_spot_record(datapoint))
+        # range test.
+        datapoint_params = map(self.j._make_datapoint_param, self.j.device_list[1:2])
+        datapoints = map(self.j._datapoint, datapoint_params)
+        spot_records = map(lambda dp: None if not dp else self.j.make_spot_record(dp[0]), datapoints)
+        # for sr in spot_records:
+        #     __import__('pprint').pprint(sr)
 
     def test_JianYanYuanData_make_spot(self):
         pass

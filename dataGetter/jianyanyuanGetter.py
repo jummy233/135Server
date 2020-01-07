@@ -31,19 +31,19 @@ AuthData = (
 #######################
 DeviceParam = (
     TypedDict('DeviceParam',
-              {'companyId': str,
-               'start': int,
-               'size': int,
-               'pageNo': int,
-               'pageSize': int}))
+              {'companyId': Optional[str],
+               'start': Optional[int],
+               'size': Optional[int],
+               'pageNo': Optional[int],
+               'pageSize': Optional[int]}))
 
 DataPointParam = (
     TypedDict('DataPointParam',
-              {'gid': str,
-               'did': str,
-               'aid': str,  # list of attrs. string in form "<int>, <int>" where <int> are attr id
-               'startTime': str,
-               'endTime': str}))  # time format: yyyy-MM-ddTHH:mm:ss
+              {'gid': Optional[str],
+               'did': Optional[str],
+               'aid': Optional[str],  # list of attrs. string in form "<aid>, <aid>"
+               'startTime': Optional[str],
+               'endTime': Optional[str]}))  # time format: yyyy-MM-ddTHH:mm:ss
 
 Gid = NewType('Gid', str)
 
@@ -68,8 +68,9 @@ attrs: Dict = {
     'temperature': '3',
     'humidity': '4',
 
-    # monitor devices.
-    'ac_power': '155'}
+    # there are two ac power aid for differnt devices.
+    'ac_power1': '155',
+    'ac_power2': '32'}
 
 
 def _get_token(auth: AuthData) -> Optional[AuthToken]:

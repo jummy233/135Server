@@ -1,4 +1,7 @@
 from threading import Timer
+from multiprocessing import Process
+from queue import Queue
+import time
 from typing import (
     NewType, Dict, Optional, Tuple, List, Generator,
     TypedDict, Iterator, Callable, cast)
@@ -6,6 +9,7 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from sys import maxsize
 from datetime import datetime as dt
+from datetime import timedelta
 from operator import itemgetter
 import logging
 from functools import partial
@@ -127,7 +131,16 @@ class XiaoMiData(SpotData, RealTimeSpotData):
 
         def _refresh_token():  # token will expire. So need to be refreshed periodcially.
             self.refresh = self.token['refresh_token']
-            self.token = xGetter._get_token(self.auth, self.refresh)
+
+            token_worker = Process(  # refresh token in another process and pause the current one.
+                target=lambda o: (
+                    setattr(o,
+                            'token',
+                            xGetter._get_token(self.auth, self.refresh))), args=(self))
+            token_worker.start()
+            time.sleep(1)  # wait for worker finish.
+            token_worker.join()
+
             if not self.token:
                 logging.critical('%s %s', self.source, Spot.token_fetch_error_msg)
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
@@ -159,7 +172,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     Jianyanyuan data getter implementation
     """
     source: str = '<jianyanyuan>'
-    expire_in: int = 20  # token is valid in 20 seconds.
+    expires_in: int = 20  # token is valid in 20 seconds.
     indoor_data_collector_pid: str = '001'
     monitor_pid: str = '003'
 
@@ -185,17 +198,28 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             logging.critical('%s %s', self.source, SpotData.token_fetch_error_msg)
             raise ConnectionError(self.source, SpotData.token_fetch_error_msg)
 
-        def _refresh_token():
-            self.token = jGetter._get_token(self.auth)
+        def _refresh_token():  # token will expire. So need to be refreshed periodcially.
+
+            token_worker = Process(  # refresh token in another process and pause the current one.
+                target=lambda o: (
+                    setattr(o,
+                            'token',
+                            jGetter._get_token(self.auth))), args=(self,))
+            token_worker.start()
+            time.sleep(1)  # wait for worker finish.
+            token_worker.join()
 
             if not self.token:
                 logging.critical('%s %s', self.source, Spot.token_fetch_error_msg)
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
-            self.timer = Timer(JianYanYuanData.expire_in - 5, _refresh_token)
+            # reset timer.
+            self.timer = Timer(JianYanYuanData.expires_in - 1, _refresh_token)
             self.timer.start()
+            time.sleep(1)
+            self.timer.join()
 
-        self.timer = Timer(JianYanYuanData.expire_in - 5, _refresh_token)
+        self.timer = Timer(JianYanYuanData.expires_in - 1, _refresh_token)
         self.timer.start()
 
         # common states
@@ -263,7 +287,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     #  spot_record helper functions  #
     ##################################
 
-    def datapoint_param_iter(self) -> Optional[Iterator]:
+    def _datapoint_param_iter(self) -> Optional[Iterator]:
         """
         datapoint paramter generator. Each paramter for each device.
         """
@@ -282,6 +306,13 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         return datapoint_param_iter
 
+    def _datapoint(self,
+                   datapoint_param: Optional[JdatapointParam]
+                   ) -> Optional[List[JdatapointResult]]:
+        if not datapoint_param:
+            return None
+        return jGetter._get_data_points(self.auth, self.token, datapoint_param)
+
     def datapoint_iter(self,
                        datapoint_param_iter: Optional[Iterator]
                        ) -> Optional[Iterator
@@ -294,7 +325,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             return None
 
         datapoint_iter = (
-            jGetter._get_data_points(self.auth, self.token, param)
+            self._datapoint(param)
             for param
             in datapoint_param_iter)
 
@@ -306,7 +337,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
     @staticmethod
     def _make_datapoint_param(device_result: JdevResult,
-                              time_range: Optional[Tuple[str, str]] = None
+                              time_range: Optional[Tuple[dt, dt]] = None
                               ) -> Optional[JdatapointParam]:
         """
         make query parameter datapoint query.
@@ -324,60 +355,41 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             logging.error('no device result')
             return None
 
-        (gid, did, productId, createTime) = itemgetter(
-            'gid', 'deviceId', 'productId', 'createTime')(device_result)
+        gid = device_result.get('gid')
+        did = device_result.get('deviceId')
+        productId = device_result.get('productId')
+        createTime = str_to_datetime(device_result.get('createTime'))
+        modifyTime = str_to_datetime(device_result.get('modifyTime'))
 
-        # Note: Don't need get attrs since we already know what to get,
-        # attrs: Optional[List[jGetter.AttrResult]] = (
-        #     jGetter._get_device_attrs(self.auth, self.token, gid))
+        def get_aid(productId) -> str:
+            return '1,2,3,4,32,155'
 
         if not time_range:
-            startTime: str = createTime
-            endTime: str = datetime_to_str(dt.utcnow())
+            startTime: Optional[dt] = createTime
+            endTime: Optional[dt] = (modifyTime if modifyTime
+                                     else dt.utcnow() - timedelta(hours=1))  # 1 hour gap avoid bug.
         # check if datetimes are valid
 
         else:
             startTime, endTime = time_range
 
-            if str_to_datetime(startTime) < str_to_datetime(createTime):
-                raise ValueError(
-                    JianYanYuanData.source,
-                    SpotData.datetime_time_eror_msg,
-                    startTime,
-                    createTime)
+            # handle impossible date.
+            if createTime and startTime < createTime:
+                startTime = createTime
 
-            if str_to_datetime(endTime) > dt.utcnow():
-                raise ValueError(
-                    JianYanYuanData.source,
-                    SpotData.datetime_time_eror_msg,
-                    endTime)
-
-        aid: str = JianYanYuanData._get_aid(productId)
+            if endTime > dt.utcnow():
+                endTime = (modifyTime if modifyTime
+                           else dt.utcnow() - timedelta(hours=1))
 
         datapoint_params: JdatapointParam = (
             JdatapointParam(
                 gid=gid,
                 did=did,
-                aid=aid,
-                startTime=startTime,
-                endTime=endTime))
+                aid=get_aid(productId),
+                startTime=datetime_to_str(startTime),
+                endTime=datetime_to_str(endTime)))
+
         return datapoint_params
-
-    # set attr id
-    # Here ignored all haier devices.
-    @staticmethod
-    def _get_aid(productId) -> str:
-
-        if productId == JianYanYuanData.indoor_data_collector_pid:
-            return '{},{},{},{}'.format(
-                jGetter.attrs['pm25'],
-                jGetter.attrs['co2'],
-                jGetter.attrs['temperature'],
-                jGetter.attrs['humidity'])
-
-        if productId == JianYanYuanData.monitor_pid:
-            return jGetter.attrs['ac_power']
-        return ''
 
     ######################
     #  Implement device  #
@@ -415,7 +427,9 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         co2: Optional[float] = aS.get(jGetter.attrs['co2'])
         temperature: Optional[float] = aS.get(jGetter.attrs['temperature'])
         humidity: Optional[float] = aS.get(jGetter.attrs['humidity'])
-        ac_power: Optional[float] = aS.get(jGetter.attrs['ac_power'])
+        ac_power: Optional[float] = aS.get(jGetter.attrs['ac_power1'])
+        if not ac_power:
+            ac_power = aS.get(jGetter.attrs['ac_power2'])
 
         return SpotRecord(spot_record_time=time,
                           temperature=temperature,
