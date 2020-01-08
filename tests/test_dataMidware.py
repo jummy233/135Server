@@ -53,8 +53,8 @@ class TestdataMidware_JianYanYuanData(unittest.TestCase):
 
     def test_JianYanYuanData_spot(self):
         spot = self.j.spot()
-        for n in spot:
-            print(n)
+        # for n in spot:
+        #     print(n)
 
     def test_JianYanYuanData_spot_record(self):
         spot_records = self.j.spot_record()
