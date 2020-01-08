@@ -2,18 +2,21 @@
 Script to init database.
 """
 
-from typing import List, Dict, Union
 import json
 import os
 import sqlite3
 from operator import itemgetter
 import logging
+from functools import partial
+from typing import List, Dict, Union, Generator, Iterator, Optional, Tuple
 
 from sqlalchemy.exc import IntegrityError
+from fuzzywuzzy import fuzz
 
-from app.models import ClimateArea, Location, Project
-from app.modelOperations import add_location, add_project
+from app.models import ClimateArea, Location, Project, Spot, Device, SpotRecord
+from app.modelOperations import add_location, add_project, add_spot, add_spot_record
 from app import db
+from dataGetter import dataMidware
 import dataGetter as D
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -119,20 +122,109 @@ def load_projects():
 
         add_project(proj_json)
 
-#################
-#  Record Spot  #
-#################
-
-#########################
-#  Record Spot Records  #
-#########################
-
-
 ####################
-#  Record Devices  #
+#  Load full data  #
 ####################
 
-def db_init():
+
+def fuzztuple(match_string, candiates: Tuple[str, str]) -> float:
+    fst, snd = candiates
+    fuzz_on = partial(fuzz.partial_ratio, match_string)
+    return max(fuzz_on(fst), fuzz_on(snd))
+
+
+class JianyanyuanLoadFull:
+    """
+    load all Jianyanyuan data.
+    devices spot and records are large and has heavy state dependency.
+    """
+
+    def __init__(self):
+        self.j = dataMidware.JianYanYuanData()
+
+    def load_spots(self):
+        """
+        -----------------------------------------
+         Different methods to get spot
+        -----------------------------------------
+        method 1:    fuzzy match the JianyanyuanData Location typedict with project name
+        method 2:    use the j_project_device_table's projects name. (all project from jianyanyuan)
+        other wise:  no enough information, pass
+
+        Jianyanyuan spot are just project. There is no room information.
+
+        """
+        spots: Optional[Generator] = self.j.spot()
+        if not spots:
+            logging.warning('empty spot from JianYanYuanData')
+            return
+
+        def spotname_from_projectname(project_name: str) -> str:
+            return project_name + '测点'
+
+        # method 1 fuzzy match
+        projects: Tuple = tuple(Project.query.all())
+        for s in spots:
+
+            project_name = s.get('project_name')
+            fuzzon = partial(fuzz.partial_ratio, project_name)
+            fuzz_results: List[float] = list(map(lambda p: fuzzon(p.project_name), projects))
+            max_ratio = max(fuzz_results)
+
+            spot_post: Dict = {}
+
+            if max_ratio > 80:  # > 80 means a good match
+                project = projects[fuzz_results.index(max_ratio)]
+                spot_post = {
+                    "project": project,
+                    "spot_name": spotname_from_projectname(project.project_name),
+                    "spot_type": None,
+                    "image": None
+                }
+
+                add_spot(spot_post)
+
+        # method 2: Use keys of j_project_device_table.
+        with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
+            json_data: Dict = json.loads(f.read())
+            projects = (Project
+                        .query
+                        .filter(Project.project_name in json_data.keys()))
+
+        spot_names = list(map(lambda p: spotname_from_projectname(p.project_name), projects))
+
+        for spot_name in spot_names:
+            if not Spot.query.filter(Spot.spot_name == spot_names):
+                spot_post = {
+                    "project": project,
+                    "spot_name": spotname_from_projectname(project.project_name),
+                    "spot_type": None,
+                    "image": None
+                }
+                add_spot(spot_post)
+
+    def load_devices(self):
+        # Jianyanyuan devices.
+        devices: Optional[Generator] = self.j.device()
+        if not devices:
+            logging.warning('empty device from JianyanyuanData')
+            return
+
+        for d in devices:
+            pass
+
+    def load_spot_records(self):
+        pass
+
+
+def db_init(full=False):
     load_climate_area()
     load_location()
     load_projects()
+
+    if full:
+        load_data = JianyanyuanLoadFull()
+        load_data.load_spots()
+        # load_data.load_devices()
+        # load_data.load_spot_records()
+

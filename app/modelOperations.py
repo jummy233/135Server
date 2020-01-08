@@ -492,7 +492,7 @@ def commit():
         raise
 
 
-def _commit_db(op: Callable[[Dict], None], post_data: Dict) -> None:
+def commit_db(op: Callable[[Dict], None], post_data: Dict) -> None:
     """ commit database change """
     op(post_data)
     commit()
@@ -507,7 +507,7 @@ def commit_db_operation(response_object: Dict,
     if commit failed, handle exceptions.
     """
     try:
-        _commit_db(op, post_data)
+        commit_db(op, post_data)
 
     except ValueExistedError as e:
         response_object["status"] = "failed"

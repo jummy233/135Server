@@ -24,6 +24,7 @@ from dataGetter.jianyanyuanGetter import (
 from dataGetter import authConfig
 from dataGetter.utils import str_to_datetime, datetime_to_str
 from dataGetter.dateSequence import DateSequence, date_sequence
+from app.models import Project
 
 
 ######################################
@@ -78,7 +79,7 @@ class SpotData(ABC):
     datetime_time_eror_msg: str = 'Datetime error: Incorrect datetime'
 
     @abstractmethod
-    def spot(self) -> Optional[Generator[Optional[Spot], None, None]]:
+    def spot(self) -> Optional[Generator]:
         """
         Get spot location information.
         It returns a generator of the list of spot location information
@@ -86,15 +87,14 @@ class SpotData(ABC):
         """
 
     @abstractmethod
-    def spot_record(self, spot_id: Optional[int] = None
-                    ) -> Optional[Generator[Optional[SpotRecord], None, None]]:
+    def spot_record(self) -> Iterator[Optional[Generator]]:
         """
         Get spot record data include temperature, humidity pm2.5 etc.
         value returned are used to fill `spot_record` table in database schema.
         """
 
     @abstractmethod
-    def device(self) -> Optional[Generator[Optional[Device], None, None]]:
+    def device(self) -> Optional[Generator]:
         """
         Get device information
         value returned will be used to fill `device` table in database schema.
@@ -138,7 +138,6 @@ class XiaoMiData(SpotData, RealTimeSpotData):
                             'token',
                             xGetter._get_token(self.auth, self.refresh))), args=(self))
             token_worker.start()
-            time.sleep(1)  # wait for worker finish.
             token_worker.join()
 
             if not self.token:
@@ -154,7 +153,7 @@ class XiaoMiData(SpotData, RealTimeSpotData):
     def spot_location(self) -> Optional[Generator]:
         pass
 
-    def spot_record(self, spot_id: Optional[int] = None) -> Optional[Generator]:
+    def spot_record(self, spot_id: Optional[int] = None) -> Iterator[Optional[Generator]]:
         pass
 
     def device(self) -> Optional[Generator]:
@@ -200,26 +199,26 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         def _refresh_token():  # token will expire. So need to be refreshed periodcially.
 
+            q: Queue = Queue()
             token_worker = Process(  # refresh token in another process and pause the current one.
-                target=lambda o: (
-                    setattr(o,
+                target=lambda q: (
+                    setattr(q.get(),
                             'token',
-                            jGetter._get_token(self.auth))), args=(self,))
+                            jGetter._get_token(self.auth))), args=(q,))
             token_worker.start()
-            time.sleep(1)  # wait for worker finish.
             token_worker.join()
+            token_worker.close()
 
             if not self.token:
                 logging.critical('%s %s', self.source, Spot.token_fetch_error_msg)
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
             # reset timer.
-            self.timer = Timer(JianYanYuanData.expires_in - 1, _refresh_token)
+            self.timer = Timer(JianYanYuanData.expires_in - 5, _refresh_token)
             self.timer.start()
-            time.sleep(1)
             self.timer.join()
 
-        self.timer = Timer(JianYanYuanData.expires_in - 1, _refresh_token)
+        self.timer = Timer(JianYanYuanData.expires_in - 5, _refresh_token)
         self.timer.start()
 
         # common states
@@ -231,38 +230,36 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         self.timer.cancel()
         del self
 
-    @staticmethod
-    def make_location(device_result: JdevResult) -> Location:
-        """
-        return location in standard format
-        location will be used to make Spot and device info.
-        """
-
-        # define utils.
-        location_attrs: Tuple[str, ...] = (
-            'cityIdLogin', 'provinceIdLogin', 'nickname', 'address',
-            'provinceLoginName', 'cityLoginName', 'location')
-
-        # filter location attributes from device result lists.
-        make_attrs: Callable = partial(
-            JianYanYuanData._filter_location_attrs,
-            location_attrs=location_attrs)
-
-        # attrses: Iterator = map(make_attrs, self.device_list)
-
-        # make_spot = JianYanYuanData.make_spot
-        # return (make_spot(attrs) for attrs in attrses)
-        return JianYanYuanData.make_spot(make_attrs(device_result))
-
     def spot(self) -> Optional[Generator]:
         """ return spot generator """
-        pass
+        if not self.device_list:
+            return None
 
-    def spot_record(self) -> Optional[Generator]:
+        return (self.make_spot(self.make_location(d)) for d in self.device_list)
+
+    def spot_record(self) -> Iterator[Optional[Generator]]:
         """
         Return  Generator of SpotRecord of a specific Spot
         """
-        pass
+        if not self.device_list:
+            return iter([])
+
+        datapoint_params = map(
+            JianYanYuanData._make_datapoint_param, self.device_list)
+        datapoints = map(self._datapoint, datapoint_params)
+
+        spot_records = map(
+            lambda dp: (
+                None if not dp
+                else
+                (JianYanYuanData.make_spot_record(sr)
+                 for sr in dp)),
+            datapoints)
+
+        if not any(spot_records):
+            return iter([])
+
+        return spot_records
 
     def device(self) -> Optional[Generator]:
         if not self.device_list:
@@ -275,7 +272,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
     @staticmethod
     def _filter_location_attrs(device_result: JdevResult,
-                               location_attrs: Tuple[str, ...]) -> Dict:
+                               location_attrs: Dict) -> Dict:
         """
         filter location attributes from device results
         """
@@ -357,11 +354,10 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         gid = device_result.get('gid')
         did = device_result.get('deviceId')
-        productId = device_result.get('productId')
         createTime = str_to_datetime(device_result.get('createTime'))
         modifyTime = str_to_datetime(device_result.get('modifyTime'))
 
-        def get_aid(productId) -> str:
+        def get_aid() -> str:
             return '1,2,3,4,32,155'
 
         if not time_range:
@@ -385,14 +381,14 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             JdatapointParam(
                 gid=gid,
                 did=did,
-                aid=get_aid(productId),
+                aid=get_aid(),
                 startTime=datetime_to_str(startTime),
                 endTime=datetime_to_str(endTime)))
 
         return datapoint_params
 
     ######################
-    #  Implement device  #
+    #  Real time         #
     ######################
 
     def rt_spot_record(self):
@@ -401,6 +397,33 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     ########################################
     # Convert json result into TypedDict   #
     ########################################
+
+    @staticmethod
+    def make_location(device_result: JdevResult) -> Location:
+        """
+        return location in standard format
+        location will be used to make Spot and device info.
+        """
+
+        # define utils.
+        location_attrs: Tuple[str, ...] = (
+            'cityIdLogin', 'provinceIdLogin', 'nickname', 'address',
+            'provinceLoginName', 'cityLoginName', 'location')
+
+        # filter location attributes from device result lists.
+        make_attrs: Callable = partial(
+            JianYanYuanData._filter_location_attrs,
+            location_attrs=location_attrs)
+
+        # attrses: Iterator = map(make_attrs, self.device_list)
+
+        # make_spot = JianYanYuanData.make_spot
+        # return (make_spot(attrs) for attrs in attrses)
+        location = make_attrs(device_result)
+        return Location(province=location.get('provinceLoginName'),
+                        city=location.get('cityLoginName'),
+                        address=location.get('address'),
+                        extra=location.get('nickname'))
 
     @staticmethod
     def make_spot_record(datapoint: Optional[JdatapointResult]) -> Optional[SpotRecord]:
@@ -421,17 +444,18 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             logging.error('datapoint `key` record is empty')
             return None
 
-        time = str_to_datetime(key)
+        spot_record_time = str_to_datetime(key)
 
         pm25: Optional[float] = aS.get(jGetter.attrs['pm25'])
         co2: Optional[float] = aS.get(jGetter.attrs['co2'])
         temperature: Optional[float] = aS.get(jGetter.attrs['temperature'])
         humidity: Optional[float] = aS.get(jGetter.attrs['humidity'])
+
         ac_power: Optional[float] = aS.get(jGetter.attrs['ac_power1'])
-        if not ac_power:
+        if ac_power is None:
             ac_power = aS.get(jGetter.attrs['ac_power2'])
 
-        return SpotRecord(spot_record_time=time,
+        return SpotRecord(spot_record_time=spot_record_time,
                           temperature=temperature,
                           humidity=humidity,
                           pm25=pm25,
@@ -440,21 +464,24 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                           ac_power=ac_power)
 
     @staticmethod
-    def make_spot(attrs: Dict) -> Optional[Spot]:
+    def make_spot(loc_attrs: Location) -> Optional[Spot]:
         """
-        construct `Spot` type from given location attrs.
+        Spot for jianyanyuan is based on project.
+        there are no room information.
 
-        Priority of attrs:
+        This method return the location dict, and
+        will be used to deduce the project a given device is in.
 
-            address > nickname > cityLoginName > provinceLoginName > cityId or provinceId
-
-        if address and nickname both exsits, commbine them together as the spot name.
+        then db will create a unique separate spot corresponding
+        to the unique project.
         """
         # TODO: pick the most suitable infor from locatino attrs 2019-12-23 @1
         # Location need to match with project.
         # So this function need to be implemented with project information.
 
-        return attrs
+        return Spot(project_name=loc_attrs.get('address'),
+                    spot_name=None,
+                    spot_type=None)
 
     @staticmethod
     def make_device(device_result: JdevResult) -> Device:
