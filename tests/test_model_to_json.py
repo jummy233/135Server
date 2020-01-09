@@ -1,38 +1,30 @@
 import unittest
-
-import db_init
-from app import db, create_app
-from app import modelOperations as mops
-from app import models as m
 from datetime import datetime
+from app import create_app, db
+from app import models as m
+from app import modelOperations as mops
+import db_init
 
 
-class TestModelOperation(unittest.TestCase):
+class TestModelToJson(unittest.TestCase):
+
     def setUp(self):
         self.app = create_app('testing')
         self.app_context = self.app.app_context()
         self.app_context.push()
         db.create_all()
         self.client = self.app.test_client()
-        db_init.create_db()
+        db_init.create_db(name='testing.sqlite')
+        m.User.gen_admin()
+        db_init.load_climate_area()  # unfull init.
 
-        db_init.load_climate_area()
-
-    def tearDown(self):
-        db.session.remove()
-        db.drop_all()
-        self.app_context.pop()
-
-    def _location(self):
         location = {
             "province": "Province",
             "city": "City",
             "climate_area_name": "A1"
         }
-
         mops.add_location(location)
 
-    def _project(self):
         project = {
             "location": {"province": "Province", "city": "City"},
             "floor": "4",
@@ -55,27 +47,24 @@ class TestModelOperation(unittest.TestCase):
         }
         mops.add_project(project)
 
-    def _spot(self):
         spot = {
-            "project": m.Project.query.first().project_id,  # project id or project object.
+            "project": m.Project.query.first().project_id,
             "spot_name": "Spot",
             "spot_type": "Bedroom",
             "image": b"asjdlasd"
         }
         mops.add_spot(spot)
 
-    def _device(self):
         device = {
             "device_name": "Device",
             "device_type": "Temperature",
             "spot": m.Spot.query.first().spot_id,
-            "online": True,
+            "online": 1,
             "create_time": "2019-04-20T00:00:00",
             "modify_time": datetime(2019, 4, 24)
         }
         mops.add_device(device)
 
-    def _spot_record(self):
         spot_record = {
             "spot_record_time": datetime(2019, 9, 24, 12, 30),
             # "spot_record_time": "2019-09-24T12:30:00",
@@ -89,49 +78,40 @@ class TestModelOperation(unittest.TestCase):
         }
         mops.add_spot_record(spot_record)
 
-    def test_add_location(self):
-        self._location()
-        query_res = m.Location.query.filter_by(city="City").first()
-        self.assertTrue(query_res.province ==
-                        "Province" and query_res.city == "City")
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.app_context.pop()
 
-    def test_add_project(self):
-        # need location to be existed.
-        self._location()
-        self._project()
+    def test_project_to_json(self):
+        print('<Project>')
+        __import__('pprint').pprint(m.Project.query.first().to_json())
+        print()
 
-        query_res = m.Project.query.filter_by(project_name="Project").first()
-        self.assertTrue(query_res.floor == 4 and
-                        query_res.area == 2311.94 and
-                        query_res.finished_time == datetime(2018, 2, 18))
+    def test_spot_to_json(self):
+        print('<Spot>')
+        __import__('pprint').pprint(m.Spot.query.first().to_json())
+        print()
 
-    def test_add_spot(self):
-        self._location()
-        self._project()
-        self._spot()
+    def test_device_to_json(self):
+        print('<Device>')
+        __import__('pprint').pprint(m.Device.query.first().to_json())
+        print()
 
-        query_res = m.Spot.query.filter_by(spot_name="Spot").first()
-        self.assertTrue(query_res.spot_type == "Bedroom" and
-                        query_res.project == m.Project.query.first())
+    def test_user_to_json(self):
+        print('<User>')
+        __import__('pprint').pprint(m.User.query.first().to_json())
+        print()
 
-    def test_add_device(self):
-        self._location()
-        self._project()
-        self._spot()
-        self._device()
+    def test_location_to_json(self):
+        print('<Location>')
+        __import__('pprint').pprint(m.Location.query.first().to_json())
+        print()
 
-        query_res = m.Device.query.filter_by(device_name="Device").first()
-        self.assertTrue(query_res.device_type == "Temperature" and
-                        query_res.create_time == datetime(2019, 4, 20))
+    def test_spot_record_to_json(self):
+        print('<SpotRecord>')
+        __import__('pprint').pprint(m.SpotRecord.query.first().to_json())
+        print()
 
-    def test_add_spot_record(self):
-        self._location()
-        self._project()
-        self._spot()
-        self._device()
-        self._spot_record()
 
-        query_res = m.SpotRecord.query.filter_by(
-            spot_record_time=datetime(2019, 9, 24, 12, 30)).first()
 
-        self.assertTrue(query_res.window_opened and query_res.humidity == 89)

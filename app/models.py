@@ -126,6 +126,13 @@ class Location(db.Model):
 
     project = db.relationship("Project", backref="location", lazy="dynamic")
 
+    def to_json(self):
+        climate_area = self.climate_area.to_json() if self.climate_area is not None else None
+
+        return dict(climate_area=climate_area,
+                    province=self.province,
+                    city=self.city)
+
     @classmethod
     def gen_fake(cls, count=20):
         locs: Dict = {
@@ -160,8 +167,7 @@ class Location(db.Model):
 class Project(db.Model):
     __tablename__ = "project"
     project_id = db.Column(db.Integer, primary_key=True)
-    outdoor_spot_id = db.Column(db.Integer,
-                                db.ForeignKey("outdoor_spot.outdoor_spot_id"))
+    outdoor_spot_id = db.Column(db.Integer, db.ForeignKey("outdoor_spot.outdoor_spot_id"))
     location_id = db.Column(db.Integer, db.ForeignKey("location.location_id"))
 
     tech_support_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
@@ -237,24 +243,35 @@ class Project(db.Model):
                 db.commit.rollback()
 
     def to_json(self) -> Dict:
-        odspot = (OutdoorSpot
-                  .query
-                  .filter_by(outdoor_spot_id=self.outdoor_spot_id)
-                  .first())
+        location = (
+            self.location.to_json()
+            if self.location is not None else None)
+
+        tech_support_company = (
+            self.tech_support_company.to_json()
+            if self.tech_support_company is not None else None)
+
+        project_company = (
+            self.project_company.to_json()
+            if self.project_company is not None else None)
+
+        construction_company = (
+            self.construction_company.to_json()
+            if self.construction_company is not None else None)
+
+        outdoor_spot = (
+            self.outdoor_spot.to_json()
+            if self.outdoor_spot is not None else None)
 
         return dict(
             project_id=self.project_id,
-            location=dict(
-                location_id=self.location.location_id,
-                province=self.location.province,
-                city=self.location.city),
-            tech_support_company=dict(company_name=self.tech_support_company.company_name),
-            project_company=dict(company_name=self.project_company.company_name),
-            construction_company=dict(company_name=self.construction_company.company_name),
+            location=location,
+            tech_support_company=tech_support_company,
+            project_company=project_company,
+            construction_company=construction_company,
+            outdoor_spot=outdoor_spot,
 
             project_name=self.project_name,
-            outdoor_spot_id=self.outdoor_spot_id,
-            outdoor_spot_name=odspot.outdoor_spot_name,
             district=self.district,
             floor=self.floor,
             latitude=self.latitude,
@@ -410,8 +427,7 @@ class ClimateArea(db.Model):
                 db.session.rollback()
 
     def to_json(self):
-        return dict(area_name=self.area_name,
-                    climate_area_id=self.climate_area_id)
+        return dict(area_name=self.area_name)
 
     def __repr__(self):
         return "<ClimateAreas {}>".format(self.area_name)
@@ -436,6 +452,9 @@ class Company(db.Model):
                 db.session.commit()
             except IntegrityError:
                 db.session.rollback()
+
+    def to_json(self):
+        return dict(company_name=self.company_name)
 
     def __repr__(self):
         return "<Company {}>".format(self.company_id)
@@ -487,6 +506,7 @@ class Device(db.Model):
     __tablename__ = "device"
     device_id = db.Column(db.Integer, primary_key=True)
     spot_id = db.Column(db.Integer, db.ForeignKey("spot.spot_id"))
+    online = db.Column(db.Boolean)
     create_time = db.Column(db.DateTime)
     modify_time = db.Column(db.DateTime)
     device_name = db.Column(db.String(64))
@@ -497,8 +517,9 @@ class Device(db.Model):
     def to_json(self):
         return dict(device_id=self.device_id,
                     spot_id=self.spot_id,
-                    create_time=self.create_time.strftime("%y-%m-%d:%h-%m"),
-                    modify_time=self.modify_time.strftime("%y-%m-%d:%h-%m"),
+                    online=self.online,
+                    create_time=self.create_time.strftime("%y-%m-%d:%H-%M"),
+                    modify_time=self.modify_time.strftime("%y-%m-%d:%H-%m"),
                     device_name=self.device_name,
                     device_type=self.device_type)
 
@@ -508,7 +529,8 @@ class SpotRecord(db.Model):
     The time interval is 5 mins per record.
     """
     __tablename__ = "spot_record"
-    spot_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
+    spot_record_id = db.Column(db.Integer, primary_key=True, nullable=False)
+    spot_record_time = db.Column(db.DateTime, nullable=False)
     device_id = db.Column(db.Integer, db.ForeignKey("device.device_id"))
     window_opened = db.Column(db.Boolean)  # for xiaomi platform.
     temperature = db.Column(db.Float)
@@ -545,7 +567,8 @@ class SpotRecord(db.Model):
                 db.session.rollback()
 
     def to_json(self):
-        return dict(device_id=self.device_id,
+        return dict(spot_record_id=self.spot_record_id,
+                    device_id=self.device_id,
                     spot_record_time=self.spot_record_time.strftime("%y-%m-%d:%h-%m"),
                     window_opened=self.window_opened,
                     temperature=self.temperature,
@@ -555,6 +578,7 @@ class SpotRecord(db.Model):
                     co2=self.co2)
 
     def __repr__(self):
-        return "<SpotRecord {} {}>".format(self.spot, self.spot_record_time)
+        return "<SpotRecord id: {} {} {}>".format(
+            self.spot_record_id, self.spot_record_time, self.device_id)
 
 

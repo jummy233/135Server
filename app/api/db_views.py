@@ -2,10 +2,11 @@
 Provide joined table search.
 Basic db query will be aggregated here and dispatched to frontend components.
 """
-from  typing import Dict, Optional, List, Tuple, Callable
+from typing import Dict, Optional, List, Tuple, Callable
 from datetime import timedelta, datetime
 from flask import jsonify, request
 from . import api
+from .api_types import ApiRequest, ApiResponse, ReturnCode
 from ..exceptions import ValueExistedError
 from ..modelOperations import commit_db_operation
 from ..modelOperations import add_project
@@ -16,93 +17,96 @@ from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail
 from ..models import  ClimateArea, Company, Permission
 from ..models import OutdoorSpot, OutdoorRecord
-from ..models import Spot, SpotRecord
+from ..models import Spot, SpotRecord, Device
 from .. import db
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
-
 
 #############
 #  Generic  #
 #############
 
 # Query all data from the databse. Bad performance.
-@api.route('/view/project/generic', methods=['GET', 'POST'])
-def poject_generic_view():
-    """combine project and climate area"""
-    response_object: Dict = {
-        'status': 'success',
-        'message': 'project added successfully',
-    }
-    if request.method == 'POST':  # add new project.
-        post_data: Dict = request.get_json()
+@api.route('/api/v1/project/all', methods=['GET', 'POST'])
+def project_view():
+    """ project, companies, and climate_area """
 
-        # send failure responses accroding to the exception captures.
+    response_object = (
+        ApiResponse(status=ReturnCode.OK.value,
+                    message='project added successfully'))
+
+    if request.method == 'POST':  # add new project.
+        post_data: ApiRequest = request.get_json()
+        post_data = post_data['request']
+
         response_object = commit_db_operation(
-            response_object,
-            add_project,
-            post_data,
-            'project')
+            response_object=response_object,
+            op=add_project,
+            post_data=post_data,
+            name='project')
         return jsonify(response_object)
 
     else:  # post successful or get. resend the updated reponse.
         projects = [p.to_json() for p in Project.query.all()]
-        for proj in projects:
-            climate_area = (Location.query
-                            .filter_by(
-                                location_id=proj["location"]
-                                ["location_id"])
-                            .first()
-                            .climate_area.to_json())
-            proj.update({"climate_area": climate_area})
-        response_object["project_generic_views"] = projects
+        response_object["data"] = projects
     return jsonify(response_object)
 
 
-@api.route('/view/<pid>/spots', methods=["GET", "POST"])
-def spot_generic_view(pid: int):
-    """combine Spot, Location, Project, OutdoorSpot"""
-    spots: List[Dict] = []
-    response_object = {
-        'status': 'success',
+@api.route('/api/v1/project/<pid>/spots', methods=["GET", "POST"])
+def spot_view(pid: int):
+    """Spot, Location, Project, OutdoorSpot"""
+
+    response_object: ApiResponse = {
+        'status': ReturnCode.OK.value,
         'message': 'spot added successfully',
     }
     if request.method == 'POST':  # add new project.
-        post_data = request.get_json()
+        post_data: ApiRequest = request.get_json()
 
         # send failure responses accroding to the exception captures.
         response_object = commit_db_operation(
-            response_object,
-            add_spot,
-            post_data,
-            'spot')
+            response_object=response_object,
+            op=add_spot,
+            post_data=post_data,
+            name='spot')
         return jsonify(response_object)
 
     else:
-        for s in Spot.query.filter_by(project_id=pid).all():
-            spot = s.to_json()
-            proj = Project.query.filter_by(project_id=s.project_id).first()
-            od_spot = (OutdoorSpot
-                       .query
-                       .filter(OutdoorSpot.project.contains(proj))
-                       .first()
-                       .to_json())
+        spots: List[Dict] = [
+            s.to_json for s in
+            (Spot
+             .query
+             .filter_by(project_id=pid)
+             .all())]
 
-            spot.update({"outdoor_spot": od_spot})
-            spots.append(spot)
-        response_object["spot_generic_views"] = spots
+        response_object["data"] = spots
     return jsonify(response_object)
 
 
-@api.route('/api/view/spot/<sid>/records', methods=['GET'])
-def spot_record_view(sid: int):
+@api.route('/api/v1/spot/<sid>/device/<did>/records', methods=['GET'])
+def spot_record_view(sid: int, did: int):
+    """ combine spot record and outdoor records """
+    response_object: ApiResponse = (
+        ApiResponse(
+            status=ReturnCode.OK.value,
+            message="successfully get spot records",
+            data=[]))
+
     records = []
 
     for spot_rec in SpotRecord.query.filter_by(spot_id=sid):
 
         # fetch relevent objects.
-        spot = Spot.query.filter_by(spot_id=spot_rec.spot_id).first()
-        proj = Project.query.filter_by(project_id=spot.project_id).first()
+        if spot_rec is not None:
+            device = Device.query.filter_by(device_id=spot_rec.device_id).first()
+
+        if device is not None:
+            spot = Spot.query.filter_by(spot_id=device.spot_id).first()
+
+        # use project to fetch outdoor spot.
+        if spot is not None:
+            proj = Project.query.filter_by(project_id=spot.project_id).first()
+
         od_spot = (OutdoorSpot
                    .query
                    .filter(OutdoorSpot
@@ -111,8 +115,10 @@ def spot_record_view(sid: int):
                    .first())
 
         # @ TODO: select the outdoor record within the same hour.
-        spot_rec_date = spot_rec.spot_record_time
-        spot_rec_hour = spot_rec_date.replace(minute=0, second=0, microsecond=0)
+        spot_rec_hour = (
+            spot_rec
+            .spot_record_time
+            .replace(minute=0, second=0, microsecond=0))
         dhour = timedelta(hours=1)
 
         od_rec = (OutdoorRecord
@@ -141,10 +147,11 @@ def spot_record_view(sid: int):
 
         records.append(spot_rec_json)
 
-    return jsonify(records)
+        response_object['data'] = records
+    return jsonify(response_object)
 
 
-@api.route('/api/view/project/pic/<pid>', methods=['GET'])
+@api.route('/api/view/project_pic/<pid>', methods=['GET'])
 def project_pic_view(pid):
     """send project picture for given project"""
     response_object = {'success': 'success'}
@@ -156,8 +163,8 @@ def project_pic_view(pid):
     return jsonify(response_object)
 
 
-@api.route('/api/view/project/generic/<pid>', methods=["PUT", "DELETE"])
-def project_generic_view_update_delete(pid: int):
+@api.route('/api/v1/project/<pid>', methods=["PUT", "DELETE"])
+def project_view_update_delete(pid: int):
     response_object = {'status': 'success'}
     if request.method == 'PUT':
         pass
@@ -190,9 +197,9 @@ def spot_generic_view_update_delete(pid: int, sid: int):
     return jsonify(response_object)
 
 
-###########
-#  Paged  #
-###########
+#######################
+#      Paged          #
+#######################
 
 @api.route('/api/v1/project', methods=['POST'])
 def project_paged(sid: int, pagelen: int):

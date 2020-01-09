@@ -1,29 +1,31 @@
-from typing import List, Dict, NewType, TypedDict, Callable
+from typing import (
+    List, Dict, NewType, TypedDict, Callable,
+    Union, Optional)
 from functools import wraps
+import enum
 
 
-def route_url(url: str, methods: List):
-    def decorator(func: Callable):
-        @wraps(func)
-        def routed(*args, **kwargs):
-            return func(*args, **kwargs)
-        return routed
-    return decorator
+class ReturnCode(enum.Enum):
+    OK = 0
+    BAD_REQUEST = 1
+    NO_DATA = 2
 
 
-@route_url('/view/project/generic', methods=['POST'])
-class ProjectGeneric(TypedDict):
-    project_name: str
+ApiResponse = TypedDict(
+    'ApiResponse',
+    {
+        'status': int,
+        'data': Union[List, Dict],
+        'message': Optional[str]
+    },
+    total=False)
 
 
-@route_url('/view/<pid>/spots', methods=["GET", "POST"])
-class SpotGeneric(TypedDict):
-    pass
-
-
-@route_url('/api/v1/spot', methods=['POST'])
-class SpotPaged(TypedDict):
-    pass
+ApiRequest = TypedDict(
+    'ApiRequest',
+    {
+        'request': Union[Dict, List, str]
+    })
 
 
 

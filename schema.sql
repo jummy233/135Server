@@ -104,7 +104,8 @@ create table if not exists device(
     device_id integer primary key autoincrement not null,
     device_name nvarchar(20),
     device_type nvarchar(20),
-    spot_id integer not null,
+    online boolean,
+    spot_id integer,
     create_time datetime,
     modify_time datetime,
     foreign key(spot_id) references spot(spot_id)
@@ -112,7 +113,8 @@ create table if not exists device(
 );
 
 create table if not exists spot_record(
-    spot_record_time datetime primary key not null,
+    spot_record_id integer primary key autoincrement not null,
+    spot_record_time datetime not null,
     device_id integer not null,
     temperature float,
     humidity float,

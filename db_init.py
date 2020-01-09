@@ -8,7 +8,9 @@ import sqlite3
 from operator import itemgetter
 import logging
 from functools import partial
+from itertools import islice
 from typing import List, Dict, Union, Generator, Iterator, Optional, Tuple
+from collections import deque
 
 from sqlalchemy.exc import IntegrityError
 from fuzzywuzzy import fuzz
@@ -19,6 +21,8 @@ from app import db
 from dataGetter import dataMidware
 import dataGetter as D
 
+logging.basicConfig(level=logging.INFO)
+
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
 ####################
@@ -26,9 +30,9 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 ####################
 
 
-def create_db(force=True) -> None:
+def create_db(name='development.sqlite', force=True) -> None:
     logging.debug('- createcreate init  db')
-    db_path = os.path.join(current_dir, 'development.sqlite')
+    db_path = os.path.join(current_dir, name)
     schema_path = os.path.join(current_dir, 'schema.sql')
 
     if not force and os.path.exists(db_path):
@@ -41,7 +45,6 @@ def create_db(force=True) -> None:
 
         cur.executescript(sql)
         conn.commit()
-
 
 #########################
 #  Record Climate Area  #
@@ -64,10 +67,11 @@ def load_climate_area() -> None:
         except IntegrityError:
             db.commit.rollback()
 
-
 #####################
 #  Record Location  #
 #####################
+
+
 def load_location() -> None:
     logging.debug('- create location')
     path = os.path.join(current_dir, 'dataGetter/static/locations.json')
@@ -87,6 +91,8 @@ def load_location() -> None:
 ####################
 #  Record Project  #
 ####################
+
+
 def load_projects():
     logging.debug('- create proejcts')
     path = os.path.join(current_dir, 'dataGetter/static/projects.json')
@@ -142,6 +148,9 @@ class JianyanyuanLoadFull:
     def __init__(self):
         self.j = dataMidware.JianYanYuanData()
 
+    def close(self):
+        self.j.close()
+
     def load_spots(self):
         """
         -----------------------------------------
@@ -162,52 +171,57 @@ class JianyanyuanLoadFull:
         def spotname_from_projectname(project_name: str) -> str:
             return project_name + '测点'
 
-        # method 1: Use keys of j_project_device_table.
-        with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
-            json_data: Dict = json.loads(f.read())
-            projects = [(Project
-                        .query
-                        .filter_by(project_name=pn)).first() for pn in json_data.keys()]
+        def load_by_table_lookup():
+            """ method 1: Use keys of j_project_device_table. """
+            with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
+                json_data: Dict = json.loads(f.read())
+                projects = [(Project
+                            .query
+                            .filter_by(project_name=pn)).first() for pn in json_data.keys()]
 
-        names = list(map(lambda p:
-                         (spotname_from_projectname(p.project_name),
-                             p.project_name),
-                         projects))
+            names: List[Tuple[str, str]] = list(map(lambda p:
+                                                    (spotname_from_projectname(p.project_name),
+                                                     p.project_name),
+                                                    projects))
 
-        for spot_name, project_name in names:
-            if not Spot.query.filter_by(spot_name=spot_name).first():
-                project = Project.query.filter_by(project_name=project_name).first()
-                if not project:  # project doesn't exist, skip it.
-                    continue
+            for spot_name, project_name in names:
+                if not Spot.query.filter_by(spot_name=spot_name).first():
+                    project = Project.query.filter_by(project_name=project_name).first()
+                    if not project:  # project doesn't exist, skip it.
+                        continue
 
-                spot_post = {
-                    "project": project,
-                    "spot_name": spotname_from_projectname(project.project_name),
-                    "spot_type": None,
-                    "image": None
-                }
-                add_spot(spot_post)
+                    spot_post = {
+                        "project": project,
+                        "spot_name": spotname_from_projectname(project.project_name),
+                        "spot_type": None,
+                        "image": None
+                    }
+                    add_spot(spot_post)
 
-        # method 2 fuzzy match
-        projects: Tuple = tuple(Project.query.all())
-        for s in spots:
+        def load_by_fuzzy_match():
+            """ method 2 fuzzy match """
+            projects: Tuple = tuple(Project.query.all())
+            for s in spots:
 
-            project_name = s.get('project_name')
-            fuzzon = partial(fuzz.partial_ratio, project_name)
-            fuzz_results: List[float] = list(map(lambda p: fuzzon(p.project_name), projects))
-            max_ratio = max(fuzz_results)
-            print(max_ratio)
+                project_name = s.get('project_name')
+                fuzzon = partial(fuzz.partial_ratio, project_name)
+                fuzz_results: List[float] = list(map(lambda p: fuzzon(p.project_name), projects))
+                max_ratio = max(fuzz_results)
 
-            if max_ratio > 40:  # > 45 means a good match
-                project = projects[fuzz_results.index(max_ratio)]
-                spot_post = {
-                    "project": project,
-                    "spot_name": spotname_from_projectname(project.project_name),
-                    "spot_type": None,
-                    "image": None
-                }
+                if max_ratio > 40:  # > 40 means a good match
+                    project = projects[fuzz_results.index(max_ratio)]
+                    spot_post = {
+                        "project": project,
+                        "spot_name": spotname_from_projectname(project.project_name),
+                        "spot_type": None,
+                        "image": None
+                    }
 
-                add_spot(spot_post)
+                    add_spot(spot_post)
+
+        load_by_table_lookup()
+        load_by_fuzzy_match()
+        logging.info('finished loading spot')
 
     def load_devices(self):
         """
@@ -229,8 +243,6 @@ class JianyanyuanLoadFull:
             priority of elements of location_info:
                 1. address
                 2. extra
-                3. city
-                4. province
 
             Because city and province are login location so they are generally
             incorrect.
@@ -240,30 +252,128 @@ class JianyanyuanLoadFull:
 
             Note for Jianyanyuan spots are basically the same as projects.
             """
-            province, city, address, extra = itemgetter(
-                'province', 'city', 'add_spot', 'add_spot')(location_info)
+            _, _, address, extra = itemgetter(
+                'province', 'city', 'address', 'extra')(location_info)
 
+            projects: Tuple = tuple(Project.query.all())
 
-        for d in devices:
+            # fuzzy match based on address and extra infos.
+            fuzz_address_results: List[float] = list(
+                map(lambda p: fuzz.partial_ratio(p.project_name, address),
+                    projects))
+
+            fuzz_extra_results: List[float] = list(
+                map(lambda p: fuzz.partial_ratio(p.project_name, extra),
+                    projects))
+
+            max_address_ratio = max(fuzz_address_results)
+            max_extra_ratio = max(fuzz_extra_results)
+
+            # ratio > 40 indicate a good match.
+            if max_address_ratio < 40 and max_extra_ratio < 40:
+                return None
+
+            project: Optional[Project] = None  # get project for spot.
+            if max_address_ratio > max_extra_ratio:
+                project = projects[fuzz_address_results.index(max_address_ratio)]
+
+            else:
+                project = projects[fuzz_extra_results.index(max_extra_ratio)]
+
+            if not project:
+                return None
+
+            spot: Spot = Spot.query.filter_by(project=project).first()  # use project to query spot.
+            if not spot:
+                return None
+            return spot
+
+        def load_by_table_lookup(d: dataMidware.Device, json_data: Dict, json_spot_list: List[Spot]):
+            """ method 1 load project name from json table for given device id """
+            did = d.get('device_name')
+
+            for project_name, did_lists in json_data.items():
+                if did in did_lists:
+                    spot = next(filter(lambda s: s.project.project_name == project_name,
+                                       json_spot_list))
+
+                    device_post_data = {
+                        'device_name': did,
+                        'device_type': d.get('device_type'),
+                        'spot': spot,
+                        'online': d.get('online'),
+                        'create_time': d.get('create_time'),
+                        'modify_time': d.get('modify_time')
+                    }
+                    add_device(device_post_data)
+
+        def load_by_location_info(d: dataMidware.Device):
+            """ method 2, deduce the spot by location_info typedict come with Device typedict """
+
             spot: Optional[Spot] = handle_location_info(d['location_info'])
             device_post_data = {
                 'device_name': d.get('device_name'),
                 'device_type': d.get('device_type'),
                 'spot': spot,
+                'online': d.get('online'),
                 'create_time': d.get('create_time'),
                 'modify_time': d.get('modify_time')
             }
             add_device(device_post_data)
 
+        # read json files
+        with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
+            json_data: Dict = json.loads(f.read())
+            json_spot_list = [(Project
+                               .query
+                               .filter_by(project_name=pn)).first().spot.first()
+                              for pn in json_data.keys()]
+
+        for d in devices:  # consumer
+            load_by_table_lookup(d, json_data, json_spot_list)
+            load_by_location_info(d)
+        logging.info('finished loading device')
+
     def load_spot_records(self):
+        """ All info come from dataMidware iterator """
         spot_records: Iterator[Optional[Generator]] = self.j.spot_record()
+
+        devices: List[Device] = Device.query.all()
+
+        def record_sr(sr: Dict):
+            """ record a single spot_record """
+            if sr is None:
+                return
+
+            device = next(filter(lambda d: d.device_name == sr.get('device_name'), devices))
+            spot_record = {
+                "device": device,
+                'spot_record_time': sr.get('spot_record_time'),
+                'temperature': sr.get('temperature'),
+                'humidity': sr.get('humidity'),
+                'pm25': sr.get('pm25'),
+                'co2': sr.get('co2'),
+                'window_opened': sr.get('window_opened'),
+                'ac_power': sr.get('ac_power')
+            }
+            add_spot_record(spot_record)
+
         if not spot_records:
             logging.warning('empty spot record from JianYanYuanData')
             return None
 
-        for spot_record in spot_records:
-            if spot_record is None:  # None generator. might be a broken api or connection error.
+        for spot_record_generator in spot_records:
+            logging.info('process from device {}'.format(spot_record_generator))
+
+            # None generator. might be a broken api or connection error.
+            if spot_record_generator is None:
                 continue
+
+            # exthaust map without create a list.
+            for sr in spot_record_generator:
+                record_sr(sr)
+
+        logging.info('finshed loading spot record')
 
 
 def db_init(full=False):
@@ -274,6 +384,7 @@ def db_init(full=False):
     if full:
         load_data = JianyanyuanLoadFull()
         load_data.load_spots()
-        # load_data.load_devices()
-        # load_data.load_spot_records()
+        load_data.load_devices()
+        load_data.load_spot_records()
+        load_data.close()
 

@@ -7,14 +7,18 @@ to record the change
 from typing import Dict, Optional, Callable, Union, ByteString
 from .exceptions import ValueExistedError
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import and_
 from datetime import timedelta, datetime
 from .models import User, Location, Project, ProjectDetail
 from .models import ClimateArea, Company, Permission
 from .models import OutdoorSpot, OutdoorRecord
 from .models import Spot, SpotRecord, Device
+from app.api.api_types import ApiRequest, ApiResponse, ReturnCode
 from datetime import datetime as dt
 from dataGetter.utils import str_to_datetime
+from app.utils import normalize_time
 from . import db
+import logging
 
 PostData = Dict
 
@@ -55,9 +59,9 @@ def json_to_bool(val: Union[bool, int, str, None]) -> Optional[bool]:
             return None
 
     if isinstance(val, str):
-        if val in ("True", "true"):
+        if val in ("True", "true", "1"):
             return True
-        elif val in ("False", "false"):
+        elif val in ("False", "false", "0"):
             return False
         else:
             return None
@@ -165,13 +169,13 @@ def add_project(project_data: PostData) -> Optional[Project]:
 
         db.session.add(new_proj)
     except IndexError as e:
-        print("Error! add_project failed", e)
+        logging.error("Error! add_project failed {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_project with unmatched value", e)
+        logging.error("Error! add_project with unmatched value {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_project : ", e)
+        logging.error("Error! add_project :  {}".format(e))
         raise
 
     return new_proj
@@ -205,13 +209,13 @@ def add_spot(spot_data: PostData) -> Optional[Spot]:
                         image=image)
         db.session.add(new_spot)
     except IndexError as e:
-        print("Error! add_generic_view failed", e)
+        logging.error("Error! add_generic_view failed: {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_generic_view with unmatched value", e)
+        logging.error("Error! add_generic_view with unmatched value: {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_generic_view: ", e)
+        logging.error("Error! add_generic_view: : {}".format(e))
         raise
     return new_spot
 
@@ -222,12 +226,27 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
         return None
 
     # time can either be dt or string.
-    spot_record_time: Union[dt, str] = spot_record_data['spot_record_time']
+    spot_record_time: Union[dt, str, None] = normalize_time(5)(
+        spot_record_data['spot_record_time'])
     if not isinstance(spot_record_time, dt):
-        spot_record_time = str_to_datetime(spot_record_data['spot_record_time'])
+        spot_record_time = normalize_time(5)(
+            str_to_datetime(spot_record_data['spot_record_time']))
+
+    # query with device id or device name
+    device: Union[Device, str, None] = spot_record_data.get('device')
+    if not isinstance(device, Device):
+        device = Device.query.filter_by(device_id=spot_record_data.get("device")).first()
+
+    # change in 2020-01-08
+    # same device and same spot record time means the same record.
+    # if device is None, skip the record because it doesn't form a valid
     spot_record = (SpotRecord
                    .query
                    .filter_by(spot_record_time=spot_record_time)
+                   .filter(and_(
+                       SpotRecord.spot_record_time == spot_record_time,
+
+                       SpotRecord.device == device))
                    .first())
     if spot_record:
         return spot_record
@@ -242,9 +261,6 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
         json_convert(spot_record_data, 'pm25', float)
         json_convert(spot_record_data, 'co2', float)
 
-        # query with device id or device name?
-        device = Device.query.filter_by(device_id=spot_record_data.get("device")).first()
-
         new_spot_record = SpotRecord(
             spot_record_time=spot_record_time,
             device=device,
@@ -254,16 +270,15 @@ def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
             ac_power=spot_record_data.get("ac_power"),
             pm25=spot_record_data.get("pm25"),
             co2=spot_record_data.get("co2"))
-        print(new_spot_record.spot_record_time, 'new')
         db.session.add(new_spot_record)
     except IndexError as e:
-        print("Error! add_company failed", e)
+        logging.error("Error! add_company failed: {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_company with unmatched value", e)
+        logging.error("Error! add_company with unmatched value: {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_company failed: ", e)
+        logging.error("Error! add_company failed: : {}".format(e))
         raise
 
     return new_spot_record
@@ -286,10 +301,10 @@ def delete_project(pid) -> None:
             db.session.delete(company)
         db.session.delete(project)
     except IntegrityError as e:
-        print("Error! add_generic_view: ", e)
+        logging.error("Error! add_generic_view: : {}".format(e))
         raise
     except Exception as e:
-        print('Error when delete by project_generic_view', e)
+        logging.error('Error when delete by project_generic_view: {}'.format(e))
         raise
 
 
@@ -300,10 +315,10 @@ def delete_spot(sid: int) -> None:
     try:
         db.session.delete(spot)
     except IntegrityError as e:
-        print("Error! add_generic_view: ", e)
+        logging.error("Error! add_generic_view: : {}".format(e))
         raise
     except Exception as e:
-        print('Error delete by spot_generic_view', e)
+        logging.error('Error delete by spot_generic_view: {}'.format(e))
         raise
 
 
@@ -329,13 +344,13 @@ def add_company(company_data: PostData) -> Optional[Company]:
 
         db.session.add(new_company)
     except IndexError as e:
-        print("Error! add_company failed", e)
+        logging.error("Error! add_company failed: {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_company with unmatched value", e)
+        logging.error("Error! add_company with unmatched value: {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_company failed: ", e)
+        logging.error("Error! add_company failed: : {}".format(e))
         raise
 
     return new_company
@@ -368,13 +383,13 @@ def add_outdoor_spot(od_spot_data: PostData) -> Optional[OutdoorSpot]:
 
         db.session.add(new_od_spot)
     except IndexError as e:
-        print("Error! add_outdoor_spot failed", e)
+        logging.error("Error! add_outdoor_spot failed: {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_outdoor_spot with unmatched value", e)
+        logging.error("Error! add_outdoor_spot with unmatched value: {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_generic_view: ", e)
+        logging.error("Error! add_generic_view: : {}".format(e))
         raise
 
     return new_od_spot
@@ -410,13 +425,13 @@ def add_location(location_data: PostData) -> Optional[Location]:
                            city=location_data["city"])
         db.session.add(new_loc)
     except IndexError as e:
-        print("Error! add_location failed", e)
+        logging.error("Error! add_location failed: {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_location with unmatched value", e)
+        logging.error("Error! add_location with unmatched value: {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_generic_view: ", e)
+        logging.error("Error! add_generic_view: : {}".format(e))
         raise
 
     except Exception:
@@ -442,8 +457,11 @@ def add_device(device_data: PostData) -> Optional[Device]:
     spot: Union[Spot, int, str, None] = device_data.get('spot')
     if spot and isinstance(spot, Spot) or not spot:  # None or be a Spot.
         pass
-    else:                                            # Convert from id to Spot.
+    elif isinstance(spot, int) or isinstance(spot, str):  # Convert from id to Spot.
         spot = Spot.query.filter_by(spot_id=int(spot)).first()
+    else:
+        logging.error('add_device error, spot type is incorrect.')
+        return None
 
     new_device = None
 
@@ -455,21 +473,25 @@ def add_device(device_data: PostData) -> Optional[Device]:
         if not isinstance(device_data['modify_time'], dt):
             json_convert(device_data, 'modify_time', lambda s: fromisoformat(s.split('T')[0]))
 
+        if not isinstance(device_data['online'], bool):
+            json_convert(device_data, 'online', json_to_bool)
+
         new_device = Device(device_name=device_data.get("device_name"),
                             device_type=device_data.get("device_type"),
+                            online=device_data.get("online"),
                             spot=spot,
                             create_time=device_data["create_time"],
                             modify_time=device_data["modify_time"])
 
         db.session.add(new_device)
     except IndexError as e:
-        print("Error! add_location failed", e)
+        logging.error("Error! add_location failed: {}".format(e))
         raise
     except ValueError as e:
-        print("Error! add_location with unmatched value", e)
+        logging.error("Error! add_location with unmatched value: {}".format(e))
         raise
     except IntegrityError as e:
-        print("Error! add_generic_view: ", e)
+        logging.error("Error! add_generic_view: {}".format(e))
         raise
 
     except Exception:
@@ -491,42 +513,40 @@ def commit():
     except Exception:
         raise
 
-
-def commit_db(op: Callable[[Dict], None], post_data: Dict) -> None:
-    """ commit database change """
-    op(post_data)
-    commit()
-
-
-def commit_db_operation(response_object: Dict,
+@interface
+def commit_db_operation(response_object: ApiResponse,
                         op: Callable[[Dict], None],
                         post_data: Dict,
-                        name: str) -> Dict:
+                        name: str) -> ApiResponse:
     """
     run given db operation and return the response object
     if commit failed, handle exceptions.
     """
     try:
-        commit_db(op, post_data)
+        res = op(post_data)
+        commit()
+
+        if isinstance(res, db.Model) and hasattr(res, 'to_json'):
+            response_object['data'] = res.to_json()
 
     except ValueExistedError as e:
-        response_object["status"] = "failed"
+        response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"{name} already existed: {e}"
 
     except IndexError as e:
-        response_object["status"] = "failed"
+        response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"Failed to add {name} : {e}"
 
     except ValueError as e:
-        response_object["status"] = "failed"
+        response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"Unmatched value type: {e}"
 
     except IntegrityError as e:
-        response_object["status"] = "failed"
+        response_object["status"] = ReturnCode.NO_DATA.value
         response_object["message"] = f"IntegrityError: {e}"
 
     except Exception as e:
-        response_object["status"] = "failed"
+        response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"Error: {e}"
 
     finally:

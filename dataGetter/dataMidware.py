@@ -4,7 +4,7 @@ from queue import Queue
 import time
 from typing import (
     NewType, Dict, Optional, Tuple, List, Generator,
-    TypedDict, Iterator, Callable, cast)
+    TypedDict, Iterator, Callable, cast, Union)
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from sys import maxsize
@@ -13,6 +13,7 @@ from datetime import timedelta
 from operator import itemgetter
 import logging
 from functools import partial
+from itertools import tee
 
 from dataGetter import xiaomiGetter as xGetter
 from dataGetter import jianyanyuanGetter as jGetter
@@ -51,7 +52,7 @@ class Spot(TypedDict):
 
 
 class SpotRecord(TypedDict):
-    # spot_id: int
+    device_name: Optional[str]
     spot_record_time: Optional[dt]
     temperature: Optional[float]
     humidity: Optional[float]
@@ -63,9 +64,9 @@ class SpotRecord(TypedDict):
 
 class Device(TypedDict):
     location_info: Optional[Location]  # Location info help to deduce the spot.
-
     device_name: Optional[str]
     device_type: Optional[str]
+    online: Union[int, bool, None]
     create_time: Optional[dt]
     modify_time: Optional[dt]
 
@@ -227,7 +228,8 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
     def close(self):
         """ tear down """
-        self.timer.cancel()
+        if self.timer.is_alive():
+            self.timer.cancel()
         del self
 
     def spot(self) -> Optional[Generator]:
@@ -244,17 +246,20 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         if not self.device_list:
             return iter([])
 
-        datapoint_params = map(
-            JianYanYuanData._make_datapoint_param, self.device_list)
-        datapoints = map(self._datapoint, datapoint_params)
+        datapoint_params: Iterator[Optional[JdatapointParam]] = (
+            map(JianYanYuanData._make_datapoint_param,
+                self.device_list))
+        datapoint_params1, datapoint_params2 = tee(datapoint_params)
 
-        spot_records = map(
-            lambda dp: (
-                None if not dp
-                else
-                (JianYanYuanData.make_spot_record(sr)
-                 for sr in dp)),
-            datapoints)
+        datapoints: Iterator[
+            Optional[List[
+                JdatapointResult]]] = (
+            map(self._datapoint, datapoint_params1))
+
+        spot_records = (
+            map(lambda dp: (None if dp[0] is None else
+                            (JianYanYuanData.make_spot_record(sr, dp[1]) for sr in dp[0])),
+                zip(datapoints, datapoint_params2)))
 
         if not any(spot_records):
             return iter([])
@@ -426,7 +431,9 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                         extra=location.get('nickname'))
 
     @staticmethod
-    def make_spot_record(datapoint: Optional[JdatapointResult]) -> Optional[SpotRecord]:
+    def make_spot_record(datapoint: Optional[JdatapointResult],
+                         datapoint_param: Optional[JdatapointParam]
+                         ) -> Optional[SpotRecord]:
         """ construct `SpotRecord` from given datapoint_params """
 
         if datapoint is None:
@@ -455,7 +462,14 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         if ac_power is None:
             ac_power = aS.get(jGetter.attrs['ac_power2'])
 
+        # device_name is did of JianYanYuanData
+        # each device will be granted with a new id, so did becomes the name.
+        device_name: Optional[str] = None
+        if datapoint_param:
+            device_name = datapoint_param.get('did')
+
         return SpotRecord(spot_record_time=spot_record_time,
+                          device_name=device_name,
                           temperature=temperature,
                           humidity=humidity,
                           pm25=pm25,
@@ -487,6 +501,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     def make_device(device_result: JdevResult) -> Device:
         return Device(location_info=JianYanYuanData.make_location(device_result),
                       device_name=device_result.get('deviceId'),
+                      online=device_result.get('online'),
                       device_type=device_result.get('productName'),
                       create_time=device_result.get('createTime'),
                       modify_time=device_result.get('modifyTime'))

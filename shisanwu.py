@@ -8,7 +8,7 @@ from app import create_app, db
 from app.models import Permission, User
 from app.models import OutdoorSpot, OutdoorRecord, ClimateArea, Location
 from app.models import Project, ProjectDetail, Company
-from app.models import Spot, SpotRecord
+from app.models import Spot, SpotRecord, Device
 from app.models import gen_fake_db
 from db_init import db_init, create_db
 
@@ -19,7 +19,7 @@ if os.path.exists(dotenv_path):
 
 app = create_app(os.getenv("FLASK_CONFIG") or 'default')
 migrate = Migrate(app, db)
-CORS(app, resources={r'/*': {'origin': '*'}})
+CORS(app, resources={r'/*': {'origins': '*'}})
 
 COV = None
 if os.environ.get("FLASK_COVERAGE"):
@@ -42,6 +42,7 @@ def make_shell_context():
         Project=Project,
         ProjectDetail=ProjectDetail,
         Company=Company,
+        Device=Device,
         Location=Location,
         Spot=Spot,
         SpotRecord=SpotRecord,

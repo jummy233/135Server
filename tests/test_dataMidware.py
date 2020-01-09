@@ -6,7 +6,7 @@ from typing import Dict, List, Iterator, Generator
 from itertools import islice
 
 
-class TestdataMidware_JianYanYuanData(unittest.TestCase):
+class TestdataMidwareJianYanYuanData(unittest.TestCase):
     def setUp(self):
         self.j = dataMidware.JianYanYuanData()
 
