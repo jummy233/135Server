@@ -8,9 +8,9 @@ from flask import jsonify, request
 from . import api
 from .api_types import ApiRequest, ApiResponse, ReturnCode
 from ..exceptions import ValueExistedError
-from ..modelOperations import commit_db_operation
 from ..modelOperations import add_project
 from ..modelOperations import add_spot
+from ..modelOperations import commit_db_operation
 from ..modelOperations import delete_project
 from ..modelOperations import delete_spot
 from ..modelOperations import commit
@@ -154,44 +154,52 @@ def spot_record_view(sid: int, did: int):
 @api.route('/api/view/project_pic/<pid>', methods=['GET'])
 def project_pic_view(pid):
     """send project picture for given project"""
-    response_object = {'success': 'success'}
+    response_object: ApiResponse = (
+        ApiResponse(status=ReturnCode.OK.value,
+                    message="project pictures are sent successfully"))
 
     project_images = ProjectDetail.query.filter_by(project_id=pid).all()
     project_images_json = [p.to_json() for p in project_images]
-    response_object['image'] = project_images_json
+    response_object['data'] = project_images_json
 
     return jsonify(response_object)
 
 
 @api.route('/api/v1/project/<pid>', methods=["PUT", "DELETE"])
 def project_view_update_delete(pid: int):
-    response_object = {'status': 'success'}
+    response_object: ApiResponse = (
+        ApiResponse(status=ReturnCode.OK.value))
+
     if request.method == 'PUT':
         pass
+
     if request.method == 'DELETE':
-        response_object["message"] = "project removed!"
+        response_object["message"] = "project is removed!"
         try:
             delete_project(pid)
             commit()
         except Exception as e:
-            response_object["status"] = "failed"
-            response_object["message"] = f"project remove failed: {e}"
+            response_object["status"] = ReturnCode.BAD_REQUEST.value
+            response_object["message"] = f"failed to remove project: {e}"
 
     return jsonify(response_object)
 
 
 @api.route('/api/view/<pid>/spots/<sid>', methods=["PUT", "DELETE"])
 def spot_generic_view_update_delete(pid: int, sid: int):
-    response_object = {'status': 'success'}
+    response_object: ApiResponse = (
+        ApiResponse(status=ReturnCode.OK.value))
+
     if request.method == 'PUT':
         pass
+
     if request.method == 'DELETE':
-        response_object["message"] = "spot removed!"
+        response_object["message"] = "spot is removed!"
         try:
             delete_spot(sid)
             commit()
         except Exception as e:
-            response_object["status"] = "failed"
+            response_object["status"] = ReturnCode.BAD_REQUEST.value
             response_object["message"] = f"spot remove failed: {e}"
 
     return jsonify(response_object)
