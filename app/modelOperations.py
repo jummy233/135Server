@@ -13,7 +13,7 @@ from .models import User, Location, Project, ProjectDetail
 from .models import ClimateArea, Company, Permission
 from .models import OutdoorSpot, OutdoorRecord
 from .models import Spot, SpotRecord, Device
-from app.api.api_types import ApiRequest, ApiResponse, ReturnCode
+from app.api_types import ApiRequest, ApiResponse, ReturnCode
 from datetime import datetime as dt
 from dataGetter.utils import str_to_datetime
 from app.utils import normalize_time

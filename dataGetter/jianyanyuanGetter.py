@@ -223,7 +223,7 @@ def _get_data_points(auth: AuthData,
         return None
 
     if 'asData' not in rj['data'].keys():  # notice some apis are broken and return attrs
-        logging.warning('warning, broken api, no data in datapoint return keys:' + str(rj.keys()))
+        logging.warning('warning, broken api, no data in datapoint return keys:' + str(rj))
         return None
 
     return rj['data']['asData']

@@ -263,6 +263,18 @@ class Project(db.Model):
             self.outdoor_spot.to_json()
             if self.outdoor_spot is not None else None)
 
+        started_time = (
+            self.started_time.strftime("%Y-%m-%d")
+            if self.started_time else None)
+
+        finished_time = (
+            self.finished_time.strftime("%Y-%m-%d")
+            if self.finished_time else None)
+
+        record_started_from = (
+            self.record_started_from.strftime("%Y-%m-%d")
+            if self.record_started_from else None)
+
         return dict(
             project_id=self.project_id,
             location=location,
@@ -280,9 +292,9 @@ class Project(db.Model):
             demo_area=self.demo_area,
             building_type=self.building_type,
             building_height=self.building_height,
-            started_time=self.started_time.strftime("%Y-%m-%d"),
-            finished_time=self.finished_time.strftime("%Y-%m-%d"),
-            record_started_from=self.record_started_from.strftime("%Y-%m-%d"),
+            started_time=started_time,
+            finished_time=finished_time,
+            record_started_from=record_started_from,
             description=self.description)
 
     def __repr__(self):
@@ -313,6 +325,7 @@ class ProjectDetail(db.Model):
 
     def to_json(self):
         return dict(
+            project_id=self.project_id,
             image=base64.encodebytes(self.image).decode(),
             image_description=self.image_description)
 
@@ -391,9 +404,13 @@ class OutdoorRecord(db.Model):
                 db.session.rollback()
 
     def to_json(self):
+        outdoor_record_time = (
+            self.outdoor_record_time.strftime("%Y-%m-%d:%H-%M")
+            if self.outdoor_record_time else None)
+
         return dict(
             outdoor_spot_id=self.outdoor_spot_id,
-            outdoor_record_time=self.outdoor_record_time.strftime("%Y-%m-%d:%H-%M"),
+            outdoor_record_time=outdoor_record_time,
             outdoor_temperature=self.outdoor_temperature,
             outdoor_humidity=self.outdoor_humidity,
             wind_chill=self.wind_chill,
@@ -493,6 +510,7 @@ class Spot(db.Model):
             base64.encodebytes(self.image).decode()
 
         return dict(
+            number_of_device=db.session.query(Device).filter_by(spot_id=self.spot_id).count(),
             spot_id=self.spot_id,
             project_id=self.project_id,
             project_name=self.project.project_name,
@@ -515,11 +533,30 @@ class Device(db.Model):
     spot_record = db.relationship("SpotRecord", backref="device", lazy="dynamic")
 
     def to_json(self):
+        create_time = (
+            self.create_time.strftime("%y-%m-%d:%H-%M")
+            if self.create_time else None)
+
+        modify_time = (
+            self.modify_time.strftime("%y-%m-%d:%H-%m")
+            if self.modify_time else None)
+
+        spot_name = self.spot.spot_name if self.spot else None
+        project_id = (
+            self.spot.project.project_id if self.spot and self.spot.project else None)
+        project_name = (
+            self.spot.project.project_name if self.spot and self.spot.project else None)
+
         return dict(device_id=self.device_id,
                     spot_id=self.spot_id,
+                    project_id=project_id,
+
+                    spot_name=spot_name,
+                    project_name=project_name,
+
                     online=self.online,
-                    create_time=self.create_time.strftime("%y-%m-%d:%H-%M"),
-                    modify_time=self.modify_time.strftime("%y-%m-%d:%H-%m"),
+                    create_time=create_time,
+                    modify_time=modify_time,
                     device_name=self.device_name,
                     device_type=self.device_type)
 
@@ -567,9 +604,12 @@ class SpotRecord(db.Model):
                 db.session.rollback()
 
     def to_json(self):
+        spot_record_time = (self.spot_record_time.strftime("%Y-%m-%d:%H-%M")
+                            if self.spot_record_time else None)
+
         return dict(spot_record_id=self.spot_record_id,
                     device_id=self.device_id,
-                    spot_record_time=self.spot_record_time.strftime("%y-%m-%d:%h-%m"),
+                    spot_record_time=spot_record_time,
                     window_opened=self.window_opened,
                     temperature=self.temperature,
                     humidity=self.humidity,

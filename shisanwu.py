@@ -10,6 +10,7 @@ from app.models import OutdoorSpot, OutdoorRecord, ClimateArea, Location
 from app.models import Project, ProjectDetail, Company
 from app.models import Spot, SpotRecord, Device
 from app.models import gen_fake_db
+from app.modelOperations import commit
 from db_init import db_init, create_db
 
 # load environment var
@@ -48,7 +49,8 @@ def make_shell_context():
         SpotRecord=SpotRecord,
         gen_fake_db=gen_fake_db,
         db_init=db_init,
-        create_db=create_db)
+        create_db=create_db,
+        commit=commit)
 
 
 @app.cli.command()

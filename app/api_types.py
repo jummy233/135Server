@@ -27,5 +27,19 @@ ApiRequest = TypedDict(
         'request': Union[Dict, List, str]
     })
 
+PagingRequest = TypedDict(
+    'PagingRequest',
+    {
+        'size': int,
+        'pageNo': int
+    })
+
+
+def is_ApiRequest(data: Optional[Dict]) -> bool:
+    if not data:
+        return False
+    return 'request' in data.keys()
+
+
 
 

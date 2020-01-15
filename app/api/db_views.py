@@ -1,24 +1,23 @@
 """
 Provide joined table search.
 Basic db query will be aggregated here and dispatched to frontend components.
+Idempotent operations.
 """
 from typing import Dict, Optional, List, Tuple, Callable
 from datetime import timedelta, datetime
+from operator import itemgetter
 from flask import jsonify, request
 from . import api
-from .api_types import ApiRequest, ApiResponse, ReturnCode
-from ..exceptions import ValueExistedError
+from ..api_types import ApiRequest, ApiResponse, ReturnCode
+from ..api_types import is_ApiRequest
 from ..modelOperations import add_project
 from ..modelOperations import add_spot
 from ..modelOperations import commit_db_operation
-from ..modelOperations import delete_project
-from ..modelOperations import delete_spot
 from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail
-from ..models import  ClimateArea, Company, Permission
+from ..models import ClimateArea, Company, Permission
 from ..models import OutdoorSpot, OutdoorRecord
 from ..models import Spot, SpotRecord, Device
-from .. import db
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
 
@@ -26,8 +25,14 @@ from sqlalchemy.exc import IntegrityError
 #  Generic  #
 #############
 
+
+@api.route('/test', methods=['GET'])
+def test():
+    return jsonify(ApiResponse(status=ReturnCode.OK.value, message="test!"))
+
+
 # Query all data from the databse. Bad performance.
-@api.route('/api/v1/project/all', methods=['GET', 'POST'])
+@api.route('/project/all', methods=['GET'])
 def project_view():
     """ project, companies, and climate_area """
 
@@ -35,56 +40,35 @@ def project_view():
         ApiResponse(status=ReturnCode.OK.value,
                     message='project added successfully'))
 
-    if request.method == 'POST':  # add new project.
-        post_data: ApiRequest = request.get_json()
-        post_data = post_data['request']
+    # post successful or get. resend the updated reponse.
+    projects = [p.to_json() for p in Project.query.all() if p]
+    response_object["data"] = projects
 
-        response_object = commit_db_operation(
-            response_object=response_object,
-            op=add_project,
-            post_data=post_data,
-            name='project')
-        return jsonify(response_object)
-
-    else:  # post successful or get. resend the updated reponse.
-        projects = [p.to_json() for p in Project.query.all()]
-        response_object["data"] = projects
     return jsonify(response_object)
 
 
-@api.route('/api/v1/project/<pid>/spots', methods=["GET", "POST"])
+@api.route('/project/<pid>/spots', methods=["GET"])
 def spot_view(pid: int):
     """Spot, Location, Project, OutdoorSpot"""
 
     response_object: ApiResponse = {
         'status': ReturnCode.OK.value,
-        'message': 'spot added successfully',
+        'message': 'got spot successfully',
     }
-    if request.method == 'POST':  # add new project.
-        post_data: ApiRequest = request.get_json()
 
-        # send failure responses accroding to the exception captures.
-        response_object = commit_db_operation(
-            response_object=response_object,
-            op=add_spot,
-            post_data=post_data,
-            name='spot')
-        return jsonify(response_object)
+    spots: List[Dict] = [
+        s.to_json() for s in
+        (Spot
+         .query
+         .filter_by(project_id=pid)
+         .all()) if s]
 
-    else:
-        spots: List[Dict] = [
-            s.to_json for s in
-            (Spot
-             .query
-             .filter_by(project_id=pid)
-             .all())]
-
-        response_object["data"] = spots
+    response_object["data"] = spots
     return jsonify(response_object)
 
 
-@api.route('/api/v1/spot/<sid>/device/<did>/records', methods=['GET'])
-def spot_record_view(sid: int, did: int):
+@api.route('/device/<did>/records', methods=['GET'])
+def spot_record_view(did: int):
     """ combine spot record and outdoor records """
     response_object: ApiResponse = (
         ApiResponse(
@@ -94,31 +78,16 @@ def spot_record_view(sid: int, did: int):
 
     records = []
 
-    for spot_rec in SpotRecord.query.filter_by(spot_id=sid):
+    for spot_rec in SpotRecord.query.filter_by(device_id=did):
 
         # fetch relevent objects.
-        if spot_rec is not None:
-            device = Device.query.filter_by(device_id=spot_rec.device_id).first()
+        od_spot = Device.query.filter_by(device_id=did).first().spot.project.outdoor_spot
 
-        if device is not None:
-            spot = Spot.query.filter_by(spot_id=device.spot_id).first()
-
-        # use project to fetch outdoor spot.
-        if spot is not None:
-            proj = Project.query.filter_by(project_id=spot.project_id).first()
-
-        od_spot = (OutdoorSpot
-                   .query
-                   .filter(OutdoorSpot
-                           .project
-                           .contains(proj))
-                   .first())
-
-        # @ TODO: select the outdoor record within the same hour.
-        spot_rec_hour = (
+        spot_rec_hour: datetime = (
             spot_rec
             .spot_record_time
             .replace(minute=0, second=0, microsecond=0))
+
         dhour = timedelta(hours=1)
 
         od_rec = (OutdoorRecord
@@ -132,7 +101,7 @@ def spot_record_view(sid: int, did: int):
                   .first())
 
         spot_rec_json = spot_rec.to_json()
-        od_spot_json = od_spot.to_json()
+        od_spot_json = od_spot.to_json() if od_spot else None
 
         try:
             od_rec_json = od_rec.to_json()
@@ -140,7 +109,6 @@ def spot_record_view(sid: int, did: int):
             od_rec_json = {}
 
         spot_rec_json.update({
-            "spot_id": spot.spot_id,
             "outdoor_spot": od_spot_json,
             "outdoor_record": od_rec_json,
         })
@@ -151,7 +119,7 @@ def spot_record_view(sid: int, did: int):
     return jsonify(response_object)
 
 
-@api.route('/api/view/project_pic/<pid>', methods=['GET'])
+@api.route('/project_pic/<pid>', methods=['GET'])
 def project_pic_view(pid):
     """send project picture for given project"""
     response_object: ApiResponse = (
@@ -159,81 +127,9 @@ def project_pic_view(pid):
                     message="project pictures are sent successfully"))
 
     project_images = ProjectDetail.query.filter_by(project_id=pid).all()
-    project_images_json = [p.to_json() for p in project_images]
+    project_images_json = [p.to_json() for p in project_images if p]
     response_object['data'] = project_images_json
 
     return jsonify(response_object)
-
-
-@api.route('/api/v1/project/<pid>', methods=["PUT", "DELETE"])
-def project_view_update_delete(pid: int):
-    response_object: ApiResponse = (
-        ApiResponse(status=ReturnCode.OK.value))
-
-    if request.method == 'PUT':
-        pass
-
-    if request.method == 'DELETE':
-        response_object["message"] = "project is removed!"
-        try:
-            delete_project(pid)
-            commit()
-        except Exception as e:
-            response_object["status"] = ReturnCode.BAD_REQUEST.value
-            response_object["message"] = f"failed to remove project: {e}"
-
-    return jsonify(response_object)
-
-
-@api.route('/api/view/<pid>/spots/<sid>', methods=["PUT", "DELETE"])
-def spot_generic_view_update_delete(pid: int, sid: int):
-    response_object: ApiResponse = (
-        ApiResponse(status=ReturnCode.OK.value))
-
-    if request.method == 'PUT':
-        pass
-
-    if request.method == 'DELETE':
-        response_object["message"] = "spot is removed!"
-        try:
-            delete_spot(sid)
-            commit()
-        except Exception as e:
-            response_object["status"] = ReturnCode.BAD_REQUEST.value
-            response_object["message"] = f"spot remove failed: {e}"
-
-    return jsonify(response_object)
-
-
-#######################
-#      Paged          #
-#######################
-
-@api.route('/api/v1/project', methods=['POST'])
-def project_paged(sid: int, pagelen: int):
-    """ Return a specific page of data"""
-
-    # return desired range of record ids
-    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
-        pass
-
-
-# TODO 2019-12-12 add paging request instead of sending all data at once.
-@api.route('/api/v1/spot', methods=['POST'])
-def spot_paged(sid: int, pagelen: int):
-    """ Return a specific page of data"""
-
-    # return desired range of record ids
-    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
-        pass
-
-# TODO 2019-12-12 add paging request instead of sending all data at once.
-@api.route('/api/v1/spot_record', methods=['POST'])
-def spot_record_paged(sid: int, pagelen: int):
-    """ Return a specific page of data"""
-
-    # return desired range of record ids
-    def paging_idx(sid: int, pagelen: int) -> Tuple[int, int]:
-        pass
 
 
