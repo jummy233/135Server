@@ -232,7 +232,7 @@ def _get_pos(auth: AuthData,
     headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
-    response: requests.Response = requests.get(url, data=cast(Dict, params), headers=headers)
+    response: requests.Response = requests.get(url, params=cast(Dict, params), headers=headers)
 
     if response.status_code != 200:
         logging.error('error response %s', response)
@@ -244,9 +244,8 @@ def _get_device(auth: AuthData,
                 token: Optional[TokenResult],
                 params: DeviceParam = {}) -> Optional[DeviceResult]:
 
-    (api_query_base_url, api_query_pos_url) = itemgetter('api_query_base_url',
+    (api_query_base_url, api_query_dev_url) = itemgetter('api_query_base_url',
                                                          'api_query_dev_url')(auth)
-
     if not token:
         logging.error('token is None')
         return None
@@ -254,9 +253,11 @@ def _get_device(auth: AuthData,
     sign: Optional[str] = _gen_sign(auth, token)
     headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
 
-    url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
-    response: requests.Response = requests.get(url, data=cast(Dict, params), headers=headers)
+    url: str = urllib.parse.urljoin(api_query_base_url, api_query_dev_url)
+    response: requests.Response = requests.get(url, params=cast(Dict, params), headers=headers)
 
+    print(response.request.headers)
+    print(response.request.body)
     if response.status_code != 200:
         logging.error('error response %s', response)
         return None

@@ -30,7 +30,9 @@ class XiaomiGetterTest(unittest.TestCase):
         self.assertTrue(sign is not None)
 
     def test_get_pos(self):
-        pos: Optional[x.PosResult] = x._get_pos(xauth, self.token)
+        params: x.PosParam = {'positionId': 'real2.557305651542360064'}
+        pos: Optional[x.PosResult] = x._get_pos(xauth, self.token, params)
+        __import__('pprint').pprint(pos)
         self.assertTrue(pos is not None)
 
     def test_get_device(self):

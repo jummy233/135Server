@@ -23,7 +23,7 @@ from dataGetter.jianyanyuanGetter import (
     DeviceParam as JdevParam,
     DeviceResult as JdevResult)
 from dataGetter import authConfig
-from dataGetter.utils import str_to_datetime, datetime_to_str
+from dataGetter.utils import str_to_datetime, datetime_to_str, coutback7day_tuple
 from dataGetter.dateSequence import DateSequence, date_sequence
 from app.models import Project
 
@@ -120,6 +120,7 @@ class XiaoMiData(SpotData, RealTimeSpotData):
     Xiaomi data getter implementation
     """
     source: str = '<xiaomi>'
+    expires_in: int = 5000  # token is valid in 20 seconds.
 
     def __init__(self):
         # get authcode and token
@@ -135,8 +136,7 @@ class XiaoMiData(SpotData, RealTimeSpotData):
 
             token_worker = Process(  # refresh token in another process and pause the current one.
                 target=lambda o: (
-                    setattr(o,
-                            'token',
+                    setattr(o, 'token',
                             xGetter._get_token(self.auth, self.refresh))), args=(self))
             token_worker.start()
             token_worker.join()
@@ -146,10 +146,44 @@ class XiaoMiData(SpotData, RealTimeSpotData):
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
             # reset timer.
-            self.timer = Timer(self.token['expires_in'] - 200, _refresh_token)
+            self.timer = Timer(self.token['expires_in'] - 5, _refresh_token)
             self.timer.start()
-        self.timer = Timer(self.token['expires_in'] - 200, _refresh_token)  # spin timer.
+        self.timer = Timer(self.token['expires_in'] - 5, _refresh_token)  # spin timer.
         self.timer.start()
+
+        # init device list
+        self.device_list: List = []
+
+        def init_device_list(device_list) -> Optional[Tuple[int, List[xGetter.DeviceResult]]]:
+
+            def query_device_amount() -> int:
+                param: xGetter.DeviceParam = {
+                    'pageNum': 1,
+                    'pageSize': 1
+                }
+                response: Optional[xGetter.DeviceResult] = xGetter._get_device(
+                    self.auth, self.token, param)
+
+                device_amount: int = response['totalCount'] if response else 0
+                return device_amount
+
+            #
+
+            device_amount = query_device_amount()
+            if device_amount is not None and device_amount > 0:
+                param: xGetter.DeviceParam = {
+                    'pageNum': 1,
+                    'pageSize': device_amount
+                }
+                response = xGetter._get_device(self.auth, self.token, param)
+
+                response_result = response.get('data') if response else []
+                device_list = response_result
+
+            return device_amount, device_list
+
+        dev_list_result = init_device_list(self.device_list)
+        self.device_amount, self.device_list = dev_list_result if dev_list_result else None
 
     def spot_location(self) -> Optional[Generator]:
         pass
@@ -158,12 +192,31 @@ class XiaoMiData(SpotData, RealTimeSpotData):
         pass
 
     def device(self) -> Optional[Generator]:
-        pass
+        if not self.device_list:
+            return None
+        return (self.make_device(d) for d in self.device_list)
+    # TODO make deivce 2020-01-15 after philosophy class.
 
     def spot(self) -> Optional[Generator]:
         pass
 
     def rt_spot_record(self) -> Optional[Generator]:
+        pass
+
+    @staticmethod
+    def make_location(device_result: xGetter.DeviceResult) -> Location:
+        pass
+
+    @staticmethod
+    def make_device(device_result: xGetter.DeviceResult) -> Device:
+        pass
+
+    @staticmethod
+    def make_spot(location: Location) -> Spot:
+        pass
+
+    @staticmethod
+    def make_spot_record(data: xGetter.ResourceData) -> SpotRecord:
         pass
 
 
@@ -297,7 +350,12 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             return None
 
         datapoint_param_iter: Iterator = (
-            JianYanYuanData._make_datapoint_param(p)
+            JianYanYuanData
+            ._make_datapoint_param(
+                p,
+                coutback7day_tuple(
+                    (str_to_datetime(p.get('createTime'),
+                        ))))
             for p
             in self.device_list)
 
@@ -311,6 +369,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     def _datapoint(self,
                    datapoint_param: Optional[JdatapointParam]
                    ) -> Optional[List[JdatapointResult]]:
+        """ datapoint of one device """
         if not datapoint_param:
             return None
         return jGetter._get_data_points(self.auth, self.token, datapoint_param)
@@ -320,7 +379,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                        ) -> Optional[Iterator
                                      [Optional
                                       [List[JdatapointResult]]]]:
-        """ datapoint data generator. Is a iterator of list.  """
+        """ datapoint data generator. Is a iterator of list. """
 
         if datapoint_param_iter is None:
             logging.error('empty datapoint_param_iter')
@@ -500,11 +559,11 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     @staticmethod
     def make_device(device_result: JdevResult) -> Device:
         return Device(location_info=JianYanYuanData.make_location(device_result),
-                      device_name=device_result.get('deviceId'),
+                      device_name=device_result.get('deviceid'),
                       online=device_result.get('online'),
-                      device_type=device_result.get('productName'),
-                      create_time=device_result.get('createTime'),
-                      modify_time=device_result.get('modifyTime'))
+                      device_type=device_result.get('productname'),
+                      create_time=device_result.get('createtime'),
+                      modify_time=device_result.get('modifytime'))
 
 
 # TODO Outdoor data

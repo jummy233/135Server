@@ -31,7 +31,12 @@ def project_paged():
                 message=f"get project page {pageNo}"))
 
         projects_page = Project.query.paginate(pageNo, size)
-        response_object['data'] = [item.to_json() for item in projects_page.items if item]
+        response_object['data'] = {
+            'data': [item.to_json() for item in projects_page.items if item],
+            'totalElementCount': projects_page.total,
+            'currentPage': pageNo,
+            'pageSize': size
+        }
 
     else:
         response_object: ApiResponse = (
@@ -64,7 +69,12 @@ def spot_paged(pid: Optional[int] = None):
         else:
             spots_page = Spot.query.filter_by(project_id=pid).paginate(pageNo, size)
 
-        response_object['data'] = [item.to_json() for item in spots_page.items if item]
+        response_object['data'] = {
+            'data': [item.to_json() for item in spots_page.items if item],
+            'totalElementCount': spots_page.total,
+            'currentPage': pageNo,
+            'pageSize': size
+        }
 
     else:
         response_object = (
@@ -80,6 +90,7 @@ def spot_paged(pid: Optional[int] = None):
 def device_paged(sid: Optional[int] = None):
     """ Return a specific page of data"""
     post_data = request.get_json()
+
     if is_ApiRequest(post_data):
         paging_request: PagingRequest = post_data['request']
         size, pageNo = itemgetter('size', 'pageNo')(paging_request)
@@ -94,14 +105,18 @@ def device_paged(sid: Optional[int] = None):
         else:
             devices_page = Device.query.filter_by(spot_id=sid).paginate(pageNo, size)
 
-        response_object['data'] = [item.to_json() for item in devices_page.items if item]
+        response_object['data'] = {
+            'data': [item.to_json() for item in devices_page.items if item],
+            'totalElementCount': devices_page.total,
+            'currentPage': pageNo,
+            'pageSize': size
+        }
 
     else:
         response_object = (
             ApiResponse(
                 status=ReturnCode.BAD_REQUEST.value,
                 message="bad request format"))
-
     return jsonify(response_object)
 
 
@@ -118,12 +133,19 @@ def spot_record_paged(did: int):
                 status=ReturnCode.OK.value,
                 message=f"get spot_record page {pageNo}"))
 
+        # never send all records
         if pageNo * size > SpotRecord.query.filter_by(device_id=did).count():
             response_object['status'] = ReturnCode.NO_DATA.value
             response_object['message'] = f"query out of range for device {did}"
         else:
-            spot_records_page = SpotRecord.query.filter_by(device_id=did).paginate(pageNo, size)
-            response_object['data'] = [item.to_json() for item in spot_records_page.items if item]
+            spot_records_page = SpotRecord.query.filter_by(
+                device_id=did).paginate(pageNo, size)
+            response_object['data'] = {
+                'data': [item.to_json() for item in spot_records_page.items if item],
+                'totalElementCount': spot_records_page.total,
+                'currentPage': pageNo,
+                'pageSize': size
+            }
 
     else:
         response_object = (

@@ -221,6 +221,66 @@ def add_spot(spot_data: PostData) -> Optional[Spot]:
 
 
 @interface
+def add_device(device_data: PostData) -> Optional[Device]:
+    """ if no such location fond, create a new location """
+    # TODO 2020-01-04
+    if not isinstance(device_data, PostData):
+        return None
+
+    device = (Device
+              .query
+              .filter_by(device_name=device_data.get("device_name"))
+              .first())
+    if device:
+        return device
+
+    spot: Union[Spot, int, str, None] = device_data.get('spot')
+    if spot and isinstance(spot, Spot) or not spot:  # None or be a Spot.
+        pass
+    elif isinstance(spot, int) or isinstance(spot, str):  # Convert from id to Spot.
+        spot = Spot.query.filter_by(spot_id=int(spot)).first()
+    else:
+        logging.error('add_device error, spot type is incorrect.')
+        return None
+
+    new_device = None
+
+    try:
+        # location must have a climate area.
+        if not isinstance(device_data['create_time'], dt):
+            json_convert(device_data, 'create_time', lambda s: fromisoformat(s.split('T')[0]))
+
+        if not isinstance(device_data['modify_time'], dt):
+            json_convert(device_data, 'modify_time', lambda s: fromisoformat(s.split('T')[0]))
+
+        if not isinstance(device_data['online'], bool):
+            json_convert(device_data, 'online', json_to_bool)
+
+        new_device = Device(device_name=device_data.get("device_name"),
+                            device_type=device_data.get("device_type"),
+                            online=device_data.get("online"),
+                            spot=spot,
+                            create_time=device_data["create_time"],
+                            modify_time=device_data["modify_time"])
+
+        db.session.add(new_device)
+    except IndexError as e:
+        logging.error("Error! add_location failed: {}".format(e))
+        raise
+    except ValueError as e:
+        logging.error("Error! add_location with unmatched value: {}".format(e))
+        raise
+    except IntegrityError as e:
+        logging.error("Error! add_generic_view: {}".format(e))
+        raise
+
+    except Exception:
+        raise
+
+    return new_device
+
+
+@interface
 def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
     if not isinstance(spot_record_data, PostData):
         return None
@@ -438,66 +498,6 @@ def add_location(location_data: PostData) -> Optional[Location]:
         raise
 
     return new_loc
-
-
-@interface
-def add_device(device_data: PostData) -> Optional[Device]:
-    """ if no such location fond, create a new location """
-    # TODO 2020-01-04
-    if not isinstance(device_data, PostData):
-        return None
-
-    device = (Device
-              .query
-              .filter_by(device_name=device_data.get("device_name"))
-              .first())
-    if device:
-        return device
-
-    spot: Union[Spot, int, str, None] = device_data.get('spot')
-    if spot and isinstance(spot, Spot) or not spot:  # None or be a Spot.
-        pass
-    elif isinstance(spot, int) or isinstance(spot, str):  # Convert from id to Spot.
-        spot = Spot.query.filter_by(spot_id=int(spot)).first()
-    else:
-        logging.error('add_device error, spot type is incorrect.')
-        return None
-
-    new_device = None
-
-    try:
-        # location must have a climate area.
-        if not isinstance(device_data['create_time'], dt):
-            json_convert(device_data, 'create_time', lambda s: fromisoformat(s.split('T')[0]))
-
-        if not isinstance(device_data['modify_time'], dt):
-            json_convert(device_data, 'modify_time', lambda s: fromisoformat(s.split('T')[0]))
-
-        if not isinstance(device_data['online'], bool):
-            json_convert(device_data, 'online', json_to_bool)
-
-        new_device = Device(device_name=device_data.get("device_name"),
-                            device_type=device_data.get("device_type"),
-                            online=device_data.get("online"),
-                            spot=spot,
-                            create_time=device_data["create_time"],
-                            modify_time=device_data["modify_time"])
-
-        db.session.add(new_device)
-    except IndexError as e:
-        logging.error("Error! add_location failed: {}".format(e))
-        raise
-    except ValueError as e:
-        logging.error("Error! add_location with unmatched value: {}".format(e))
-        raise
-    except IntegrityError as e:
-        logging.error("Error! add_generic_view: {}".format(e))
-        raise
-
-    except Exception:
-        raise
-
-    return new_device
 
 
 #####################################
