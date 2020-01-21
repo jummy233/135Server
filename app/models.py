@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 from datetime import datetime
 import hashlib
 from enum import Enum
@@ -16,7 +16,6 @@ import base64
 
 
 rand_date = rand_date_in(datetime(2019, 1, 1), datetime(2019, 12, 31))
-
 
 def gen_fake_db():
     """ generate fake db data for testing """
@@ -620,5 +619,17 @@ class SpotRecord(db.Model):
     def __repr__(self):
         return "<SpotRecord id: {} {} {}>".format(
             self.spot_record_id, self.spot_record_time, self.device_id)
+
+
+Data = Union[Project,
+             Spot,
+             ProjectDetail,
+             SpotRecord,
+             OutdoorSpot,
+             OutdoorRecord,
+             Device,
+             Company,
+             Location,
+             ClimateArea]
 
 

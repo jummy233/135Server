@@ -1,5 +1,6 @@
 from threading import Timer
 from multiprocessing import Process
+from multiprocessing import Lock as MuLock
 from queue import Queue
 import time
 from typing import (
@@ -13,7 +14,8 @@ from datetime import timedelta
 from operator import itemgetter
 import logging
 from functools import partial
-from itertools import tee
+from itertools import tee, chain
+from threading import Lock as ThreadLock
 
 from dataGetter import xiaomiGetter as xGetter
 from dataGetter import jianyanyuanGetter as jGetter
@@ -23,9 +25,8 @@ from dataGetter.jianyanyuanGetter import (
     DeviceParam as JdevParam,
     DeviceResult as JdevResult)
 from dataGetter import authConfig
-from dataGetter.utils import str_to_datetime, datetime_to_str, coutback7day_tuple
+from dataGetter.utils import str_to_datetime, datetime_to_str, back7daytuple_generator
 from dataGetter.dateSequence import DateSequence, date_sequence
-from app.models import Project
 
 
 ######################################
@@ -186,10 +187,10 @@ class XiaoMiData(SpotData, RealTimeSpotData):
         self.device_amount, self.device_list = dev_list_result if dev_list_result else None
 
     def spot_location(self) -> Optional[Generator]:
-        pass
+        ...
 
     def spot_record(self, spot_id: Optional[int] = None) -> Iterator[Optional[Generator]]:
-        pass
+        ...
 
     def device(self) -> Optional[Generator]:
         if not self.device_list:
@@ -198,26 +199,26 @@ class XiaoMiData(SpotData, RealTimeSpotData):
     # TODO make deivce 2020-01-15 after philosophy class.
 
     def spot(self) -> Optional[Generator]:
-        pass
+        ...
 
     def rt_spot_record(self) -> Optional[Generator]:
-        pass
+        ...
 
     @staticmethod
     def make_location(device_result: xGetter.DeviceResult) -> Location:
-        pass
+        ...
 
     @staticmethod
     def make_device(device_result: xGetter.DeviceResult) -> Device:
-        pass
+        ...
 
     @staticmethod
     def make_spot(location: Location) -> Spot:
-        pass
+        ...
 
     @staticmethod
     def make_spot_record(data: xGetter.ResourceData) -> SpotRecord:
-        pass
+        ...
 
 
 class JianYanYuanData(SpotData, RealTimeSpotData):
@@ -253,12 +254,15 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         def _refresh_token():  # token will expire. So need to be refreshed periodcially.
 
+            def worker(q: Queue):
+                with ThreadLock():
+                    with MuLock():
+                        setattr(q.get(), 'token', jGetter._get_token(self.auth))
+
             q: Queue = Queue()
-            token_worker = Process(  # refresh token in another process and pause the current one.
-                target=lambda q: (
-                    setattr(q.get(),
-                            'token',
-                            jGetter._get_token(self.auth))), args=(q,))
+            # refresh token in another process and pause the current one.
+            token_worker = Process(target=worker, args=(q,))
+
             token_worker.start()
             token_worker.join()
             token_worker.close()
@@ -299,20 +303,91 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         if not self.device_list:
             return iter([])
 
-        datapoint_params: Iterator[Optional[JdatapointParam]] = (
-            map(JianYanYuanData._make_datapoint_param,
-                self.device_list))
-        datapoint_params1, datapoint_params2 = tee(datapoint_params)
+        def _datapoint_param_iter() -> Optional[Iterator[JdatapointParam]]:
+            """
+            datapoint paramter generator. Each paramter for each device.
+            """
+            if self.device_list is None:
+                return None
 
-        datapoints: Iterator[
-            Optional[List[
-                JdatapointResult]]] = (
-            map(self._datapoint, datapoint_params1))
+            logging.info('[dataMidware] creating Jianyanyuan datapoint params')
+            # Fetch data within 7 day periodcially. use 7 day is because the api can only fetch
+            # data of 7 data at once.
 
-        spot_records = (
-            map(lambda dp: (None if dp[0] is None else
-                            (JianYanYuanData.make_spot_record(sr, dp[1]) for sr in dp[0])),
-                zip(datapoints, datapoint_params2)))
+            datapoint_param_iter: Iterator[JdatapointParam] = chain.from_iterable(
+                (
+                    filter(
+                        None,
+                        (
+                            # JianYanYuanData._make_datapoint_param(d, back7tuple)
+                            JianYanYuanData._make_datapoint_param(d, back7tuple)
+                            for back7tuple
+                            in back7daytuple_generator(str_to_datetime(d.get('createTime')))
+                        )
+
+                    )
+                    for d
+                    in self.device_list
+                )
+            )
+
+            if not any(datapoint_param_iter):
+
+                logging.warning(JianYanYuanData.source + 'No datapoint parameter.')
+                return None
+
+            return datapoint_param_iter
+
+        def _datapoint(datapoint_param: Optional[JdatapointParam]
+                       ) -> Optional[List[JdatapointResult]]:
+            """ datapoint of one device """
+            if not datapoint_param:
+                return None
+            return jGetter._get_data_points(self.auth, self.token, datapoint_param)
+
+        def _datapoint_iter(datapoint_param_iter: Optional[Iterator]
+                            ) -> Optional[Iterator
+                                          [Optional
+                                           [List[JdatapointResult]]]]:
+            """
+            datapoint data generator.
+            It map _datapoint on  _datapoint_param_iter and yield
+            a iterator of datapoint as list.
+            """
+            logging.info('[dataMidware] creating Jianyanyuan datapoint iter')
+
+            if datapoint_param_iter is None:
+                logging.error('empty datapoint_param_iter')
+                return None
+
+            datapoint_iter = (
+                _datapoint(param)
+                for param
+                in datapoint_param_iter
+            )
+
+            if not any(datapoint_iter):
+                logging.warning(JianYanYuanData.source + 'No datapoint list.')
+                return None
+
+            return datapoint_iter
+        # construct spot_record
+
+        datapoint_params: Optional[Iterator[JdatapointParam]] = _datapoint_param_iter()
+        if datapoint_params is None:
+            return iter([])
+        params_list = list(datapoint_params)  # construct param list
+
+        datapoints: Iterator[                 # construct datapoint iter
+            Optional[List[JdatapointResult]]] = (map(_datapoint, params_list))
+
+        spot_records = (                      # construct SpotRecord iter
+            map(lambda dp: (
+                None if dp[0] is None else
+                (JianYanYuanData.make_spot_record(sr, dp[1]) for sr in dp[0])),
+                zip(datapoints, params_list)
+                )
+        )
 
         if not any(spot_records):
             return iter([])
@@ -341,60 +416,6 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     ##################################
     #  spot_record helper functions  #
     ##################################
-
-    def _datapoint_param_iter(self) -> Optional[Iterator]:
-        """
-        datapoint paramter generator. Each paramter for each device.
-        """
-        if self.device_list is None:
-            return None
-
-        datapoint_param_iter: Iterator = (
-            JianYanYuanData
-            ._make_datapoint_param(
-                p,
-                coutback7day_tuple(
-                    (str_to_datetime(p.get('createTime'),
-                        ))))
-            for p
-            in self.device_list)
-
-        if not any(datapoint_param_iter):
-
-            logging.warning(JianYanYuanData.source + 'No datapoint parameter.')
-            return None
-
-        return datapoint_param_iter
-
-    def _datapoint(self,
-                   datapoint_param: Optional[JdatapointParam]
-                   ) -> Optional[List[JdatapointResult]]:
-        """ datapoint of one device """
-        if not datapoint_param:
-            return None
-        return jGetter._get_data_points(self.auth, self.token, datapoint_param)
-
-    def datapoint_iter(self,
-                       datapoint_param_iter: Optional[Iterator]
-                       ) -> Optional[Iterator
-                                     [Optional
-                                      [List[JdatapointResult]]]]:
-        """ datapoint data generator. Is a iterator of list. """
-
-        if datapoint_param_iter is None:
-            logging.error('empty datapoint_param_iter')
-            return None
-
-        datapoint_iter = (
-            self._datapoint(param)
-            for param
-            in datapoint_param_iter)
-
-        if not any(datapoint_iter):
-            logging.warning(JianYanYuanData.source + 'No datapoint list.')
-            return None
-
-        return datapoint_iter
 
     @staticmethod
     def _make_datapoint_param(device_result: JdevResult,
@@ -456,7 +477,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     ######################
 
     def rt_spot_record(self):
-        pass
+        ...
 
     ########################################
     # Convert json result into TypedDict   #
@@ -526,15 +547,20 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         device_name: Optional[str] = None
         if datapoint_param:
             device_name = datapoint_param.get('did')
+            if not device_name:
+                logging.error('[dataMidware] no device_name %s', datapoint_param)
 
-        return SpotRecord(spot_record_time=spot_record_time,
-                          device_name=device_name,
-                          temperature=temperature,
-                          humidity=humidity,
-                          pm25=pm25,
-                          co2=co2,
-                          window_opened=None,
-                          ac_power=ac_power)
+        spot_record = SpotRecord(
+            spot_record_time=spot_record_time,
+            device_name=device_name,
+            temperature=temperature,
+            humidity=humidity,
+            pm25=pm25,
+            co2=co2,
+            window_opened=None,
+            ac_power=ac_power)
+
+        return spot_record
 
     @staticmethod
     def make_spot(loc_attrs: Location) -> Optional[Spot]:
@@ -551,7 +577,6 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         # TODO: pick the most suitable infor from locatino attrs 2019-12-23 @1
         # Location need to match with project.
         # So this function need to be implemented with project information.
-
         return Spot(project_name=loc_attrs.get('address'),
                     spot_name=None,
                     spot_type=None)
@@ -559,15 +584,20 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     @staticmethod
     def make_device(device_result: JdevResult) -> Device:
         return Device(location_info=JianYanYuanData.make_location(device_result),
-                      device_name=device_result.get('deviceid'),
+                      device_name=device_result.get('deviceId'),
                       online=device_result.get('online'),
-                      device_type=device_result.get('productname'),
-                      create_time=device_result.get('createtime'),
-                      modify_time=device_result.get('modifytime'))
+                      device_type=device_result.get('productName'),
+                      create_time=device_result.get('createTime'),
+                      modify_time=device_result.get('modifyTime'))
 
 
 # TODO Outdoor data
 class OutdoorData:
-    pass
+    ...
 
 
+def iterprint(x, y, z):
+    print(x)
+    print(y)
+    print('---')
+    return z

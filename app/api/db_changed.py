@@ -2,53 +2,65 @@
 All apis here will modify the state of database.
 """
 
-from typing import Dict, Optional, List, Tuple, Callable
-from datetime import timedelta, datetime
-from operator import itemgetter
+from typing import Dict, Optional, List, Tuple, NewType, Callable, Any
 from flask import jsonify, request
+from flask import json as FlaskJson
 from . import api
 from ..api_types import ApiResponse, ReturnCode, ApiRequest
 from ..api_types import is_ApiRequest
-from ..exceptions import ValueExistedError
-from ..modelOperations import add_project
-from ..modelOperations import add_spot
+from ..modelOperations import ModelOperations
 from ..modelOperations import commit_db_operation
-from ..modelOperations import delete_project
-from ..modelOperations import delete_spot
 from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail
-from ..models import  ClimateArea, Company, Permission
+from ..models import ClimateArea, Company, Permission
 from ..models import OutdoorSpot, OutdoorRecord
 from ..models import Spot, SpotRecord, Device
-from .. import db
-from sqlalchemy import and_
-from sqlalchemy.exc import IntegrityError
+from ..models import Data
 
-# TODO handle put. 2020-01-13
-@api.route('/project/<pid>', methods=["POST", "PUT", "DELETE"])
-def project_view_add_update_delete(pid: int):
+
+Json = NewType('Json', str)
+AddOperation = Callable[[Dict], Optional[Data]]
+UpdateOperation = Callable[[Dict], Optional[Data]]
+DeleteOperation = Callable[[int], Optional[Data]]
+
+
+def add_update_delete_template(
+        some_id: int,
+        model_operations: Tuple[AddOperation,
+                                UpdateOperation,
+                                DeleteOperation]) -> Json:
+    add, update, delete = model_operations
+
     response_object: ApiResponse = (
         ApiResponse(status=ReturnCode.OK.value))
 
-    def handle_post(response_object: ApiResponse):
+    def handle_post(response_object: ApiResponse) -> None:
         post_data = request.get_json()
         if is_ApiRequest(post_data):
             post_data = post_data['request']
 
         response_object = commit_db_operation(
             response_object=response_object,
-            op=add_project,
+            op=add,
             post_data=post_data,
             name='project')
-        return jsonify(response_object)
 
-    def handle_put(response_object: ApiResponse):
-        pass
+    def handle_put(response_object: ApiResponse) -> None:
+        post_data = request.get_json()
+        if is_ApiRequest(post_data):
+            post_data = post_data['request']
+
+        updated = update(post_data)
+        if updated:
+            response_object['message'] = "project update succeeded!"
+        else:
+            response_object['status'] = ReturnCode.NO_DATA.value
+            response_object['message'] = "project update failed"
 
     def handle_delete(response_object: ApiResponse) -> None:
         response_object["message"] = "project is removed!"
         try:
-            delete_project(pid)
+            delete(some_id)
             commit()
         except Exception as e:
             response_object["status"] = ReturnCode.BAD_REQUEST.value
@@ -66,43 +78,43 @@ def project_view_add_update_delete(pid: int):
     return jsonify(response_object)
 
 
-@api.route('/project/<pid>/spots/<sid>', methods=["POST", "PUT", "DELETE"])
-def spot_generic_view_add_update_delete(pid: int, sid: int):
-    response_object: ApiResponse = (
-        ApiResponse(status=ReturnCode.OK.value))
+@api.route('/project/<pid>', methods=["POST", "PUT", "DELETE"])
+def project_add_update_delete(pid: int):
+    return add_update_delete_template(
+        pid, (ModelOperations.Add.add_project,
+              ModelOperations.Update.update_project,
+              ModelOperations.Delete.delete_project))
 
-    def handle_post(response_object: ApiResponse):
-        post_data: ApiRequest = request.get_json()
 
-        # send failure responses accroding to the exception captures.
-        response_object = commit_db_operation(
-            response_object=response_object,
-            op=add_spot,
-            post_data=post_data,
-            name='spot')
-        return jsonify(response_object)
+@api.route('/spots/<sid>', methods=["POST", "PUT", "DELETE"])
+def spot_add_update_delete(sid: int):
+    return add_update_delete_template(
+        sid, (ModelOperations.Add.add_spot,
+              ModelOperations.Update.update_spot,
+              ModelOperations.Delete.delete_spot))
 
-    def handle_put(response_object: ApiResponse):
-        pass
 
-    def handle_delete(response_object: ApiResponse):
-        response_object["message"] = "spot is removed!"
-        try:
-            delete_spot(sid)
-            commit()
-        except Exception as e:
-            response_object["status"] = ReturnCode.BAD_REQUEST.value
-            response_object["message"] = f"spot remove failed: {e}"
+@api.route('/device/<did>', methods=["POST", "PUT", "DELETE"])
+def device_add_update_delete(did: int):
+    return add_update_delete_template(
+        did, (ModelOperations.Add.add_device,
+              ModelOperations.Update.update_device,
+              ModelOperations.Delete.delete_device))
 
-    if request.method == 'POST':
-        handle_post(response_object)
 
-    if request.method == 'PUT':
-        pass
+@api.route('/spotRecord/<rid>', methods=["POST", "PUT", "DELETE"])
+def spot_record_add_update_delete(rid: int):
+    return add_update_delete_template(
+        rid, (ModelOperations.Add.add_spot_record,
+              ModelOperations.Update.update_spot_record,
+              ModelOperations.Delete.delete_spot_record))
 
-    if request.method == 'DELETE':
-        handle_delete(response_object)
 
-    return jsonify(response_object)
+@api.route('/outdoorSpot/oid', methods=["POST", "PUT", "DELETE"])
+def outdoor_spot_add_update_delete(oid: int):
+    return add_update_delete_template(
+        oid, (ModelOperations.Add.add_outdoor_spot,
+              ModelOperations.Update.update_outdoor_spot,
+              ModelOperations.Delete.delete_outdoor_spot))
 
 

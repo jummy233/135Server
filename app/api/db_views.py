@@ -10,8 +10,6 @@ from flask import jsonify, request
 from . import api
 from ..api_types import ApiRequest, ApiResponse, ReturnCode
 from ..api_types import is_ApiRequest
-from ..modelOperations import add_project
-from ..modelOperations import add_spot
 from ..modelOperations import commit_db_operation
 from ..modelOperations import commit
 from ..models import User, Location, Project, ProjectDetail

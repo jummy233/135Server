@@ -30,6 +30,8 @@ if os.environ.get("FLASK_COVERAGE"):
 
 # init admin in databse
 
+# init cache
+
 
 @app.shell_context_processor
 def make_shell_context():

@@ -1,2 +1,6 @@
 class ValueExistedError(ValueError):
-    pass
+    ...
+
+
+class SkipBlockException(Exception):
+    ...

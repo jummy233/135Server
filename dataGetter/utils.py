@@ -37,11 +37,18 @@ def coutback7day_tuple(prev_tuple: Tuple[dt, dt]) -> Tuple[dt, dt]:
     return start - delta_seven, start
 
 
-def back7daytuple_generator(create_time: dt) -> Generator[Tuple[dt, dt], None, None]:
+def back7daytuple_generator(create_time: Optional[dt]) -> Generator[Tuple[dt, dt], None, None]:
     """ 7 day tuple generator. stop when back to create time"""
     delta_seven = timedelta(days=7)
     now = dt.utcnow()
+
+    if create_time is None:  # if no create time default go back for a month.
+        create_time = now - 30 * delta_seven
+
     date_tuple = (now - delta_seven, now)
+
+    if date_tuple[0] < create_time:
+        yield (create_time, now)
 
     while date_tuple[0] > create_time:
         yield date_tuple
