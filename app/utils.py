@@ -1,8 +1,24 @@
+
 from enum import Enum
 from datetime import datetime, timedelta
 import time
 from random import uniform
 from typing import Callable
+import importlib
+import sys
+
+
+def lazyload(module_name):
+    """ load module lazily"""
+    try:
+        return sys.modules[module_name]
+    except KeyError:
+        spec = importlib.util.find_spec(module_name)
+        module = importlib.util.module_from_spec(spec)
+        loader = importlib.util.LazyLoader(spec.loader)
+
+        loader.exec_module(module)
+        return module
 
 
 def rand_date_in(date1: datetime, date2: datetime) -> Callable:

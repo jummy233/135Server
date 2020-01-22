@@ -17,6 +17,10 @@ from collections import deque
 import threading
 from multiprocessing.pool import ThreadPool
 import multiprocessing
+
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 from functools import partial
 import copy
 
@@ -26,10 +30,10 @@ from fuzzywuzzy import fuzz
 from app.models import ClimateArea, Location, Project, Spot, Device, SpotRecord
 from app.modelOperations import ModelOperations, commit
 from app import db
+
 from dataGetter import dataMidware
 import dataGetter as D
 from time import sleep
-import pysnooper
 from lazybox import LazyBox, LazyGenerator
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -115,6 +119,33 @@ def job_iter_dispacher(jobs_islice: Iterator, buffer_size: int) -> List[Iterator
     return buf
 
 
+def aysnc_collector(worker: Callable[[Job], None],
+                    jobs: Iterator[Job],
+                    consumer: Callable[[List[Optional[Dict]]], None]):
+
+    """ async version of collector """
+
+    async def async_runner():
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            loop = asyncio.get_event_loop()
+
+            tasks = [
+                loop.run_in_executor(
+                    executor,
+                    worker,
+                    *(job,)
+                )
+                for job in jobs
+            ]
+
+            for response in await asyncio.gather(*tasks):
+                consumer(response)
+
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(async_runner())
+    loop.run_until_complete(future)
+
+
 def threaded_collector(jobs: Iterator[Job],
                        max_concurrent_thread_num: int,
                        queue: Queue,  # T
@@ -149,6 +180,7 @@ def threaded_collector(jobs: Iterator[Job],
             total_count += max_concurrent_thread_num
 
             threads = list()
+
             for idx in range(max_concurrent_thread_num):
                 logging.info('<Main Thread> Start thread %d', idx)
 
@@ -158,7 +190,9 @@ def threaded_collector(jobs: Iterator[Job],
                 t = threading.Thread(target=queue_worder, args=(s,))
 
                 t.setDaemon(True)  # avoid race in queue
+
                 threads.append(t)
+
                 t.start()
 
             for idx, t in enumerate(threads):
@@ -167,7 +201,10 @@ def threaded_collector(jobs: Iterator[Job],
 
             # consume queue.
             with threading.Lock():
+
                 while not queue.empty():
+
+                    # feed the data fetched into consumer.
                     feed: T = queue.get()
                     consumer(feed)
             hook()
@@ -194,6 +231,7 @@ def paralleled_consumer(worker: Callable[[T], None],
         processes: List[multiprocessing.Process] = list()
 
         while len(job_buffer) != 0:
+
             logging.debug('<Main Process> Spawn a new worker')
             w: T = job_buffer.pop(0)
             p = multiprocessing.Process(target=worker, args=(w, ), daemon=True)
@@ -201,6 +239,7 @@ def paralleled_consumer(worker: Callable[[T], None],
             p.start()
 
         for idx, p in enumerate(processes):
+
             p.join()
             p.terminate()
             logging.debug('<Main Process> worker %d done', idx)
@@ -305,8 +344,10 @@ class JianyanyuanLoadFull:
     devices spot and records are large and has heavy state dependency.
     """
 
-    def __init__(self):
+    def __init__(self, datapoint_thread_num: int = 30, datapoint_from: int = 0):
         self.j = dataMidware.JianYanYuanData()
+        self.datapoint_thread_num = datapoint_thread_num
+        self.datapoint_from = datapoint_from
 
     def close(self):
         self.j.close()
@@ -345,6 +386,7 @@ class JianyanyuanLoadFull:
                                                     projects))
 
             for spot_name, project_name in names:
+
                 if not Spot.query.filter_by(spot_name=spot_name).first():
                     project = Project.query.filter_by(project_name=project_name).first()
                     if not project:  # project doesn't exist, skip it.
@@ -427,6 +469,7 @@ class JianyanyuanLoadFull:
                     projects))
 
             max_address_ratio = max(fuzz_address_results)
+
             max_extra_ratio = max(fuzz_extra_results)
 
             # ratio > 40 indicate a good match.
@@ -451,6 +494,7 @@ class JianyanyuanLoadFull:
         # Note: Two methods both loop through device list.
         def load_by_table_lookup(d: dataMidware.Device, json_data: Dict, json_spot_list: List[Spot]):
             """ method 1 load project name from json table for given device id """
+
             did = d.get('device_name')
 
             for project_name, did_lists in json_data.items():
@@ -472,6 +516,7 @@ class JianyanyuanLoadFull:
             """ method 2, deduce the spot by location_info typedict come with Device typedict """
 
             spot: Optional[Spot] = handle_location_info(d['location_info'])
+
             device_post_data = {
                 'device_name': d.get('device_name'),
                 'device_type': d.get('device_type'),
@@ -480,21 +525,25 @@ class JianyanyuanLoadFull:
                 'create_time': d.get('create_time'),
                 'modify_time': d.get('modify_time')
             }
+
             ModelOperations.Add.add_device(device_post_data)
 
         # read json files
         with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
             json_data: Dict = json.loads(f.read())
+
             json_spot_list = [(Project
                                .query
                                .filter_by(project_name=pn)).first().spot.first()
                               for pn in json_data.keys()]
 
         for d in devices:  # consumer
+
             # second operation will overwrite the first one.
             # table lookup has higher accuracy so has higher priority than fuzzy match.
             load_by_table_lookup(d, json_data, json_spot_list)
             load_by_location_info(d)
+
         logging.info('finished loading device')
 
     def load_spot_records(self):
@@ -502,48 +551,68 @@ class JianyanyuanLoadFull:
         There is no local table look up.
         All info come from dataMidware iterator
         """
-        spot_records: Iterator[Optional[Generator]] = islice(self.j.spot_record(), 220, None)
+        spot_records: Iterator[Optional[Generator]] = islice(self.j.spot_record(),
+                                                             self.datapoint_from,
+                                                             None)
+        if not spot_records:
+            logging.warning('empty spot record from JianYanYuanData')
+            return None
 
         devices: List[Device] = Device.query.all()
         queue: Queue = Queue()
 
+        ##########################
+        #  deprecated  2020-01-21#
+        ##########################
+
         def do_record_sr(sr: Dict) -> None:
-            """ record a single spot_record """
+            """
+            record a single spot_record
+
+            `consumer` in threaded_collector
+            """
             if sr is None:
                 return
 
             device = next(
                 filter(lambda d: d.device_name == sr.get('device_name'), devices))
 
-            spot_record = {
-                "device": device,
-                'spot_record_time': sr.get('spot_record_time'),
-                'temperature': sr.get('temperature'),
-                'humidity': sr.get('humidity'),
-                'pm25': sr.get('pm25'),
-                'co2': sr.get('co2'),
-                'window_opened': sr.get('window_opened'),
-                'ac_power': sr.get('ac_power')
-            }
-            ModelOperations.Add.add_spot_record(spot_record)
+            sr["device"] = device
 
-        if not spot_records:
-            logging.warning('empty spot record from JianYanYuanData')
-            return None
+            # spot_record = {
+            #     "device": device,
+            #     'spot_record_time': sr.get('spot_record_time'),
+            #     'temperature': sr.get('temperature'),
+            #     'humidity': sr.get('humidity'),
+            #     'pm25': sr.get('pm25'),
+            #     'co2': sr.get('co2'),
+            #     'window_opened': sr.get('window_opened'),
+            #     'ac_power': sr.get('ac_power')
+            # }
+
+            ModelOperations.Add.add_spot_record(sr)
+
+        ##########################
+        #  deprecated  2020-01-21#
+        ##########################
 
         def record_fetching_worker(
                 queue: Queue,  # T
 
                 # lazy iter with only one ele.
                 sr_generator_lazybox: LazyBox[Job]) -> None:
+            """
+            fetch data from response queue.
+
+            `worker` in in threaded_collector
+            """
 
             # @DEBUG: problem happens in eval
             spot_record_generator = sr_generator_lazybox.eval()
+
             logging.info('process from device {}'.format(spot_record_generator))
 
             # None generator. might be a broken api or connection error.
-            print(spot_record_generator)
-
             if spot_record_generator is None:
                 logging.warning('empty device{}'.format(spot_record_generator))
                 return
@@ -552,19 +621,50 @@ class JianyanyuanLoadFull:
             for sr in spot_record_generator:
                 queue.put(sr)
 
+        ###################
+        #  async workers  #
+        ###################
+
+        def async_fetch_worker(job: Job) -> List[Optional[Dict]]:
+
+            logging.info('process from device {}'.format(job))
+            buf: List = list()
+
+            if job is None:
+                logging.warning('empty device{}'.format(job))
+                return buf
+
+            for sr in job:
+
+                device = next(
+                    filter(lambda d: d.device_name == sr.get('device_name'), devices))
+
+                sr["device"] = device
+                buf.append(sr)
+
+            return buf
+
+        def async_consumer(d: Optional[Dict]) -> None:
+            if d is None:
+                return
+
+            ModelOperations.Add.add_project(d)
+
         logging.info('<Main Thread> Start to fetch data...')
+
+        aysnc_collector(async_fetch_worker, spot_records, async_consumer)
 
         # threaded_collector collect data, and then feed them to
         # paralleled consumer to process data and record into database.
 
         # consumer = partial(paralleled_consumer, do_record_sr, 6)
 
-        threaded_collector(jobs=spot_records,
-                           max_concurrent_thread_num=100,
-                           queue=queue,
-                           worker=record_fetching_worker,
-                           consumer=do_record_sr,
-                           hook=commit)
+        # threaded_collector(jobs=spot_records,
+        #                    max_concurrent_thread_num=self.datapoint_thread_num,
+        #                    queue=queue,
+        #                    worker=record_fetching_worker,
+        #                    consumer=do_record_sr,
+        #                    hook=commit)
 
         # sequential_collector(buffer_size=500,
         #                      queue=queue,
@@ -593,11 +693,10 @@ def db_init(full=False):
     load_location()
     load_projects()
     logging.info('<Main Thread> Finsih loading project informations ... ')
-
     if full:
         logging.info('<Main Thread> Start to load devices and spot record... ')
 
-        load_data = JianyanyuanLoadFull()
+        load_data = JianyanyuanLoadFull(datapoint_thread_num=30, datapoint_from=800)
         load_data.load_spots()
         load_data.load_devices()
         load_data.load_spot_records()

@@ -1,3 +1,5 @@
+
+print('loaded', __file__)
 from typing import (
     List, Dict, NewType, TypedDict, Callable,
     Union, Optional)

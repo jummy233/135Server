@@ -4,14 +4,13 @@ from dotenv import load_dotenv
 import click
 from flask_migrate import Migrate
 from flask_cors import CORS
-from app import create_app, db
+from app import create_app, db, global_cache
 from app.models import Permission, User
 from app.models import OutdoorSpot, OutdoorRecord, ClimateArea, Location
 from app.models import Project, ProjectDetail, Company
 from app.models import Spot, SpotRecord, Device
 from app.models import gen_fake_db
-from app.modelOperations import commit
-from db_init import db_init, create_db
+
 
 # load environment var
 dotenv_path = os.path.join(os.path.dirname(__name__), '.env')
@@ -21,6 +20,7 @@ if os.path.exists(dotenv_path):
 app = create_app(os.getenv("FLASK_CONFIG") or 'default')
 migrate = Migrate(app, db)
 CORS(app, resources={r'/*': {'origins': '*'}})
+
 
 COV = None
 if os.environ.get("FLASK_COVERAGE"):
@@ -50,9 +50,7 @@ def make_shell_context():
         Spot=Spot,
         SpotRecord=SpotRecord,
         gen_fake_db=gen_fake_db,
-        db_init=db_init,
-        create_db=create_db,
-        commit=commit)
+        global_cache=global_cache)
 
 
 @app.cli.command()
