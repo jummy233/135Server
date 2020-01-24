@@ -54,6 +54,23 @@ def make_shell_context():
 
 
 @app.cli.command()
+@click.option('--full/--not-full', default=True, help='Init database')
+@click.option('--cache/--no-cache', default=False, help='Turn on cache')
+def init_db(full, cache):
+    """
+    init dababase from sources.
+    set SHISANWU_CACHE_ON to True to run with cache
+    """
+    if cache and not os.environ.get("SHISANWU_CACHE_ON"):
+        import subprocess
+        os.environ["SHISANWU_CACHE_ON"] = True
+        sys.exit(subprocess.call(sys.argv))
+
+    from db_init import db_init
+    db_init(full)
+
+
+@app.cli.command()
 @click.option('--coverage/--no-coverage', default=False, help='Run coverage test')
 @click.argument('test_names', nargs=-1)
 def test(coverage, test_names):

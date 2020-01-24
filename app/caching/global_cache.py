@@ -124,11 +124,12 @@ def cache_spot_record(f):
     logging.info('caching...')
     @wraps(f)
     def cache_it(cache: Cache, *args, **kwargs):
+        maxsize: int = 50000
 
         cache[ModelDataEnum._SpotRecord] = cast(_LRUDictionary[dt, Device],
-                                                _LRUDictionary(maxsize=50000))
+                                                _LRUDictionary(maxsize=maxsize))
 
-        for v in SpotRecord.query.all():
+        for v in SpotRecord.query.limit(maxsize).all():
             (
                 cache[ModelDataEnum._SpotRecord]
                 [

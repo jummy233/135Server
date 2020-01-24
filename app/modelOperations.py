@@ -5,27 +5,33 @@ Each add function return the data created.
 to record the change
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Optional, Callable, Union, ByteString, TypedDict, Tuple, NewType, List
-from copy import copy
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_
-from datetime import datetime
-from .models import User, Location, Project, ProjectDetail
-from .models import ClimateArea, Company, Permission
-from .models import OutdoorSpot, OutdoorRecord
-from .models import Spot, SpotRecord, Device
-from .models import Data
-from app.api_types import ApiRequest, ApiResponse, ReturnCode
-from .caching.caching import Cache
-from .caching.caching import get_cache
-from .caching.global_cache import ModelDataEnum, GlobalCacheKey, GlobalCache
-from datetime import datetime as dt
-from dataGetter.utils import str_to_datetime
-from app.utils import normalize_time
-from . import db
-import logging
 import importlib
+from abc import ABC, abstractmethod
+from copy import copy
+from datetime import datetime as dt
+from logging import DEBUG
+from typing import (ByteString, Callable, Dict, List, NewType, Optional, Tuple,
+                    TypedDict, Union)
+
+from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError
+
+from app.api_types import ApiRequest, ApiResponse, ReturnCode
+from app.utils import normalize_time
+from dataGetter.utils import str_to_datetime
+from logger import make_logger
+
+from . import db
+from .caching.caching import Cache, get_cache
+from .caching.global_cache import GlobalCache, GlobalCacheKey, ModelDataEnum
+from .models import (ClimateArea, Company, Data, Device, Location,
+                     OutdoorRecord, OutdoorSpot, Permission, Project,
+                     ProjectDetail, Spot, SpotRecord, User)
+
+logger = make_logger('modelOperation', 'modelOperation_log', DEBUG)
+logger.propagate = False
+
+
 
 # from app import global_cache
 
@@ -35,7 +41,6 @@ global_cache = app.global_cache
 
 # TODO lazy load global_cache.global_cacheall so it is fully initialized.
 PostData = Dict
-logging.basicConfig(level=logging.INFO)
 
 # load global_cache.global_cacheall lazily.
 # lazy_caching = lazyload('caching.cache_instance')
@@ -54,7 +59,7 @@ def fromisoformat(dtstr: str) -> Optional[dt]:
     """ handle None case """
     if not dtstr:
         return None
-    return datetime.fromisoformat(dtstr)
+    return dt.fromisoformat(dtstr)
 
 
 def convert(val: str, typ) -> Union[None, int, float]:
@@ -230,7 +235,7 @@ class ModelOperations(ModelInterfaces):
 
                 project = Project.query.filter_by(project_name=project_data.get('project_name')).first()
                 if project:
-                    logging.debug('project exists')
+                    logger.debug('project exists')
                     return project
 
                 try:
@@ -242,13 +247,13 @@ class ModelOperations(ModelInterfaces):
                         cache[ModelDataEnum._Project][new_project.project_id] = new_project
 
                 except IndexError as e:
-                    logging.error("Error! add_project failed {}".format(e))
+                    logger.error("Error! add_project failed {}".format(e))
                     raise
                 except ValueError as e:
-                    logging.error("Error! add_project with unmatched value {}".format(e))
+                    logger.error("Error! add_project with unmatched value {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logging.error("Error! add_project :  {}".format(e))
+                    logger.error("Error! add_project :  {}".format(e))
                     raise
 
                 return new_project
@@ -269,7 +274,7 @@ class ModelOperations(ModelInterfaces):
                     spot = Spot.query.filter_by(spot_name=spot_data["spot_name"]).first()
 
                 if spot:
-                    logging.debug('spot exists')
+                    logger.debug('spot exists')
                     return spot
 
                 new_spot = None
@@ -282,14 +287,14 @@ class ModelOperations(ModelInterfaces):
                         cache[ModelDataEnum._Spot][new_spot.spot_name] = new_spot
 
                 except IndexError as e:
-                    logging.error("Error! add_generic_view failed: {}".format(e))
+                    logger.error("Error! add_generic_view failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logging.error(
+                    logger.error(
                         "Error! add_generic_view with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logging.error("Error! add_generic_view: : {}".format(e))
+                    logger.error("Error! add_generic_view: : {}".format(e))
                     raise
                 return new_spot
             return _add_spot()
@@ -306,13 +311,13 @@ class ModelOperations(ModelInterfaces):
                     return None
 
                 if cache is not None:
-                    logging.debug('add device')
+                    logger.debug('add device')
 
                     device = get_cache(cache,
                                        ModelDataEnum._Device,
                                        device_data.get("device_name"))
 
-                    logging.debug('device from cache {}'.format('device'))
+                    logger.debug('device from cache {}'.format('device'))
                 else:
 
                     device = (Device
@@ -321,7 +326,7 @@ class ModelOperations(ModelInterfaces):
                               .first())
 
                 if device:
-                    logging.debug('device exists')
+                    logger.debug('device exists')
                     return device
 
                 new_device = None
@@ -336,14 +341,14 @@ class ModelOperations(ModelInterfaces):
                         cache[ModelDataEnum._Device][new_device.device_id] = new_device
 
                 except IndexError as e:
-                    logging.error("Error! add_location failed: {}".format(e))
+                    logger.error("Error! add_location failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logging.error(
+                    logger.error(
                         "Error! add_location with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logging.error("Error! add_generic_view: {}".format(e))
+                    logger.error("Error! add_generic_view: {}".format(e))
                     raise
 
                 except Exception:
@@ -361,7 +366,7 @@ class ModelOperations(ModelInterfaces):
                 if not isinstance(spot_record_data, PostData):
                     return None
 
-                logging.debug(spot_record_data)
+                logger.debug(spot_record_data)
                 # time can either be dt or string.
                 spot_record_time: Union[dt, str, None] = normalize_time(5)(
                     spot_record_data['spot_record_time'])
@@ -381,7 +386,7 @@ class ModelOperations(ModelInterfaces):
                             ModelDataEnum._Device,
                             spot_record_data.get('device'))
                     else:
-                        logging.debug('using database')
+                        logger.debug('using database')
                         device = Device.query.filter_by(
                             device_id=spot_record_data.get("device")).first()
 
@@ -391,7 +396,7 @@ class ModelOperations(ModelInterfaces):
 
                 # change in 2020-01-21
                 # generate cache key for records in _LRUDictionary.
-                if isinstance(datetime, dt) and isinstance(device, Device):
+                if isinstance(spot_record_time, dt) and isinstance(device, Device):
                     cache_key: Optional[GlobalCacheKey] = (spot_record_time, device)
                 else:
                     cache_key = None
@@ -413,7 +418,7 @@ class ModelOperations(ModelInterfaces):
                                        SpotRecord.device == device))
                                    .first())
                 if spot_record:
-                    logging.debug('record already exists.')
+                    logger.debug('record already exists.')
                     return spot_record
 
                 new_spot_record = None
@@ -431,14 +436,14 @@ class ModelOperations(ModelInterfaces):
                         cache[ModelDataEnum._SpotRecord][cache_key] = new_spot_record
 
                 except IndexError as e:
-                    logging.error("Error! add_spot_record failed: {}".format(e))
+                    logger.error("Error! add_spot_record failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logging.error(
+                    logger.error(
                         "Error! add_spot_record with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logging.error("Error! add_spot_record failed: : {}".format(e))
+                    logger.error("Error! add_spot_record failed: : {}".format(e))
                     raise
 
                 return new_spot_record
@@ -476,14 +481,14 @@ class ModelOperations(ModelInterfaces):
                         NotImplementedError
 
                 except IndexError as e:
-                    logging.error("Error! add_outdoor_spot failed: {}".format(e))
+                    logger.error("Error! add_outdoor_spot failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logging.error(
+                    logger.error(
                         "Error! add_outdoor_spot with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logging.error("Error! add_generic_view: : {}".format(e))
+                    logger.error("Error! add_generic_view: : {}".format(e))
                     raise
 
                 return new_od_spot
@@ -509,14 +514,14 @@ class ModelOperations(ModelInterfaces):
                 new_loc = ModelOperations._make_location(location_data)
                 db.session.add(new_loc)
             except IndexError as e:
-                logging.error("Error! add_location failed: {}".format(e))
+                logger.error("Error! add_location failed: {}".format(e))
                 raise
             except ValueError as e:
-                logging.error(
+                logger.error(
                     "Error! add_location with unmatched value: {}".format(e))
                 raise
             except IntegrityError as e:
-                logging.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add_generic_view: : {}".format(e))
                 raise
 
             except Exception:
@@ -547,14 +552,14 @@ class ModelOperations(ModelInterfaces):
 
                 db.session.add(new_company)
             except IndexError as e:
-                logging.error("Error! add_company failed: {}".format(e))
+                logger.error("Error! add_company failed: {}".format(e))
                 raise
             except ValueError as e:
-                logging.error(
+                logger.error(
                     "Error! add_company with unmatched value: {}".format(e))
                 raise
             except IntegrityError as e:
-                logging.error("Error! add_company failed: : {}".format(e))
+                logger.error("Error! add_company failed: : {}".format(e))
                 raise
 
             return new_company
@@ -706,10 +711,10 @@ class ModelOperations(ModelInterfaces):
                     return
 
             except IntegrityError as e:
-                logging.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add_generic_view: : {}".format(e))
                 raise
             except Exception as e:
-                logging.error('Error when delete by project_generic_view: {}'.format(e))
+                logger.error('Error when delete by project_generic_view: {}'.format(e))
                 raise
 
         @staticmethod
@@ -722,10 +727,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logging.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add_generic_view: : {}".format(e))
                 raise
             except Exception as e:
-                logging.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by spot_generic_view: {}'.format(e))
                 raise
         # END Delete
 
@@ -739,10 +744,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logging.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add_generic_view: : {}".format(e))
                 raise
             except Exception as e:
-                logging.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by spot_generic_view: {}'.format(e))
                 raise
 
         @staticmethod
@@ -755,10 +760,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logging.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add_generic_view: : {}".format(e))
                 raise
             except Exception as e:
-                logging.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by spot_generic_view: {}'.format(e))
                 raise
 
         @staticmethod
@@ -771,10 +776,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logging.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add_generic_view: : {}".format(e))
                 raise
             except Exception as e:
-                logging.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by spot_generic_view: {}'.format(e))
                 raise
 
         # END Delete
@@ -932,7 +937,7 @@ class ModelOperations(ModelInterfaces):
             elif isinstance(spot, int) or isinstance(spot, str):
                 spot = Spot.query.filter_by(spot_id=int(spot)).first()
             else:
-                logging.error('add_device error, spot type is incorrect.')
+                logger.error('add_device error, spot type is incorrect.')
                 return None
 
             device = None

@@ -1,7 +1,7 @@
-from math import floor
 from datetime import datetime as dt
 from datetime import timedelta
-from typing import Optional, Tuple, Generator
+from math import floor
+from typing import Generator, Optional, Tuple
 
 
 def currentTimestamp(digit: int) -> int:
@@ -57,4 +57,3 @@ def back7daytuple_generator(create_time: Optional[dt]) -> Generator[Tuple[dt, dt
 
         if d1 < create_time:  # if less than create time construct from create time.
             yield (create_time, d2)
-

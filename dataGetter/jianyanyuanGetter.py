@@ -1,15 +1,21 @@
-import requests
-from hashlib import md5, sha1
-import urllib3
 import http
-from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Union, Iterator
-import urllib.parse
-from operator import itemgetter
 import json
-from dataGetter.utils import currentTimestamp
-import logging
+import urllib.parse
+from hashlib import md5, sha1
+import threading
+from operator import itemgetter
+from typing import (Dict, Iterator, List, NewType, Optional, Tuple, TypedDict,
+                    Union)
 
-logging.basicConfig(level=logging.INFO)
+import requests
+import urllib3
+
+from logger import make_logger
+
+from .utils import currentTimestamp
+
+logger = make_logger('JianYanYuanGetter', 'dataGetter_log')
+
 
 ################
 #  auth types  #
@@ -100,22 +106,22 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
         response: requests.Response = requests.post(url, json=request_data)
 
         if response.status_code != 200:
-            logging.error('error response %s', response)
+            logger.error('error response %s', response)
             return None
         rj = response.json()
         return AuthToken((rj['token'], rj['uid']))
 
     except urllib3.response.ProtocolError as e:
-        logging.error('[urllib3] Protocal error %s ', e)
+        logger.error('[urllib3] Protocal error %s ', e)
         return None
     except http.client.IncompleteRead as e:
-        logging.error('[http] IncompleteRead error %s ', e)
+        logger.error('[http] IncompleteRead error %s ', e)
         return None
     except requests.models.ChunkedEncodingError as e:
-        logging.error('[requests ]ChunkedEncodingError %s ', e)
+        logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logging.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error('some Exception happed when send and receiving data. %s ', e)
 
     return None
 
@@ -132,7 +138,7 @@ def _get_device_list(auth: AuthData,
     timestamp: int = currentTimestamp(13)
     params_json: str = json.dumps(params)
     if not authtoken:
-        logging.error('token is None')
+        logger.error('token is None')
         return None
     token, uid = authtoken
 
@@ -154,25 +160,25 @@ def _get_device_list(auth: AuthData,
         rj: Dict = response.json()
 
         if response.status_code != 200:
-            logging.error('error response %s', response)
+            logger.error('error response %s', response)
             return None
 
         if rj['code'] != 0:
-            logging.error('error return code: %s', rj)
+            logger.error('error return code: %s', rj)
             return None
         return rj['data']['devs']
 
     except urllib3.response.ProtocolError as e:
-        logging.error('[urllib3] Protocal error %s ', e)
+        logger.error('[urllib3] Protocal error %s ', e)
         return None
     except http.client.IncompleteRead as e:
-        logging.error('[http] IncompleteRead error %s ', e)
+        logger.error('[http] IncompleteRead error %s ', e)
         return None
     except requests.models.ChunkedEncodingError as e:
-        logging.error('[requests ]ChunkedEncodingError %s ', e)
+        logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logging.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error('some Exception happed when send and receiving data. %s ', e)
 
     return None
 
@@ -189,7 +195,7 @@ def _get_device_attrs(auth: AuthData,
     timestamp: int = currentTimestamp(13)
 
     if not authtoken:
-        logging.error('token is None')
+        logger.error('token is None')
         return None
     token, uid = authtoken
 
@@ -211,28 +217,28 @@ def _get_device_attrs(auth: AuthData,
         response: requests.Response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
-            logging.error('error response %s', response)
+            logger.error('error response %s', response)
             return None
 
         rj: Dict = response.json()
         if rj['code'] != 0:
-            logging.error('error return code: ', rj)
+            logger.error('error return code: ', rj)
             return None
         # __import__('pprint').pprint(rj)
         # print('------->')
         return rj['data']['jsonArray']
 
     except urllib3.response.ProtocolError as e:
-        logging.error('[urllib3] Protocal error %s ', e)
+        logger.error('[urllib3] Protocal error %s ', e)
         return None
     except http.client.IncompleteRead as e:
-        logging.error('[http] IncompleteRead error %s ', e)
+        logger.error('[http] IncompleteRead error %s ', e)
         return None
     except requests.models.ChunkedEncodingError as e:
-        logging.error('[requests ]ChunkedEncodingError %s ', e)
+        logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logging.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error('some Exception happed when send and receiving data. %s ', e)
     return None
 
 
@@ -244,9 +250,8 @@ def _get_data_points(auth: AuthData,
     timestamp: int = currentTimestamp(13)
     param_json = json.dumps(params)
 
-    authtoken = _get_token(auth)
     if not authtoken:
-        logging.error('token is None')
+        logger.error('token is None')
         return None
     token, uid = authtoken
 
@@ -262,37 +267,40 @@ def _get_data_points(auth: AuthData,
                      'sign': sign}
 
     try:
-        response: requests.Response = requests.post(url, data=param_json, headers=headers)
+        with threading.RLock():
+            response: requests.Response = requests.post(url, data=param_json, headers=headers)
 
-        logging.debug('datapoint response {} {}'.format(response, response.request.body))
+        logger.debug('datapoint response {} '.format(response))
 
         if response.status_code != 200:
-            logging.error('error response %s %s', response.content, response.request.body)
+            logger.error('error response %s %s', response.content, response.request.body)
             return None
         rj = response.json()
 
         if rj['code'] != 0:
-            logging.error('error return code from server: %s %s', rj, response.request.body)
+            logger.error('server error return code : %s %s, \ntoken: %s',
+                         rj, response.request.body, str(authtoken))
             return None
 
         # notice some apis are broken and return attrs
         if 'asData' not in rj['data'].keys():
-            logging.warning(
+            logger.warning(
                 'warning, broken api, no data in datapoint return keys: %s %s', rj['code'], response.request.body)
             return None
+
+        logger.debug('correct authtoken %s', str(authtoken))
         return rj['data']['asData']
 
-
     except urllib3.response.ProtocolError as e:
-        logging.error('[urllib3] Protocal error %s ', e)
+        logger.error('[urllib3] Protocal error %s ', e)
         return None
     except http.client.IncompleteRead as e:
-        logging.error('[http] IncompleteRead error %s ', e)
+        logger.error('[http] IncompleteRead error %s ', e)
         return None
     except requests.models.ChunkedEncodingError as e:
-        logging.error('[requests ]ChunkedEncodingError %s ', e)
+        logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logging.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error('some Exception happed when send and receiving data. %s ', e)
 
     return None

@@ -1,32 +1,30 @@
-from threading import Timer
-from multiprocessing import Process
-from multiprocessing import Lock as MuLock
-from queue import Queue
-import time
-from typing import (
-    NewType, Dict, Optional, Tuple, List, Generator,
-    TypedDict, Iterator, Callable, cast, Union)
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from sys import maxsize
 from datetime import datetime as dt
 from datetime import timedelta
-from operator import itemgetter
-import logging
 from functools import partial
-from itertools import tee, chain
-from threading import Lock as ThreadLock
+from itertools import chain, islice, tee
+from multiprocessing import Process
+from operator import itemgetter
+from queue import Queue
+from threading import Timer, RLock
+from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
+                    Optional, Tuple, TypedDict, Union, cast)
 
-from dataGetter import xiaomiGetter as xGetter
-from dataGetter import jianyanyuanGetter as jGetter
-from dataGetter.jianyanyuanGetter import (
-    DataPointParam as JdatapointParam,
-    DataPointResult as JdatapointResult,
-    DeviceParam as JdevParam,
-    DeviceResult as JdevResult)
 from dataGetter import authConfig
-from dataGetter.utils import str_to_datetime, datetime_to_str, back7daytuple_generator
+from dataGetter import jianyanyuanGetter as jGetter
+from dataGetter import xiaomiGetter as xGetter
 from dataGetter.dateSequence import DateSequence, date_sequence
+from dataGetter.jianyanyuanGetter import DataPointParam as JdatapointParam
+from dataGetter.jianyanyuanGetter import DataPointResult as JdatapointResult
+from dataGetter.jianyanyuanGetter import DeviceParam as JdevParam
+from dataGetter.jianyanyuanGetter import DeviceResult as JdevResult
+from dataGetter.utils import (back7daytuple_generator, datetime_to_str,
+                              str_to_datetime)
+from logger import make_logger
+
+logger = make_logger('dataMidware', 'dataGetter_log')
+logger.propagate = False
 
 
 ######################################
@@ -89,7 +87,7 @@ class SpotData(ABC):
         """
 
     @abstractmethod
-    def spot_record(self) -> Iterator[Optional[Generator]]:
+    def spot_record(self) -> Iterator[Callable[[], Optional[Generator]]]:
         """
         Get spot record data include temperature, humidity pm2.5 etc.
         value returned are used to fill `spot_record` table in database schema.
@@ -129,7 +127,7 @@ class XiaoMiData(SpotData, RealTimeSpotData):
         self.token: Optional[xGetter.TokenResult] = xGetter._get_token(self.auth)
         self.refresh: Optional[str] = None
         if not self.token:
-            logging.critical('%s %s', self.source, Spot.token_fetch_error_msg)
+            logger.critical('%s %s', self.source, Spot.token_fetch_error_msg)
             raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
         def _refresh_token():  # token will expire. So need to be refreshed periodcially.
@@ -143,7 +141,7 @@ class XiaoMiData(SpotData, RealTimeSpotData):
             token_worker.join()
 
             if not self.token:
-                logging.critical('%s %s', self.source, Spot.token_fetch_error_msg)
+                logger.critical('%s %s', self.source, Spot.token_fetch_error_msg)
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
             # reset timer.
@@ -189,7 +187,7 @@ class XiaoMiData(SpotData, RealTimeSpotData):
     def spot_location(self) -> Optional[Generator]:
         ...
 
-    def spot_record(self, spot_id: Optional[int] = None) -> Iterator[Optional[Generator]]:
+    def spot_record(self) -> Iterator[Callable[[], Optional[Generator]]]:
         ...
 
     def device(self) -> Optional[Generator]:
@@ -240,8 +238,10 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     }
 
     def __init__(self, datetime_range: Optional[Tuple[dt, dt]] = None):
+        logger.info('init JianYanYuanData')
         self.auth = authConfig.jauth
         self.token = jGetter._get_token(self.auth)
+        self.rlock = RLock()
 
         if datetime_range is not None:  # data within this date will be collected.
 
@@ -249,15 +249,18 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         if not self.token:
 
-            logging.critical('%s %s', self.source, SpotData.token_fetch_error_msg)
+            logger.critical('%s %s', self.source, SpotData.token_fetch_error_msg)
             raise ConnectionError(self.source, SpotData.token_fetch_error_msg)
 
         def _refresh_token():  # token will expire. So need to be refreshed periodcially.
+            """
+            Refresh token. it will run on a separate process to avoid block operations on
+            current process.
+            """
 
             def worker(q: Queue):
-                with ThreadLock():
-                    with MuLock():
-                        setattr(q.get(), 'token', jGetter._get_token(self.auth))
+                with self.rlock:
+                    setattr(q.get(), 'token', jGetter._get_token(self.auth))
 
             q: Queue = Queue()
             # refresh token in another process and pause the current one.
@@ -268,13 +271,12 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             token_worker.close()
 
             if not self.token:
-                logging.critical('%s %s', self.source, Spot.token_fetch_error_msg)
+                logger.critical('%s %s', self.source, Spot.token_fetch_error_msg)
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
             # reset timer.
             self.timer = Timer(JianYanYuanData.expires_in - 5, _refresh_token)
             self.timer.start()
-            self.timer.join()
 
         self.timer = Timer(JianYanYuanData.expires_in - 5, _refresh_token)
         self.timer.start()
@@ -296,21 +298,26 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         return (self.make_spot(self.make_location(d)) for d in self.device_list)
 
-    def spot_record(self) -> Iterator[Optional[Generator]]:
+    def spot_record(self) -> Iterator[Callable[[], Optional[Generator]]]:
         """
         Return  Generator of SpotRecord of a specific Spot
         """
+
         if not self.device_list:
             return iter([])
 
         def _datapoint_param_iter() -> Optional[Iterator[JdatapointParam]]:
             """
-            datapoint paramter generator. Each paramter for each device.
+            Datapoint paramter generator. One parameter match to one datapoint.
+            No side effect. just use local device_list fetched eailer to make
+            parameter list.
+            The parameter iter will later be used to fetch datapoints.
             """
+
             if self.device_list is None:
                 return None
 
-            logging.info('[dataMidware] creating Jianyanyuan datapoint params')
+            logger.info('[dataMidware] creating Jianyanyuan datapoint params')
             # Fetch data within 7 day periodcially. use 7 day is because the api can only fetch
             # data of 7 data at once.
 
@@ -333,16 +340,24 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
             if not any(datapoint_param_iter):
 
-                logging.warning(JianYanYuanData.source + 'No datapoint parameter.')
+                logger.warning(JianYanYuanData.source + 'No datapoint parameter.')
                 return None
 
             return datapoint_param_iter
 
         def _datapoint(datapoint_param: Optional[JdatapointParam]
                        ) -> Optional[List[JdatapointResult]]:
-            """ datapoint of one device """
+            """
+            @SIDE EFFECT
+            @param datapoint_param: element of datapoint_param_iter, prepared separately.
+
+            datapoint of one device
+            """
             if not datapoint_param:
                 return None
+
+            logger.debug('getting datapoint {}'.format(datapoint_param))
+
             return jGetter._get_data_points(self.auth, self.token, datapoint_param)
 
         def _datapoint_iter(datapoint_param_iter: Optional[Iterator]
@@ -351,13 +366,16 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                                            [List[JdatapointResult]]]]:
             """
             datapoint data generator.
+
+            @param datapoint_param: datapoint_param_iter, prepared separately.
+
             It map _datapoint on  _datapoint_param_iter and yield
             a iterator of datapoint as list.
             """
-            logging.info('[dataMidware] creating Jianyanyuan datapoint iter')
+            logger.info('[dataMidware] creating Jianyanyuan datapoint iter')
 
             if datapoint_param_iter is None:
-                logging.error('empty datapoint_param_iter')
+                logger.error('empty datapoint_param_iter')
                 return None
 
             datapoint_iter = (
@@ -367,27 +385,72 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             )
 
             if not any(datapoint_iter):
-                logging.warning(JianYanYuanData.source + 'No datapoint list.')
+                logger.warning(JianYanYuanData.source + 'No datapoint list.')
                 return None
 
             return datapoint_iter
         # construct spot_record
 
         datapoint_params: Optional[Iterator[JdatapointParam]] = _datapoint_param_iter()
+
         if datapoint_params is None:
             return iter([])
+
         params_list = list(datapoint_params)  # construct param list
 
         datapoints: Iterator[                 # construct datapoint iter
-            Optional[List[JdatapointResult]]] = (map(_datapoint, params_list))
+            Optional[List[JdatapointResult]]] = map(_datapoint, params_list)
 
-        spot_records = (                      # construct SpotRecord iter
-            map(lambda dp: (
-                None if dp[0] is None else
-                (JianYanYuanData.make_spot_record(sr, dp[1]) for sr in dp[0])),
-                zip(datapoints, params_list)
-                )
-        )
+        ###############################################
+        #  Core strucure for recording spot record !  #
+        ###############################################
+
+        def spot_records_gen() -> Generator[
+
+                Callable[
+                    [],
+                    Optional[Generator[Optional[SpotRecord], None, None]]],
+
+                None, None]:
+
+            """
+            Return a generator iter througth an effectful generator.
+            Better
+
+            """
+
+            def records_factory(
+                    arg: Iterator[
+                        Tuple[Optional[List[JdatapointResult]],
+                              JdatapointParam]]
+            ) -> Optional[Generator[Optional[SpotRecord], None, None]]:
+                """
+                generate generator of record data.
+                """
+
+                data, param = next(arg)
+
+                return (
+                    None if data is None else
+                    (JianYanYuanData.make_spot_record(sr, param) for sr in data))
+
+            # construct spot_records generator.
+
+            # NOTE Sideeffet is wrapped here
+            # it is the first layer of generator.
+
+            effectful_pair = zip(datapoints, params_list)
+
+            # send out a slice of iterator rather than eval it.
+            try:
+                while True:
+                    # lazy eval.
+                    yield lambda: records_factory(islice(effectful_pair, 1))
+
+            except StopIteration:
+                ...
+
+        spot_records = spot_records_gen()
 
         if not any(spot_records):
             return iter([])
@@ -434,7 +497,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                                           'ESIC-DTU-RB-RF06-2G', '003', AC power
         """
         if not device_result:
-            logging.error('no device result')
+            logger.error('no device result')
             return None
 
         gid = device_result.get('gid')
@@ -517,18 +580,18 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         """ construct `SpotRecord` from given datapoint_params """
 
         if datapoint is None:
-            logging.error('datapoint is empty')
+            logger.error('datapoint is empty')
             return None
 
         aS: Optional[Dict] = datapoint.get('as')
 
         if aS is None:
-            logging.error('datapoint `as` record is empty')
+            logger.error('datapoint `as` record is empty')
             return None
 
         key: Optional[str] = datapoint.get('key')
         if key is None:
-            logging.error('datapoint `key` record is empty')
+            logger.error('datapoint `key` record is empty')
             return None
 
         spot_record_time = str_to_datetime(key)
@@ -548,7 +611,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         if datapoint_param:
             device_name = datapoint_param.get('did')
             if not device_name:
-                logging.error('[dataMidware] no device_name %s', datapoint_param)
+                logger.error('[dataMidware] no device_name %s', datapoint_param)
 
         spot_record = SpotRecord(
             spot_record_time=spot_record_time,
@@ -596,8 +659,7 @@ class OutdoorData:
     ...
 
 
-def iterprint(x, y, z):
-    print(x)
-    print(y)
-    print('---')
-    return z
+def iterlog(fun: Callable, message: str, *args: Any):
+    """ iterate while logging """
+    logger.debug(message)
+    return fun(args)

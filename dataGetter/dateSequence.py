@@ -2,12 +2,12 @@
 This module contain a generator that create datetime sequentially
 with given time interval.
 """
-from datetime import datetime as dt
-from datetime import timedelta
 import datetime
 import itertools
-from typing import Generator, Optional, NewType
 from copy import deepcopy
+from datetime import datetime as dt
+from datetime import timedelta
+from typing import Generator, NewType, Optional
 
 DateSequence = Generator[dt, dt, None]
 
@@ -25,6 +25,3 @@ def date_sequence(begin: dt, end: dt, min_interval: int) -> Optional[DateSequenc
             current = v
         else:
             current += timedelta(minutes=min_interval)
-
-
-
