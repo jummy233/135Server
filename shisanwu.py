@@ -54,7 +54,7 @@ def make_shell_context():
 
 
 @app.cli.command()
-@click.option('--full/--not-full', default=True, help='Init database')
+@click.option('--full/--not-full', default=False, help='Init database')
 @click.option('--cache/--no-cache', default=False, help='Turn on cache')
 def init_db(full, cache):
     """
@@ -63,7 +63,7 @@ def init_db(full, cache):
     """
     if cache and not os.environ.get("SHISANWU_CACHE_ON"):
         import subprocess
-        os.environ["SHISANWU_CACHE_ON"] = True
+        os.environ["SHISANWU_CACHE_ON"] = "1"
         sys.exit(subprocess.call(sys.argv))
 
     from db_init import db_init

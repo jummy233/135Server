@@ -26,6 +26,7 @@ from logger import make_logger
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
 
+logger.addHandler
 
 ######################################
 #  These are intermidiate data       #

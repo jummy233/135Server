@@ -32,7 +32,6 @@ logger = make_logger('modelOperation', 'modelOperation_log', DEBUG)
 logger.propagate = False
 
 
-
 # from app import global_cache
 
 app = importlib.import_module('app')
@@ -70,7 +69,7 @@ def convert(val: str, typ) -> Union[None, int, float]:
 
 
 def json_convert(jsondata, key, typ) -> None:
-    jsondata[key] = convert(jsondata[key], typ)
+    jsondata[key] = convert(jsondata.get(key), typ)
 
 
 def json_to_bool(val: Union[bool, int, str, None]) -> Optional[bool]:
@@ -369,11 +368,11 @@ class ModelOperations(ModelInterfaces):
                 logger.debug(spot_record_data)
                 # time can either be dt or string.
                 spot_record_time: Union[dt, str, None] = normalize_time(5)(
-                    spot_record_data['spot_record_time'])
+                    spot_record_data.get('spot_record_time'))
 
                 if not isinstance(spot_record_time, dt):
                     spot_record_time = normalize_time(5)(
-                        str_to_datetime(spot_record_data['spot_record_time']))
+                        str_to_datetime(spot_record_data.get('spot_record_time')))
 
                 # query with device id or device name
                 device: Union[Device, str, None] = spot_record_data.get('device')
@@ -443,7 +442,7 @@ class ModelOperations(ModelInterfaces):
                         "Error! add_spot_record with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logger.error("Error! add_spot_record failed: : {}".format(e))
+                    logger.error("Error! add_spot_record failed: {}".format(e))
                     raise
 
                 return new_spot_record
@@ -465,7 +464,7 @@ class ModelOperations(ModelInterfaces):
 
                 od_spot = (OutdoorSpot
                            .query
-                           .filter_by(outdoor_spot_id=od_spot_data["outdoor_spot_id"])
+                           .filter_by(outdoor_spot_id=od_spot_data.get("outdoor_spot_id"))
                            .first())
 
                 if (od_spot):
@@ -488,7 +487,7 @@ class ModelOperations(ModelInterfaces):
                         "Error! add_outdoor_spot with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logger.error("Error! add_generic_view: : {}".format(e))
+                    logger.error("Error! add_outdoor_spot failed : {}".format(e))
                     raise
 
                 return new_od_spot
@@ -501,8 +500,8 @@ class ModelOperations(ModelInterfaces):
                 return None
 
             loc = (Location.query
-                   .filter_by(province=location_data["province"])
-                   .filter_by(city=location_data["city"])
+                   .filter_by(province=location_data.get("province"))
+                   .filter_by(city=location_data.get("city"))
                    .first())
 
             new_loc = None
@@ -521,7 +520,7 @@ class ModelOperations(ModelInterfaces):
                     "Error! add_location with unmatched value: {}".format(e))
                 raise
             except IntegrityError as e:
-                logger.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! add location failed: {}".format(e))
                 raise
 
             except Exception:
@@ -540,7 +539,7 @@ class ModelOperations(ModelInterfaces):
 
             company = (Company.query
                        .filter_by(
-                           company_name=company_data["company_name"]).first())
+                           company_name=company_data.get("company_name")).first())
             if (company):
                 return company
 
@@ -548,7 +547,7 @@ class ModelOperations(ModelInterfaces):
 
             try:
                 new_company = Company(
-                    company_name=company_data["company_name"])
+                    company_name=company_data.get("company_name"))
 
                 db.session.add(new_company)
             except IndexError as e:
@@ -559,7 +558,7 @@ class ModelOperations(ModelInterfaces):
                     "Error! add_company with unmatched value: {}".format(e))
                 raise
             except IntegrityError as e:
-                logger.error("Error! add_company failed: : {}".format(e))
+                logger.error("Error! add_company failed: {}".format(e))
                 raise
 
             return new_company
@@ -570,6 +569,30 @@ class ModelOperations(ModelInterfaces):
     ###################
 
     class Update(ModelInterfaces.Update):
+
+        @staticmethod
+        def update_project(project_data: PostData) -> Optional[Project]:
+
+            @global_cache.global_cacheall
+            def _update_project(cache: Optional[GlobalCache] = None):
+                if not isinstance(project_data, PostData):
+                    return None
+
+                new_project = ModelOperations._make_project(project_data)
+                project = Project.query.filter_by(
+                    project_name=project_data.get('project_name')).first()
+
+                if project is not None and new_project is not None:
+
+                    project.update(new_project)
+
+                db.session.merge(project)
+                del new_project
+
+                return project
+
+            return _update_project()
+
         @staticmethod
         def update_device(device_data: PostData) -> Optional[Device]:
 
@@ -577,17 +600,21 @@ class ModelOperations(ModelInterfaces):
             def _update_device(cache: Optional[GlobalCache] = None):
                 if not isinstance(device_data, PostData):
                     return None
+
                 new_device = ModelOperations._make_device(device_data)
                 device = (Device
                           .query
                           .filter_by(device_name=device_data.get("device_name"))
                           .first())
 
-                if device:
-                    db.session.delete(device)
+                if device is not None and new_device is not None:
+                    device.update(new_device)
 
-                db.session.add(new_device)
-                return new_device
+                db.session.merge(new_device)
+                del new_device
+
+                return device
+
             return _update_device()
 
         @staticmethod
@@ -602,7 +629,7 @@ class ModelOperations(ModelInterfaces):
                     spot_record_data['spot_record_time'])
                 if not isinstance(spot_record_time, dt):
                     spot_record_time = normalize_time(5)(
-                        str_to_datetime(spot_record_data['spot_record_time']))
+                        str_to_datetime(spot_record_data.get('spot_record_time')))
 
                 # query with device id or device name
                 device: Union[Device, str, None] = spot_record_data.get('device')
@@ -620,10 +647,15 @@ class ModelOperations(ModelInterfaces):
 
                                    SpotRecord.device == device))
                                .first())
-                if spot_record:
-                    db.session.delete(spot_record)
-                db.session.add(new_spot_record)
-                return new_spot_record
+
+                if spot_record is not None and new_spot_record is not None:
+                    spot_record.update(new_spot_record)
+
+                db.session.merge(spot_record)
+                del new_spot_record
+
+                return spot_record
+
             return _update_spot_record()
 
         @staticmethod
@@ -635,32 +667,19 @@ class ModelOperations(ModelInterfaces):
                     return None
 
                 new_spot = ModelOperations._make_spot(spot_data)
-                spot = Spot.query.filter_by(
-                    spot_name=spot_data["spot_name"]).first()
-                if spot:
-                    db.session.delete(spot)
 
-                db.session.add(new_spot)
-                return new_spot
+                spot: Spot = Spot.query.filter_by(
+                    spot_name=spot_data.get("spot_name")).first()
+
+                if spot is not None and new_spot is not None:
+                    spot.update(new_spot)
+
+                db.session.merge(spot)
+                del new_spot
+
+                return spot
+
             return _update_spot()
-
-        @staticmethod
-        def update_project(project_data: PostData) -> Optional[Project]:
-
-            @global_cache.global_cacheall
-            def _update_project(cache: Optional[GlobalCache] = None):
-                if not isinstance(project_data, PostData):
-                    return None
-
-                new_project = ModelOperations._make_project(project_data)
-                project = Project.query.filter_by(
-                    project_name=project_data.get('project_name')).first()
-                if project:
-                    db.session.delete(project)
-
-                db.session.add(new_project)
-                return new_project
-            return _update_project()
 
         @staticmethod
         def update_outdoor_spot(outdoor_spot_data: PostData) -> Optional[OutdoorSpot]:
@@ -677,11 +696,14 @@ class ModelOperations(ModelInterfaces):
                     .query
                     .filter_by(outdoor_spot_name=outdoor_spot_data.get('project_name'))
                     .first())
-                if outdoor_spot:
-                    db.session.delete(outdoor_spot)
+                if outdoor_spot is not None and new_outdoor_spot is not None:
+                    outdoor_spot.update(new_outdoor_spot)
 
-                db.session.add(new_outdoor_spot)
-                return new_outdoor_spot
+                db.session.merge(outdoor_spot)
+                del new_outdoor_spot
+
+                return outdoor_spot
+
             return _update_outdoor_spot()
 
     ###################
@@ -692,29 +714,38 @@ class ModelOperations(ModelInterfaces):
         @staticmethod
         def delete_project(pid: int) -> None:
             project = Project.query.filter_by(project_id=pid).first()
-            company = project.company
             project_details = (ProjectDetail
                                .query
                                .filter_by(project_id=pid)
                                .all())
 
+            companies = [
+                p for p in
+                [project.tech_support_company,
+                 project.construction_company,
+                 project.project_company]
+                if p is not None
+            ]
+
             try:
                 if (project_details):
                     for pd in project_details:
                         db.session.delete(pd)
-                if (company and len(company.project.all()) == 1):
-                    db.session.delete(company)
+
+                for c in companies:
+                    db.session.delete(c)
 
                 if project:
                     db.session.delete(project)
+
                 else:
                     return
 
             except IntegrityError as e:
-                logger.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error happened when deleting project: {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error when delete by project_generic_view: {}'.format(e))
+                logger.error('Error when deleting by delete_project: {}'.format(e))
                 raise
 
         @staticmethod
@@ -727,10 +758,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logger.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! delete_spot: : {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by delete_spot: {}'.format(e))
                 raise
         # END Delete
 
@@ -744,10 +775,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logger.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! delete_spot_record: : {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by delete_spot_record: {}'.format(e))
                 raise
 
         @staticmethod
@@ -760,10 +791,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logger.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! delete_device: : {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by delete_device: {}'.format(e))
                 raise
 
         @staticmethod
@@ -776,10 +807,10 @@ class ModelOperations(ModelInterfaces):
                 else:
                     return
             except IntegrityError as e:
-                logger.error("Error! add_generic_view: : {}".format(e))
+                logger.error("Error! delete_outdoor_spot: : {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error delete by spot_generic_view: {}'.format(e))
+                logger.error('Error delete by delete_outdoor_spot: {}'.format(e))
                 raise
 
         # END Delete
@@ -798,17 +829,17 @@ class ModelOperations(ModelInterfaces):
             # add foregien key records.
             # if the record is not a model object, then it is a project_data form dictionary.
             # convert it into
-            outdoor_spot: Union[OutdoorSpot, PostData,
-                                None] = project_data["outdoor_spot"]
+            outdoor_spot: Union[OutdoorSpot, PostData, None] = (
+                project_data.get("outdoor_spot"))
             if outdoor_spot is None:
                 ...
-            elif not isinstance(project_data["outdoor_spot"], OutdoorSpot):
+            elif not isinstance(project_data.get("outdoor_spot"), OutdoorSpot):
                 outdoor_spot = ModelOperations.Add.add_outdoor_spot(outdoor_spot)
 
-            location: Union[Location, Dict, None] = project_data["location"]
+            location: Union[Location, Dict, None] = project_data.get("location")
             if location is None:
                 ...
-            elif not isinstance(project_data["location"], Location):
+            elif not isinstance(project_data.get("location"), Location):
                 location = ModelOperations.Add.add_location(location)
 
             # add companies
@@ -819,22 +850,32 @@ class ModelOperations(ModelInterfaces):
                 return isinstance(data, Company)
 
             if all(map(is_company, (map(project_data.get, company_lists)))):
-                tech_support_company = project_data["tech_support_company"]
-                project_company = project_data["project_company"]
-                construction_company = project_data["construction_company"]
+                tech_support_company = project_data.get("tech_support_company")
+                project_company = project_data.get("project_company")
+                construction_company = project_data.get("construction_company")
 
-            else:  # else assume all are project_data jsons. Error will be catched in add company.
-                def check_company(company_dict: PostData) -> PostData:  # set '' company to None
-                    if company_dict.get('company_name') == '':
-                        company_dict['company_name'] = None
-                    return company_dict
+            else:
+                # else assume all are project_data jsons. Error will be catched in add company.
+                def check_company(company_dict: Optional[PostData]) -> PostData:
+                    # set '' company to None
+                    result: Dict = {}
+
+                    if company_dict is not None:
+                        company_name = company_dict.get('company_name')
+                    else:
+                        company_name = None
+
+                    if company_name == '' or company_name is None:
+                        result['company_name'] = None
+
+                    return result
 
                 tech_support_company = ModelOperations.Add.add_company(
-                    check_company(project_data["tech_support_company"]))
+                    check_company(project_data.get("tech_support_company")))
                 project_company = ModelOperations.Add.add_company(
-                    check_company(project_data["project_company"]))
+                    check_company(project_data.get("project_company")))
                 construction_company = ModelOperations.Add.add_company(
-                    check_company(project_data["construction_company"]))
+                    check_company(project_data.get("construction_company")))
 
             # type conversion from string.
             json_convert(project_data, 'floor', int)
@@ -844,15 +885,15 @@ class ModelOperations(ModelInterfaces):
             json_convert(project_data, 'demo_area', float)
             json_convert(project_data, 'building_height', float)
 
-            if not isinstance(project_data['started_time'], dt):
+            if not isinstance(project_data.get('started_time'), dt):
                 json_convert(project_data, 'started_time',
                              lambda s: fromisoformat(s.split('T')[0]))
 
-            if not isinstance(project_data['finished_time'], dt):
+            if not isinstance(project_data.get('finished_time'), dt):
                 json_convert(project_data, 'finished_time',
                              lambda s: fromisoformat(s.split('T')[0]))
 
-            if not isinstance(project_data['record_started_from'], dt):
+            if not isinstance(project_data.get('record_started_from'), dt):
                 json_convert(project_data, 'record_started_from',
                              lambda s: fromisoformat(s.split('T')[0]))
 
@@ -864,24 +905,24 @@ class ModelOperations(ModelInterfaces):
                 project_company=project_company,
                 construction_company=construction_company,
 
-                project_name=project_data["project_name"],
-                district=project_data["district"],
-                floor=project_data["floor"],
+                project_name=project_data.get("project_name"),
+                district=project_data.get("district"),
+                floor=project_data.get("floor"),
 
-                longitude=project_data["longitude"],
-                latitude=project_data["latitude"],
+                longitude=project_data.get("longitude"),
+                latitude=project_data.get("latitude"),
 
-                area=project_data["area"],
-                demo_area=project_data["demo_area"],
+                area=project_data.get("area"),
+                demo_area=project_data.get("demo_area"),
 
-                building_type=project_data["building_type"],
-                building_height=project_data["building_height"],
+                building_type=project_data.get("building_type"),
+                building_height=project_data.get("building_height"),
 
-                started_time=project_data["started_time"],
-                finished_time=project_data["finished_time"],
-                record_started_from=project_data["record_started_from"],
+                started_time=project_data.get("started_time"),
+                finished_time=project_data.get("finished_time"),
+                record_started_from=project_data.get("record_started_from"),
 
-                description=project_data["description"])
+                description=project_data.get("description"))
 
             return project
         return _make()
@@ -943,23 +984,23 @@ class ModelOperations(ModelInterfaces):
             device = None
 
             # location must have a climate area.
-            if not isinstance(device_data['create_time'], dt):
+            if not isinstance(device_data.get('create_time'), dt):
                 json_convert(device_data, 'create_time',
                              lambda s: fromisoformat(s.split('T')[0]))
 
-            if not isinstance(device_data['modify_time'], dt):
+            if not isinstance(device_data.get('modify_time'), dt):
                 json_convert(device_data, 'modify_time',
                              lambda s: fromisoformat(s.split('T')[0]))
 
-            if not isinstance(device_data['online'], bool):
+            if not isinstance(device_data.get('online'), bool):
                 json_convert(device_data, 'online', json_to_bool)
 
             device = Device(device_name=device_data.get("device_name"),
                             device_type=device_data.get("device_type"),
                             online=device_data.get("online"),
                             spot=spot,
-                            create_time=device_data["create_time"],
-                            modify_time=device_data["modify_time"])
+                            create_time=device_data.get("create_time"),
+                            modify_time=device_data.get("modify_time"))
             return device
         return _make()
 
@@ -973,10 +1014,10 @@ class ModelOperations(ModelInterfaces):
 
             # time can either be dt or string.
             spot_record_time: Union[dt, str, None] = normalize_time(5)(
-                spot_record_data['spot_record_time'])
+                spot_record_data.get('spot_record_time'))
             if not isinstance(spot_record_time, dt):
                 spot_record_time = normalize_time(5)(
-                    str_to_datetime(spot_record_data['spot_record_time']))
+                    str_to_datetime(spot_record_data.get('spot_record_time')))
 
             # query with device id or device name
             try:
@@ -1015,15 +1056,15 @@ class ModelOperations(ModelInterfaces):
         try:
             climate_area = (ClimateArea
                             .query
-                            .filter_by(area_name=location_data["climate_area_name"])
+                            .filter_by(area_name=location_data.get("climate_area_name"))
                             .first())
         except Exception:
             raise
 
         location = Location(
             climate_area=climate_area,
-            province=location_data["province"],
-            city=location_data["city"])
+            province=location_data.get("province"),
+            city=location_data.get("city"))
 
         return location
 
@@ -1031,7 +1072,7 @@ class ModelOperations(ModelInterfaces):
     def _make_company(company_data: PostData) -> Optional[Company]:
         if not isinstance(company_data, PostData):
             return None
-        return Company(company_name=company_data["company_name"])
+        return Company(company_name=company_data.get("company_name"))
 
     @staticmethod
     def _make_outdoor_spot(outdoor_spot_data: PostData) -> Optional[OutdoorSpot]:
@@ -1039,8 +1080,8 @@ class ModelOperations(ModelInterfaces):
             return None
 
         return OutdoorSpot(
-            outdoor_spot_id=outdoor_spot_data["outdoor_spot_id"],
-            outdoor_spot_name=outdoor_spot_data["outdoor_spot_name"])
+            outdoor_spot_id=outdoor_spot_data.get("outdoor_spot_id"),
+            outdoor_spot_name=outdoor_spot_data.get("outdoor_spot_name"))
 
 
 #####################################
@@ -1051,10 +1092,14 @@ class ModelOperations(ModelInterfaces):
 def commit():
     try:  # commit after all transaction are successed.
         db.session.commit()
+    except IntegrityError:
+        raise
     except IndexError:
-        db.commit.rollback()
+        raise
     except Exception:
         raise
+    finally:
+        db.session.rollback()
 
 
 @interface

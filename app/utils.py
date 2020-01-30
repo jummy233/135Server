@@ -3,7 +3,7 @@ from enum import Enum
 from datetime import datetime, timedelta
 import time
 from random import uniform
-from typing import Callable
+from typing import Callable, Optional
 import importlib
 import sys
 
@@ -58,7 +58,9 @@ def normalize_time(step_min: int) -> Callable:
             step_min % 3 == 0 or
             step_min % 5 == 0), "time step is not divisible by 60"
 
-    def f(dt: datetime) -> datetime:
+    def f(dt: Optional[datetime]) -> Optional[datetime]:
+        if dt is None:
+            return None
         if step_min < 60:                       # within an hour.
             step_num = round(dt.minute / step_min)
             minute = step_num * step_min

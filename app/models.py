@@ -1,10 +1,10 @@
+from __future__ import annotations
 from typing import List, Dict, Union
 from datetime import datetime
 import hashlib
 from enum import Enum
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
-from markdown import markdown
 import bleach
 from flask import current_app, request, url_for
 from flask_login import UserMixin, AnonymousUserMixin
@@ -125,8 +125,16 @@ class Location(db.Model):
 
     project = db.relationship("Project", backref="location", lazy="dynamic")
 
+    def update(self, update_location: Location) -> None:
+        self.climate_area_id = update_location.climate_area_id or self.climate_area_id
+        self.province = update_location.province or self.province
+        self.city = update_location.city or self.city
+
     def to_json(self):
-        climate_area = self.climate_area.to_json() if self.climate_area is not None else None
+        if self.climate_area is not None:
+            climate_area = self.climate_area.to_json()
+        else:
+            climate_area = None
 
         return dict(climate_area=climate_area,
                     province=self.province,
@@ -187,8 +195,8 @@ class Project(db.Model):
     record_started_from = db.Column(db.DateTime)
     description = db.Column(db.String(2048))
 
-    spot = db.relationship("Spot", backref="project", uselist=False)
-    project_detail = db.relationship("ProjectDetail", backref="project",
+    spot = db.relationship("Spot", backref="project", cascade="all,delete", uselist=False)
+    project_detail = db.relationship("ProjectDetail", backref="project", cascade="all,delete",
                                      uselist=False)
 
     tech_support_company = db.relationship(
@@ -210,6 +218,42 @@ class Project(db.Model):
         foreign_keys=[construction_company_id])
 
     spot = db.relationship("Spot", backref="project", lazy="dynamic")
+
+    def update(self, update_project: Project) -> None:
+        """
+        Full update can not update the project id.
+        if a value is not present in the given data, fall back to
+        the original record.
+        """
+        self.outdoor_spot_id = update_project.outdoor_spot_id or self.outdoor_spot_id
+        self.location_id = update_project.location_id or self.location_id
+
+        self.tech_support_company_id = (
+            update_project.tech_support_company_id or self.tech_support_company_id)
+
+        self.project_company_id = (
+            update_project.project_company_id or self.project_company_id)
+
+        self.construction_company_id = (
+            update_project.construction_company_id or self.construction_company_id)
+
+        self.project_name = update_project.project_name or self.project_name
+        self.district = update_project.district or self.district
+        self.floor = update_project.floor or self.floor
+
+        self.latitude = update_project.latitude or self.latitude
+        self.longitude = update_project.longitude or self.longitude
+
+        self.area = update_project.area or self.area
+        self.demo_area = update_project.demo_area or self.demo_area
+        self.building_type = update_project.building_type or self.building_type
+        self.building_height = update_project.building_height or self.building_height
+        self.started_time = update_project.started_time or self.started_time
+        self.finished_time = update_project.finished_time or self.finished_time
+
+        self.record_started_from = (
+            update_project.record_started_from or self.record_started_from)
+        self.description = update_project.description or self.description
 
     @classmethod
     def gen_fake(cls, count=38):
@@ -307,6 +351,15 @@ class ProjectDetail(db.Model):
     image = db.Column(db.Binary)
     image_description = db.Column(db.String(64))
 
+    def update(self, update_project_detail: ProjectDetail) -> None:
+
+        # image can be large object, so check befor update.
+        if update_project_detail.image:
+            self.image = update_project_detail.image
+
+        self.image_description = (
+            update_project_detail.image_description or self.image_description)
+
     @classmethod
     def gen_fake(cls, count=10):
         for _ in range(count):  # pk for Outdoor spot is given.
@@ -337,6 +390,10 @@ class OutdoorSpot(db.Model):
     outdoor_record = db.relationship("OutdoorRecord", backref="outdoor_spot",
                                      lazy="dynamic")
     project = db.relationship("Project", backref="outdoor_spot", lazy="dynamic")
+
+    def update(self, update_outdoor_spot: OutdoorSpot) -> None:
+
+        ...
 
     @classmethod
     def gen_fake(cls, count=10):
@@ -379,6 +436,9 @@ class OutdoorRecord(db.Model):
         super().__init__(**kwargs)
         if not is_nice_time(step_len=5)(self.outdoor_record_time):
             self.outdoor_record_time = normalize_time(5)(self.outdoor_record_time)
+
+    def update(self, update_outdoor_record: OutdoorRecord) -> None:
+        ...
 
     @classmethod
     def gen_fake(cls, count=2000):
@@ -431,6 +491,9 @@ class ClimateArea(db.Model):
 
     location = db.relationship("Location", backref="climate_area", lazy="dynamic")
 
+    def update(self, update_climate_area: ClimateArea) -> None:
+        ...
+
     @classmethod
     def gen_fake(cls):
         for code in [letter + num for letter in ['A', 'B', 'C']
@@ -456,6 +519,9 @@ class Company(db.Model):
     __tablename__ = "company"
     company_id = db.Column(db.Integer, primary_key=True)
     company_name = db.Column(db.String(40))
+
+    def update(self, update_company: Company) -> None:
+        ...
 
     @classmethod
     def gen_fake(cls, count=5):
@@ -485,6 +551,14 @@ class Spot(db.Model):
     image = db.Column(db.Binary)
 
     device = db.relationship("Device", backref="spot", lazy="dynamic")
+
+    def update(self, update_spot: Spot) -> None:
+        self.project_id = update_spot.project_id or self.project_id
+        self.spot_name = update_spot.spot_name or self.spot_name
+        self.spot_type = update_spot.spot_type or self.spot_type
+
+        if update_spot.image:  # large object.
+            self.image = update_spot.image
 
     @classmethod
     def gen_fake(cls, count=20):
@@ -530,6 +604,14 @@ class Device(db.Model):
     device_type = db.Column(db.String(64))
 
     spot_record = db.relationship("SpotRecord", backref="device", lazy="dynamic")
+
+    def update(self, update_device: Device) -> None:
+        self.spot_id = update_device.spot_id or self.spot_id
+        self.online = update_device.online or self.online
+        self.create_time = update_device.create_time or self.create_time
+        self.modify_time = update_device.modify_time or self.modify_time
+        self.device_name = update_device.device_name or self.device_name
+        self.device_type = update_device.device_type or self.device_type
 
     def to_json(self):
         create_time = (
@@ -579,6 +661,17 @@ class SpotRecord(db.Model):
         super().__init__(**kwargs)
         if not is_nice_time(step_min=5)(self.spot_record_time):
             self.spot_record_time = normalize_time(5)(self.spot_record_time)
+
+    def update(self, update_spot_record: SpotRecord) -> None:
+        self.spot_record_id = update_spot_record.spot_record_id or self.spot_record_id
+        self.spot_record_time = update_spot_record.spot_record_time or self.spot_record_time
+        self.device_id = update_spot_record.device_id or self.device_id
+        self.window_opened = update_spot_record.window_opened or self.window_opened
+        self.temperature = update_spot_record.temperature or self.temperature
+        self.humidity = update_spot_record.humidity or self.humidity
+        self.ac_power = update_spot_record.ac_power or self.ac_power
+        self.pm25 = update_spot_record.pm25 or self.pm25
+        self.co2 = update_spot_record.co2 or self.co2
 
     @classmethod
     def gen_fake(cls, count=5000):

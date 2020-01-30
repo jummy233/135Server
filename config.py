@@ -9,7 +9,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = True
     SHISANWU_RECORDS_PER_PAGE = 20
-    SHISANWU_CACHE_ON = True
+    SHISANWU_CACHE_ON = os.environ.get("SHISANWU_CACHE_ON") == "1"
 
     @staticmethod
     def init_app(app):

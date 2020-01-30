@@ -5,6 +5,7 @@ All apis here will modify the state of database.
 from typing import Dict, Optional, List, Tuple, NewType, Callable, Any
 from flask import jsonify, request
 from flask import json as FlaskJson
+from sqlalchemy.exc import IntegrityError
 from . import api
 from ..api_types import ApiResponse, ReturnCode, ApiRequest
 from ..api_types import is_ApiRequest
@@ -25,7 +26,7 @@ DeleteOperation = Callable[[int], Optional[Data]]
 
 
 def add_update_delete_template(
-        some_id: int,
+        some_id: Optional[int],
         model_operations: Tuple[AddOperation,
                                 UpdateOperation,
                                 DeleteOperation]) -> Json:
@@ -39,11 +40,19 @@ def add_update_delete_template(
         if is_ApiRequest(post_data):
             post_data = post_data['request']
 
-        response_object = commit_db_operation(
-            response_object=response_object,
-            op=add,
-            post_data=post_data,
-            name='project')
+        posted = add(post_data)
+        print(posted)
+        if posted:
+            try:
+                commit()
+                response_object["message"] = "post succeeded!"
+            except IntegrityError:
+                response_object["message"] = (
+                    "post failed!, integrity error. might be missing a field")
+
+        else:
+            response_object['status'] = ReturnCode.NO_DATA.value
+            response_object['message'] = "post failed"
 
     def handle_put(response_object: ApiResponse) -> None:
         post_data = request.get_json()
@@ -52,19 +61,23 @@ def add_update_delete_template(
 
         updated = update(post_data)
         if updated:
-            response_object['message'] = "project update succeeded!"
+            response_object['message'] = "update succeeded!"
+            commit()
         else:
             response_object['status'] = ReturnCode.NO_DATA.value
-            response_object['message'] = "project update failed"
+            response_object['message'] = "update failed"
 
     def handle_delete(response_object: ApiResponse) -> None:
-        response_object["message"] = "project is removed!"
+        response_object["message"] = "remove succeeded!"
+
         try:
+            if some_id is None:
+                raise Exception("Error when deleting, id is None")
             delete(some_id)
             commit()
         except Exception as e:
             response_object["status"] = ReturnCode.BAD_REQUEST.value
-            response_object["message"] = f"failed to remove project: {e}"
+            response_object["message"] = f"failed to remove: {e}"
 
     if request.method == 'POST':  # add new project.
         handle_post(response_object)
@@ -78,23 +91,26 @@ def add_update_delete_template(
     return jsonify(response_object)
 
 
-@api.route('/project/<pid>', methods=["POST", "PUT", "DELETE"])
-def project_add_update_delete(pid: int):
+@api.route('/project/', methods=["POST"])
+@api.route('/project/<pid>', methods=["PUT", "DELETE"])
+def project_add_update_delete(pid: Optional[int] = None):
     return add_update_delete_template(
         pid, (ModelOperations.Add.add_project,
               ModelOperations.Update.update_project,
               ModelOperations.Delete.delete_project))
 
 
-@api.route('/spots/<sid>', methods=["POST", "PUT", "DELETE"])
-def spot_add_update_delete(sid: int):
+@api.route('/spot/', methods=["POST"])
+@api.route('/spot/<sid>', methods=["PUT", "DELETE"])
+def spot_add_update_delete(sid: Optional[int] = None):
     return add_update_delete_template(
         sid, (ModelOperations.Add.add_spot,
               ModelOperations.Update.update_spot,
               ModelOperations.Delete.delete_spot))
 
 
-@api.route('/device/<did>', methods=["POST", "PUT", "DELETE"])
+@api.route('/device/', methods=["POST"])
+@api.route('/device/<did>', methods=["PUT", "DELETE"])
 def device_add_update_delete(did: int):
     return add_update_delete_template(
         did, (ModelOperations.Add.add_device,
@@ -102,7 +118,8 @@ def device_add_update_delete(did: int):
               ModelOperations.Delete.delete_device))
 
 
-@api.route('/spotRecord/<rid>', methods=["POST", "PUT", "DELETE"])
+@api.route('/spotRecord/', methods=["POST"])
+@api.route('/spotRecord/<rid>', methods=["PUT", "DELETE"])
 def spot_record_add_update_delete(rid: int):
     return add_update_delete_template(
         rid, (ModelOperations.Add.add_spot_record,
@@ -110,7 +127,8 @@ def spot_record_add_update_delete(rid: int):
               ModelOperations.Delete.delete_spot_record))
 
 
-@api.route('/outdoorSpot/oid', methods=["POST", "PUT", "DELETE"])
+@api.route('/outdoorSpot/', methods=["POST"])
+@api.route('/outdoorSpot/oid', methods=["PUT", "DELETE"])
 def outdoor_spot_add_update_delete(oid: int):
     return add_update_delete_template(
         oid, (ModelOperations.Add.add_outdoor_spot,

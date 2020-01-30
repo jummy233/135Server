@@ -7,6 +7,7 @@ from typing import Dict, Optional, List, Tuple, Callable
 from datetime import timedelta, datetime
 from operator import itemgetter
 from flask import jsonify, request
+from sqlalchemy import desc
 from . import api
 from ..api_types import ApiResponse, ReturnCode
 from ..api_types import is_ApiRequest
@@ -138,8 +139,14 @@ def spot_record_paged(did: int):
             response_object['status'] = ReturnCode.NO_DATA.value
             response_object['message'] = f"query out of range for device {did}"
         else:
-            spot_records_page = SpotRecord.query.filter_by(
-                device_id=did).paginate(pageNo, size)
+            spot_records_page = (
+                SpotRecord.query
+                .filter_by(
+                    device_id=did)
+                .order_by(desc(SpotRecord.spot_record_time))
+                .paginate(pageNo, size)
+            )
+
             response_object['data'] = {
                 'data': [item.to_json() for item in spot_records_page.items if item],
                 'totalElementCount': spot_records_page.total,

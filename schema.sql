@@ -97,7 +97,7 @@ create table if not exists spot(
     spot_type nvarchar(20),
     image blob,
     foreign key(project_id) references project(project_id)
-    on delete cascade
+    on update cascade on delete cascade
 );
 
 create table if not exists device(
@@ -123,7 +123,7 @@ create table if not exists spot_record(
     pm25 integer,
     co2 integer,
     foreign key(device_id) references device(device_id)
-    on update cascade on delete cascade
+    on update set null on delete set null
 );
 
 
