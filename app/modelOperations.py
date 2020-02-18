@@ -444,6 +444,8 @@ class ModelOperations(ModelInterfaces):
                 except IntegrityError as e:
                     logger.error("Error! add_spot_record failed: {}".format(e))
                     raise
+                except Exception:
+                    raise
 
                 return new_spot_record
             return _add_spot_record()
