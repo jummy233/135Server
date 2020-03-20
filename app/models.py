@@ -184,15 +184,19 @@ class Project(db.Model):
     project_name = db.Column(db.String(64), unique=True)
     district = db.Column(db.String(64))
     floor = db.Column(db.Integer)
+
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     area = db.Column(db.Float)
     demo_area = db.Column(db.Float)
+
     building_type = db.Column(db.String(64))
     building_height = db.Column(db.Float)
+
     started_time = db.Column(db.DateTime)
     finished_time = db.Column(db.DateTime)
     record_started_from = db.Column(db.DateTime)
+
     description = db.Column(db.String(2048))
 
     spot = db.relationship("Spot", backref="project", cascade="all,delete", uselist=False)
@@ -615,11 +619,11 @@ class Device(db.Model):
 
     def to_json(self):
         create_time = (
-            self.create_time.strftime("%y-%m-%d:%H-%M")
+            self.create_time.strftime("%Y-%m-%d:%H-%M")
             if self.create_time else None)
 
         modify_time = (
-            self.modify_time.strftime("%y-%m-%d:%H-%m")
+            self.modify_time.strftime("%Y-%m-%d:%H-%m")
             if self.modify_time else None)
 
         spot_name = self.spot.spot_name if self.spot else None
@@ -663,7 +667,6 @@ class SpotRecord(db.Model):
             self.spot_record_time = normalize_time(5)(self.spot_record_time)
 
     def update(self, update_spot_record: SpotRecord) -> None:
-        self.spot_record_id = update_spot_record.spot_record_id or self.spot_record_id
         self.spot_record_time = update_spot_record.spot_record_time or self.spot_record_time
         self.device_id = update_spot_record.device_id or self.device_id
         self.window_opened = update_spot_record.window_opened or self.window_opened
@@ -677,14 +680,15 @@ class SpotRecord(db.Model):
     def gen_fake(cls, count=5000):
         for _ in range(count):
             try:
-                spot_record = cls(spot_record_time=rand_date(),
-                                  spot=choice(Spot.query.all()),
-                                  window_opened=bool(choice((0, 1))),
-                                  temperature=randint(20, 30),
-                                  humidity=randint(60, 80),
-                                  ac_power=randint(2000, 3000),
-                                  pm25=randint(20, 100),
-                                  co2=randint(10, 30))
+                spot_record = cls(
+                    spot_record_time=rand_date(),
+                    spot=choice(Spot.query.all()),
+                    window_opened=bool(choice((0, 1))),
+                    temperature=randint(20, 30),
+                    humidity=randint(60, 80),
+                    ac_power=randint(2000, 3000),
+                    pm25=randint(20, 100),
+                    co2=randint(10, 30))
 
                 db.session.add(spot_record)
             except IndexError as e:  # Spot is empty.

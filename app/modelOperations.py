@@ -13,12 +13,12 @@ from logging import DEBUG
 from typing import (ByteString, Callable, Dict, List, NewType, Optional, Tuple,
                     TypedDict, Union)
 
-from sqlalchemy import and_
+from sqlalchemy import and_, exists
 from sqlalchemy.exc import IntegrityError
 
 from app.api_types import ApiRequest, ApiResponse, ReturnCode
 from app.utils import normalize_time
-from dataGetter.utils import str_to_datetime
+from timeutils.time import str_to_datetime
 from logger import make_logger
 
 from . import db
@@ -94,6 +94,22 @@ def json_to_bool(val: Union[bool, int, str, None]) -> Optional[bool]:
             return None
     return None
 
+
+def str_dt_normalizer(date: Union[dt, str, None],
+                      normalize: Callable[[Optional[dt]], Optional[dt]]
+                      ) -> Optional[dt]:
+    if date is None:
+        return None
+
+    if isinstance(date, str):
+        return normalize(str_to_datetime(date))
+
+    return normalize(date)
+
+
+def id_exist_in_db(id_entry, identifier: int):
+    return db.session.query(
+        exists().where(id_entry == identifier)).scalar()
 
 ###############################
 #  Abstract class definition  #
@@ -367,12 +383,9 @@ class ModelOperations(ModelInterfaces):
 
                 logger.debug(spot_record_data)
                 # time can either be dt or string.
-                spot_record_time: Union[dt, str, None] = normalize_time(5)(
-                    spot_record_data.get('spot_record_time'))
-
-                if not isinstance(spot_record_time, dt):
-                    spot_record_time = normalize_time(5)(
-                        str_to_datetime(spot_record_data.get('spot_record_time')))
+                spot_record_time: Union[dt, str, None] = (
+                    str_dt_normalizer(spot_record_data.get('spot_record_time'),
+                                      normalize_time(5)))
 
                 # query with device id or device name
                 device: Union[Device, str, None] = spot_record_data.get('device')
@@ -570,6 +583,14 @@ class ModelOperations(ModelInterfaces):
     #  Update module  #
     ###################
 
+    # NOTE: when merging sqlalchemy instance make sure there are no
+    # extra dependencies that not in the session.
+    # otherwise it could make the instance unpersistent thus can not be commited.
+
+    # one way to do it is when creating instance that contains other instances,
+    # check the existence of the instance be contained and then
+    # pass the foreign key rather than query or create for a new one.
+
     class Update(ModelInterfaces.Update):
 
         @staticmethod
@@ -585,7 +606,6 @@ class ModelOperations(ModelInterfaces):
                     project_name=project_data.get('project_name')).first()
 
                 if project is not None and new_project is not None:
-
                     project.update(new_project)
 
                 db.session.merge(project)
@@ -612,7 +632,7 @@ class ModelOperations(ModelInterfaces):
                 if device is not None and new_device is not None:
                     device.update(new_device)
 
-                db.session.merge(new_device)
+                db.session.merge(device)
                 del new_device
 
                 return device
@@ -627,11 +647,9 @@ class ModelOperations(ModelInterfaces):
                 if not isinstance(spot_record_data, PostData):
                     return None
 
-                spot_record_time: Union[dt, str, None] = normalize_time(5)(
-                    spot_record_data['spot_record_time'])
-                if not isinstance(spot_record_time, dt):
-                    spot_record_time = normalize_time(5)(
-                        str_to_datetime(spot_record_data.get('spot_record_time')))
+                spot_record_time: Union[dt, str, None] = (
+                    str_dt_normalizer(spot_record_data.get('spot_record_time'),
+                                      normalize_time(5)))
 
                 # query with device id or device name
                 device: Union[Device, str, None] = spot_record_data.get('device')
@@ -639,22 +657,25 @@ class ModelOperations(ModelInterfaces):
                     device = Device.query.filter_by(
                         device_id=spot_record_data.get("device")).first()
 
+                # spot_record_time is primary key and can not be modified.
+                spot_record = (
+                    SpotRecord
+                    .query
+                    .filter_by(spot_record_time=spot_record_time)
+                    .filter(and_(
+                        SpotRecord.spot_record_time == spot_record_time,
+                        SpotRecord.device == device))
+                    .first())
+
                 new_spot_record = ModelOperations._make_spot_reocrd(
                     spot_record_data)
-                spot_record = (SpotRecord
-                               .query
-                               .filter_by(spot_record_time=spot_record_time)
-                               .filter(and_(
-                                   SpotRecord.spot_record_time == spot_record_time,
-
-                                   SpotRecord.device == device))
-                               .first())
 
                 if spot_record is not None and new_spot_record is not None:
                     spot_record.update(new_spot_record)
 
                 db.session.merge(spot_record)
                 del new_spot_record
+                # db.session.delete(new_spot_record)
 
                 return spot_record
 
@@ -668,17 +689,26 @@ class ModelOperations(ModelInterfaces):
                 if not isinstance(spot_data, PostData):
                     return None
 
-                new_spot = ModelOperations._make_spot(spot_data)
-
                 spot: Spot = Spot.query.filter_by(
-                    spot_name=spot_data.get("spot_name")).first()
+                    spot_id=spot_data.get("spot_id")).first()
+
+                new_spot = ModelOperations._make_spot(spot_data)
 
                 if spot is not None and new_spot is not None:
                     spot.update(new_spot)
 
+                # NOTE: need to delete bc somehow new_spot is somehow persistent
+                # at this state
+                # might because it contains project which is already persistent.
+                # coulbe be improved later.
+
+                # NOTE: merge first then delete. because value in spot are
+                # refs to values in new_spot. put it into session first to avoid
+                # dependency problem.
+
                 db.session.merge(spot)
                 del new_spot
-
+                # db.session.delete(new_spot)
                 return spot
 
             return _update_spot()
@@ -702,7 +732,7 @@ class ModelOperations(ModelInterfaces):
                     outdoor_spot.update(new_outdoor_spot)
 
                 db.session.merge(outdoor_spot)
-                del new_outdoor_spot
+                db.session.delete(outdoor_spot)
 
                 return outdoor_spot
 
@@ -899,32 +929,36 @@ class ModelOperations(ModelInterfaces):
                 json_convert(project_data, 'record_started_from',
                              lambda s: fromisoformat(s.split('T')[0]))
 
-            project = Project(
-                outdoor_spot=outdoor_spot,
-                location=location,
+            try:
+                project = Project(
+                    outdoor_spot=outdoor_spot,
+                    location=location,
 
-                tech_support_company=tech_support_company,
-                project_company=project_company,
-                construction_company=construction_company,
+                    tech_support_company=tech_support_company,
+                    project_company=project_company,
+                    construction_company=construction_company,
 
-                project_name=project_data.get("project_name"),
-                district=project_data.get("district"),
-                floor=project_data.get("floor"),
+                    project_name=project_data.get("project_name"),
+                    district=project_data.get("district"),
+                    floor=project_data.get("floor"),
 
-                longitude=project_data.get("longitude"),
-                latitude=project_data.get("latitude"),
+                    longitude=project_data.get("longitude"),
+                    latitude=project_data.get("latitude"),
 
-                area=project_data.get("area"),
-                demo_area=project_data.get("demo_area"),
+                    area=project_data.get("area"),
+                    demo_area=project_data.get("demo_area"),
 
-                building_type=project_data.get("building_type"),
-                building_height=project_data.get("building_height"),
+                    building_type=project_data.get("building_type"),
+                    building_height=project_data.get("building_height"),
 
-                started_time=project_data.get("started_time"),
-                finished_time=project_data.get("finished_time"),
-                record_started_from=project_data.get("record_started_from"),
+                    started_time=project_data.get("started_time"),
+                    finished_time=project_data.get("finished_time"),
+                    record_started_from=project_data.get(
+                        "record_started_from"),
 
-                description=project_data.get("description"))
+                    description=project_data.get("description"))
+            except IntegrityError as e:
+                logger.error(f"integirty error {e}")
 
             return project
         return _make()
@@ -937,30 +971,35 @@ class ModelOperations(ModelInterfaces):
             if not isinstance(spot_data, PostData):
                 return None
 
-            new_spot = None
-
             # project id
-            project: Union[Project, str, int, None] = spot_data.get('project')
+            project: Optional[Union[Project, str, int]] = spot_data.get('project')
 
-            if not project:
+            if project is None:
                 ...
 
-            elif not isinstance(project, Project):
+            elif (isinstance(project, str) and
+                    id_exist_in_db(Project.project_id, int(project))):
+                project = int(project)
 
-                try:
-                    project = Project.query.filter_by(
-                        project_id=int(project)).first()
-                except Exception:
-                    raise
+            elif isinstance(project, Project):
+                project = project.project_id
+
+            else:
+                logger.error('add_device error, spot type is incorrect.')
+                return None
 
             image: Optional[ByteString] = spot_data.get('image')
 
-            new_spot = Spot(project=project,
-                            spot_name=spot_data.get('spot_name'),
-                            spot_type=spot_data.get('spot_type'),
-                            image=image)
+            try:
+                spot = Spot(
+                    project_id=project,
+                    spot_name=spot_data.get('spot_name'),
+                    spot_type=spot_data.get('spot_type'),
+                    image=image)
+            except IntegrityError as e:
+                logger.error(f"integirty error {e}")
 
-            return new_spot
+            return spot
         return _make()
 
     @staticmethod
@@ -972,37 +1011,47 @@ class ModelOperations(ModelInterfaces):
             if not isinstance(device_data, PostData):
                 return None
 
-            spot: Union[Spot, int, str, None] = device_data.get('spot')
-            if spot and isinstance(spot, Spot) or not spot:  # None or be a Spot.
+            spot: Optional[Union[Spot, int, str]] = device_data.get('spot')
+
+            # get spot_id
+            if spot is None:
                 ...
 
-            # Convert from id to Spot.
-            elif isinstance(spot, int) or isinstance(spot, str):
-                spot = Spot.query.filter_by(spot_id=int(spot)).first()
+            elif (isinstance(spot, str) and
+                    id_exist_in_db(Spot.spot_id, int(spot))):
+                spot = int(spot)
+
+            elif isinstance(spot, Spot):
+                spot = spot.spot_id
+
             else:
                 logger.error('add_device error, spot type is incorrect.')
                 return None
 
-            device = None
-
             # location must have a climate area.
             if not isinstance(device_data.get('create_time'), dt):
-                json_convert(device_data, 'create_time',
-                             lambda s: fromisoformat(s.split('T')[0]))
+                create_time: Union[dt, str, None] = (
+                    str_to_datetime(
+                        device_data.get('create_time')))
 
             if not isinstance(device_data.get('modify_time'), dt):
-                json_convert(device_data, 'modify_time',
-                             lambda s: fromisoformat(s.split('T')[0]))
+                modify_time: Union[dt, str, None] = (
+                    str_to_datetime(
+                        device_data.get('modify_time')))
 
             if not isinstance(device_data.get('online'), bool):
                 json_convert(device_data, 'online', json_to_bool)
 
-            device = Device(device_name=device_data.get("device_name"),
-                            device_type=device_data.get("device_type"),
-                            online=device_data.get("online"),
-                            spot=spot,
-                            create_time=device_data.get("create_time"),
-                            modify_time=device_data.get("modify_time"))
+            try:
+                device = Device(device_name=device_data.get("device_name"),
+                                device_type=device_data.get("device_type"),
+                                online=device_data.get("online"),
+                                spot_id=spot,
+                                create_time=create_time,
+                                modify_time=modify_time)
+            except IntegrityError as e:
+                logger.error(f"integirty error {e}")
+
             return device
         return _make()
 
@@ -1015,22 +1064,27 @@ class ModelOperations(ModelInterfaces):
                 return None
 
             # time can either be dt or string.
-            spot_record_time: Union[dt, str, None] = normalize_time(5)(
-                spot_record_data.get('spot_record_time'))
-            if not isinstance(spot_record_time, dt):
-                spot_record_time = normalize_time(5)(
-                    str_to_datetime(spot_record_data.get('spot_record_time')))
+            spot_record_time: Union[dt, str, None] = (
+                str_dt_normalizer(spot_record_data.get('spot_record_time'),
+                                  normalize_time(5)))
 
             # query with device id or device name
-            try:
-                device: Union[Device, str, None] = spot_record_data.get('device')
-                if not isinstance(device, Device):
-                    device = Device.query.filter_by(
-                        device_id=spot_record_data.get("device")).first()
-            except Exception:
-                raise
+            device: Optional[Union[Device, str, int]] = (
+                spot_record_data.get('device'))
+            if device is None:
+                ...
 
-            spot_record = None
+            elif (isinstance(device, str) and
+                    id_exist_in_db(Device.device_id, int(device))):
+                device = int(device)
+
+            elif isinstance(device, Device):
+                device = device.device_id
+
+            else:
+                logger.error(
+                    'make_spot_record error, device type is incorrect.')
+                return None
 
             json_convert(spot_record_data, 'window_opened', json_to_bool)
             json_convert(spot_record_data, 'temperature', float)
@@ -1039,15 +1093,19 @@ class ModelOperations(ModelInterfaces):
             json_convert(spot_record_data, 'pm25', float)
             json_convert(spot_record_data, 'co2', float)
 
-            spot_record = SpotRecord(
-                spot_record_time=spot_record_time,
-                device=device,
-                window_opened=spot_record_data.get("window_opened"),
-                temperature=spot_record_data.get("temperature"),
-                humidity=spot_record_data.get("humidity"),
-                ac_power=spot_record_data.get("ac_power"),
-                pm25=spot_record_data.get("pm25"),
-                co2=spot_record_data.get("co2"))
+            try:
+                spot_record = SpotRecord(
+                    spot_record_time=spot_record_time,
+                    device_id=device,
+                    window_opened=spot_record_data.get("window_opened"),
+                    temperature=spot_record_data.get("temperature"),
+                    humidity=spot_record_data.get("humidity"),
+                    ac_power=spot_record_data.get("ac_power"),
+                    pm25=spot_record_data.get("pm25"),
+                    co2=spot_record_data.get("co2"))
+
+            except IntegrityError as e:
+                logger.error(f"integirty error {e}")
 
             return spot_record
         return _make()
@@ -1056,17 +1114,22 @@ class ModelOperations(ModelInterfaces):
     def _make_location(location_data: PostData) -> Optional[Location]:
         # location must have a climate area.
         try:
-            climate_area = (ClimateArea
-                            .query
-                            .filter_by(area_name=location_data.get("climate_area_name"))
-                            .first())
+            climate_area = (
+                ClimateArea
+                .query
+                .filter_by(
+                    area_name=location_data.get("climate_area_name"))
+                .first())
         except Exception:
             raise
 
-        location = Location(
-            climate_area=climate_area,
-            province=location_data.get("province"),
-            city=location_data.get("city"))
+        try:
+            location = Location(
+                climate_area=climate_area,
+                province=location_data.get("province"),
+                city=location_data.get("city"))
+        except IntegrityError as e:
+            logger.error(f"integirty error {e}")
 
         return location
 

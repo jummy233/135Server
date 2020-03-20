@@ -1,8 +1,9 @@
 from flask import jsonify
-from . import api
-from ..models import User
 from sqlalchemy.exc import IntegrityError
+
 from .. import db
+from ..models import User
+from . import api
 
 
 @api.route('/users', methods=['GET'])
@@ -26,6 +27,3 @@ def delete_user(uid):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-
-
-

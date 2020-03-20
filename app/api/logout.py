@@ -3,7 +3,6 @@ from . import api
 from ..models import User
 
 
-@api.route('/login')
-def login():
-    return "login"
-
+@api.route('/logout')
+def logout():
+    return "logout"

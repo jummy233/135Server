@@ -68,7 +68,10 @@ def spot_paged(pid: Optional[int] = None):
         if pid is None:
             spots_page = Spot.query.paginate(pageNo, size)
         else:
-            spots_page = Spot.query.filter_by(project_id=pid).paginate(pageNo, size)
+            spots_page = (
+                Spot
+                .query
+                .filter_by(project_id=pid).paginate(pageNo, size))
 
         response_object['data'] = {
             'data': [item.to_json() for item in spots_page.items if item],
@@ -104,7 +107,8 @@ def device_paged(sid: Optional[int] = None):
         if sid is None:
             devices_page = Device.query.paginate(pageNo, size)
         else:
-            devices_page = Device.query.filter_by(spot_id=sid).paginate(pageNo, size)
+            devices_page = Device.query.filter_by(
+                spot_id=sid).paginate(pageNo, size)
 
         response_object['data'] = {
             'data': [item.to_json() for item in devices_page.items if item],
@@ -148,7 +152,9 @@ def spot_record_paged(did: int):
             )
 
             response_object['data'] = {
-                'data': [item.to_json() for item in spot_records_page.items if item],
+                'data': [
+                    item.to_json()
+                    for item in spot_records_page.items if item],
                 'totalElementCount': spot_records_page.total,
                 'currentPage': pageNo,
                 'pageSize': size
@@ -187,4 +193,3 @@ def spot_record_paged(did: int):
 
 # spot_rec_json = spot_rec.to_json()
 # od_spot_json = od_spot.to_json()
-

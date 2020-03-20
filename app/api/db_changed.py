@@ -18,7 +18,6 @@ from ..models import OutdoorSpot, OutdoorRecord
 from ..models import Spot, SpotRecord, Device
 from ..models import Data
 
-
 Json = NewType('Json', str)
 AddOperation = Callable[[Dict], Optional[Data]]
 UpdateOperation = Callable[[Dict], Optional[Data]]
@@ -47,6 +46,7 @@ def add_update_delete_template(
             if posted:
                 commit()
                 response_object["message"] = "post succeeded!"
+                response_object["data"] = posted.to_json()
             else:
                 response_object['status'] = ReturnCode.NO_DATA.value
                 response_object['message'] = "post failed"
@@ -67,16 +67,18 @@ def add_update_delete_template(
         response_object: ApiResponse = (
             ApiResponse(status=ReturnCode.OK.value))
 
+        __import__('pprint').pprint(post_data)
         if post_data is None or not is_ApiRequest(cast(Optional[Dict], post_data)):
             response_object['status'] = ReturnCode.NO_DATA.value
             response_object['message'] = "post failed "
             return response_object
 
         try:
-            updated = update(cast(Dict, post_data))
+            updated = update(cast(Dict, post_data["request"]))
             if updated:
                 commit()
                 response_object['message'] = "update succeeded!"
+                response_object["data"] = updated.to_json()
             else:
                 response_object['status'] = ReturnCode.NO_DATA.value
                 response_object['message'] = "update failed"
@@ -165,5 +167,6 @@ def outdoor_spot_add_update_delete(oid: Optional[int] = None):
         oid, (ModelOperations.Add.add_outdoor_spot,
               ModelOperations.Update.update_outdoor_spot,
               ModelOperations.Delete.delete_outdoor_spot))
+
 
 
