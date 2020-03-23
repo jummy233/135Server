@@ -1,7 +1,7 @@
 from datetime import datetime as dt
 from datetime import timedelta
 from math import floor
-from typing import Generator, Optional, Tuple
+from typing import Generator, Optional, Tuple, List
 
 
 def currentTimestamp(digit: int) -> int:
@@ -10,10 +10,51 @@ def currentTimestamp(digit: int) -> int:
     return floor(dt.timestamp(dt.utcnow()) * factor)
 
 
+def datetime_format_resolver(datetime_str: str, formats: List[str]
+                             ) -> Optional[dt]:
+    if len(formats) > 20:
+        raise RecursionError("too many datetime formats")
+    if len(formats) == 0:  # no match.
+        return None
+
+    res: Optional[dt] = None
+
+    try:
+        f = formats.pop(0)
+        res = dt.strptime(datetime_str, f)
+    except ValueError:
+        res = datetime_format_resolver(datetime_str, formats)
+    except Exception:  # programmer error. should not return None here.
+        raise
+
+    return res
+
+
 def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
+    # accept multiple formats
     if not sdate:
         return None
-    return dt.strptime(sdate, '%Y-%m-%dT%H:%M:%S')
+    formats: List[str] = [
+        '%Y-%m-%d:%H-%M-%S',
+        '%Y-%m-%d:%H-%M',
+        '%Y-%m-%d:%H',
+
+        '%Y-%m-%dT%H:%M:%S',
+        '%Y-%m-%dT%H:%M',
+        '%Y-%m-%dT%H',
+
+        '%Y-%m-%d',
+        '%Y-%m',
+        '%Y',
+
+        '%Y/%m/%d',
+        '%Y/%m',
+        '%Y',
+    ]
+
+    res = datetime_format_resolver(sdate, formats)
+    print(res)
+    return res
 
 
 def datetime_to_str(datetime: Optional[dt]) -> str:

@@ -12,7 +12,7 @@ import urllib3
 
 from logger import make_logger
 
-from .utils import currentTimestamp
+from timeutils.time import currentTimestamp
 
 logger = make_logger('JianYanYuanGetter', 'dataGetter_log')
 

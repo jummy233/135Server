@@ -67,7 +67,6 @@ def add_update_delete_template(
         response_object: ApiResponse = (
             ApiResponse(status=ReturnCode.OK.value))
 
-        __import__('pprint').pprint(post_data)
         if post_data is None or not is_ApiRequest(cast(Optional[Dict], post_data)):
             response_object['status'] = ReturnCode.NO_DATA.value
             response_object['message'] = "post failed "

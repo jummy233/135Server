@@ -1,0 +1,113 @@
+{'pos': {'data': [
+            {'positionName': 'citylab', 'positionId': 'real1.623928551373942784', 'description': '', 'createTime': 1568797758727
+            },
+            {'positionName': '煎饼果子', 'positionId': 'real1.511927016061140992', 'description': '', 'createTime': 1551366845886
+            },
+            {'positionName': '心逸圣者', 'positionId': 'real1.1113954294848955', 'description': '', 'createTime': 1551366845886
+            }
+        ], 'totalCount': 3
+    },
+    'device': {'totalCount': 225, 'data': [
+            {'did': 'lumi.158d000182e7bd', 'name': 'YYBGY9-9-2902客厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001ef7c97', 'positionId': 'real1.511927016061140992', 'state': 1, 'registerTime': '1551366845336'
+            },
+            {'did': 'lumi.158d0001fd5c00', 'name': 'TYY1栋1单元1401-01温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001e6a25b', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845336'
+            },
+            {'did': 'lumi.158d0001fd5c50', 'name': 'TYY1栋1单元902-客厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001f41fb5', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845336'
+            },
+            {'did': 'lumi.158d000182e7fa', 'name': 'YYBGY10-4-1604主卧温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0002a1c811', 'positionId': 'real1.511927016061140992', 'state': 0, 'registerTime': '1551366845336'
+            },
+            {'did': 'lumi.158d0001dcd929', 'name': 'TYY4栋2单元1204-餐厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001f53f05', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845336'
+            },
+            {'did': 'lumi.158d00019c9e49', 'name': 'TYY1栋1单元902-餐厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001f41fb5', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845336'
+            },
+            {'did': 'lumi.158d0001dcd990', 'name': 'TYY3栋1单元802-03温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d00020f28ac', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d0001fd5be4', 'name': 'TYY7栋2单元603-次卧04温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001d6fdef', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d0001fd5bf7', 'name': 'TYY1栋1单元1401-02温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001e6a25b', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d0001e63ae9', 'name': 'TYY1栋2单元1103智慧网关', 'model': 'lumi.gateway.aq1', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d00029b005a', 'name': 'YYBGY9–9-202主卧空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d00029b005d', 'name': 'YYBGY9-9-202书房空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d0001fd5b6b', 'name': 'TYY7栋2单元603-主卧03温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001d6fdef', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845337'
+            },
+            {'did': 'lumi.158d0001fd5b6c', 'name': 'TYY7栋2单元603-卧室北01温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001d6fdef', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845338'
+            },
+            {'did': 'lumi.158d0001fd5b59', 'name': 'TYY10栋2单元103-03温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001f9b687', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845338'
+            },
+            {'did': 'lumi.158d0001fd5a8f', 'name': 'TYY7栋2单元603-书房北02温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001d6fdef', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845338'
+            },
+            {'did': 'lumi.158d0001fd5a97', 'name': 'TYY1栋1单元902-餐厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001f41fb5', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845338'
+            },
+            {'did': 'lumi.158d00029b013d', 'name': 'YYBGY9-9-202卧室1空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845338'
+            },
+            {'did': 'lumi.158d00019ccd65', 'name': 'TYY7栋2单元603-04智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001d6fdef', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845338'
+            },
+            {'did': 'lumi.158d00029b00a8', 'name': 'YYBGY10-1-301次卧空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.511927016061140992', 'state': 0, 'registerTime': '1551366845453'
+            },
+            {'did': 'lumi.158d00019d436b', 'name': 'TYY4栋2单元1204-餐厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001f53f05', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845453'
+            },
+            {'did': 'lumi.158d00020267e4', 'name': 'coco-3-2103客厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d00029b4e73', 'positionId': 'real1.511927016061140992', 'state': 1, 'registerTime': '1551366845454'
+            },
+            {'did': 'lumi.158d00019d4364', 'name': 'TYY1栋1单元1401-餐厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e6a25b', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845454'
+            },
+            {'did': 'lumi.158d00019d4367', 'name': 'TYY7栋2单元603-书房北02智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001d6fdef', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845454'
+            },
+            {'did': 'lumi.158d00019d4389', 'name': 'TYY10栋2单元103-05书房智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001f9b687', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845455'
+            },
+            {'did': 'lumi.158d0001dcd4a5', 'name': 'TYY3栋1单元802-01温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d00020f28ac', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845456'
+            },
+            {'did': 'lumi.158d0001825038', 'name': 'TYY1栋2单元1103-01温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001e63ae9', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845457'
+            },
+            {'did': 'lumi.158d00029b4125', 'name': 'YYBGY9–7-2901主卧空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.511927016061140992', 'state': 0, 'registerTime': '1551366845457'
+            },
+            {'did': 'lumi.158d0001f41fb5', 'name': 'TYY1栋1单元902智慧网关', 'model': 'lumi.gateway.aq1', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845457'
+            },
+            {'did': 'lumi.158d0001c2ab99', 'name': 'YYBGY9-9-2902书房温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001ef7c97', 'positionId': 'real1.511927016061140992', 'state': 1, 'registerTime': '1551366845458'
+            },
+            {'did': 'lumi.158d0002164208', 'name': 'TYY1栋2单元1403-02智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e62167', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845458'
+            },
+            {'did': 'lumi.158d0001c2ab92', 'name': 'TYY1栋2单元1403-客厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001e62167', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845458'
+            },
+            {'did': 'lumi.158d000216417b', 'name': 'TYY3栋1单元802-02智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d00020f28ac', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845459'
+            },
+            {'did': 'lumi.158d0002164174', 'name': 'TYY1栋2单元1103-03智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e63ae9', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845459'
+            },
+            {'did': 'lumi.158d0001e62167', 'name': 'TYY1栋2单元1403智能网关', 'model': 'lumi.gateway.aq1', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845459'
+            },
+            {'did': 'lumi.158d0001e62166', 'name': 'TYY1栋2单元104智慧网关', 'model': 'lumi.gateway.aq1', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845460'
+            },
+            {'did': 'lumi.158d00021641db', 'name': 'TYY1栋2单元1103-餐厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e63ae9', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845460'
+            },
+            {'did': 'lumi.158d00021641ba', 'name': 'TYY3栋2单元1404-客厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d00020f2898', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845461'
+            },
+            {'did': 'lumi.158d0002164271', 'name': 'TYY3栋2单元1404-02智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d00020f2898', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845461'
+            },
+            {'did': 'lumi.158d0002164272', 'name': 'TYY1栋2单元1103-02智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e63ae9', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845461'
+            },
+            {'did': 'lumi.158d000216423b', 'name': 'TYY1栋2单元104-03智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e62166', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845462'
+            },
+            {'did': 'lumi.158d00029b41a2', 'name': 'YYBGY10-1-301主卧空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.511927016061140992', 'state': 0, 'registerTime': '1551366845462'
+            },
+            {'did': 'lumi.158d000216429e', 'name': 'TYY3栋1单元802-客厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d00020f28ac', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845462'
+            },
+            {'did': 'lumi.158d00029b41c3', 'name': 'YYBGY9-9-202卧室2空调伴侣', 'model': 'lumi.acpartner.v3', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845463'
+            },
+            {'did': 'lumi.158d00021642f1', 'name': 'TYY1栋2单元1403-03智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e62167', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845463'
+            },
+            {'did': 'lumi.158d00021642f9', 'name': 'TYY1栋2单元1403-客厅智能插座', 'model': 'lumi.plug.v1', 'parentId': 'lumi.158d0001e62167', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845463'
+            },
+            {'did': 'lumi.158d0001f9b687', 'name': 'TYY10栋2单元103智慧网关', 'model': 'lumi.gateway.aq1', 'parentId': '', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845463'
+            },
+            {'did': 'lumi.158d0001b907d3', 'name': 'TYY4栋2单元1204-01温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d0001f53f05', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845464'
+            },
+            {'did': 'lumi.158d00019cb70c', 'name': 'YYBGY9-9-202卧室1温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d00029b013d', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845464'
+            },
+            {'did': 'lumi.158d000182e534', 'name': 'TYY3栋1单元802-餐厅温湿度传感器', 'model': 'lumi.sensor_ht.v1', 'parentId': 'lumi.158d00020f28ac', 'positionId': 'real1.1113954294848955', 'state': 1, 'registerTime': '1551366845464'
+            }
+        ]
+    }
+}

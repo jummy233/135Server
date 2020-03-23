@@ -6,7 +6,7 @@ import urllib3
 import http
 import urllib.parse
 from datetime import datetime as dt
-from dataGetter.utils import currentTimestamp
+from timeutils.time import currentTimestamp
 import json
 
 from logger import make_logger
@@ -96,7 +96,12 @@ class DeviceResult(TypedDict):
     totalCount: int
 
 
-ResourceData = TypedDict('ResourceData', {'did': str, 'attr': str, 'value': str, 'time': int})
+ResourceData = TypedDict('ResourceData', {
+    'did': str,
+    'attr': str,
+    'value': str,
+    'time': int
+})
 ResourceResult = List[ResourceData]
 
 ###############################################
@@ -117,28 +122,38 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
 
     # First get to the login page
     url: str = urllib.parse.urljoin(auth_base_url, authorize_url)
-    getparam: Dict = {'client_id': client_id,
-                      'response_type': 'code',
-                      'redirect_uri': redirect_uri,
-                      'state': state}
+    getparam: Dict = {
+        'client_id': client_id,
+        'response_type': 'code',
+        'redirect_uri': redirect_uri,
+        'state': state
+    }
     login_url: str = url + '?' + urllib.parse.urlencode(getparam)
 
     # Second step is to login with account and password to get auth code.
-    postparam: Dict = dict({'account': account, 'password': password})
+    postparam: Dict = {'account': account, 'password': password}
 
     try:
         response: requests.Response = requests.post(login_url, data=postparam)
+
     except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s', response.content, response.request)
+        logger.error('[urllib3] Protocal error %s %s',
+                     response.content, response.request)
         return None
+
     except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s', response.content, response.request)
+        logger.error('[http] IncompleteRead error %s %s',
+                     response.content, response.request)
         return None
+
     except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s', response.content, response.request)
+        logger.error('[requests ]ChunkedEncodingError %s %s',
+                     response.content, response.request)
         return None
+
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s', response.content, response.request)
+        logger.error('some Exception happed when send and receiving data. %s %s',
+                     response.content, response.request)
 
     response_url: str = response.url
 
@@ -188,7 +203,7 @@ def _get_token(auth: AuthData, refresh: Optional[TokenResult] = None) -> Optiona
                     'grant_type': grant_type,
                     'code': authcode,
                     'state': state}
-    if refresh:
+    if refresh is not None:
         params = _auth_refresh_token(params, refresh)
 
     try:
@@ -223,8 +238,14 @@ def _gen_sign(auth: AuthData, token: Optional[TokenResult]) -> Optional[str]:
     appId, appKey = itemgetter('appId', 'appKey')(auth)
 
     # read Aqara doc about how to construct sign.
-    sign_dict: Dict = {'accesstoken': access_token, 'appid': appId, 'time': str(currentTimestamp(13))}
-    sign: str = md5((urllib.parse.urlencode(sign_dict).lower() + '&' + appKey).encode('ascii')).hexdigest()
+    sign_dict: Dict = {
+        'accesstoken': access_token,
+        'appid': appId,
+        'time': str(currentTimestamp(13))
+    }
+
+    sign: str = md5((urllib.parse.urlencode(sign_dict).lower() +
+                     '&' + appKey).encode('ascii')).hexdigest()
     return sign
 
 
@@ -261,27 +282,34 @@ def _get_pos(auth: AuthData,
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
+    headers: Optional[Dict] = _gen_header(
+        auth, token, sign if sign is not None else None)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
     try:
-        response: requests.Response = requests.get(url, params=cast(Dict, params), headers=headers)
+        response: requests.Response = requests.get(
+            url, params=cast(Dict, params), headers=headers)
     except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s', response.content, response.request)
+        logger.error('[urllib3] Protocal error %s %s',
+                     response.content, response.request)
         return None
     except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s', response.content, response.request)
+        logger.error('[http] IncompleteRead error %s %s',
+                     response.content, response.request)
         return None
     except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s', response.content, response.request)
+        logger.error('[requests ]ChunkedEncodingError %s %s',
+                     response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s', response.content, response.request)
+        logger.error('some Exception happed when send and receiving data. %s %s',
+                     response.content, response.request)
 
-    if response.status_code != 200:
-        logger.error('error response %s', response)
-        return None
-    return response.json()['result']
+    finally:
+        if response.status_code != 200:
+            logger.error('error response %s', response)
+            return None
+        return response.json()['result']
 
 
 def _get_device(auth: AuthData,
@@ -295,62 +323,76 @@ def _get_device(auth: AuthData,
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
+    headers: Optional[Dict] = _gen_header(
+        auth, token, sign if sign is not None else None)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_dev_url)
     try:
-        response: requests.Response = requests.get(url, params=cast(Dict, params), headers=headers)
+        response: requests.Response = requests.get(
+            url, params=cast(Dict, params), headers=headers)
 
     except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s', response.content, response.request)
+        logger.error('[urllib3] Protocal error %s %s',
+                     response.content, response.request)
         return None
     except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s', response.content, response.request)
+        logger.error('[http] IncompleteRead error %s %s',
+                     response.content, response.request)
         return None
     except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s', response.content, response.request)
+        logger.error('[requests ]ChunkedEncodingError %s %s',
+                     response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s', response.content, response.request)
+        logger.error('some Exception happed when send and receiving data. %s %s',
+                     response.content, response.request)
 
-    if response.status_code != 200:
-        logger.error('error response %s', response)
-        return None
-    return response.json()['result']
+    finally:
+        if response.status_code != 200:
+            logger.error('error response %s', response)
+            return None
+        return response.json()['result']
 
 
 def _get_resource(auth: AuthData,
                   token: Optional[TokenResult],
                   params: ResourceParam) -> Optional[ResourceResult]:
 
-    (api_query_base_url, api_query_resrouce_url) = itemgetter('api_query_base_url',
-                                                              'api_query_resrouce_url')(auth)
+    (api_query_base_url,
+     api_query_resrouce_url) = itemgetter('api_query_base_url',
+                                          'api_query_resrouce_url')(auth)
     if not token:
         logger.error('token is None')
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(auth, token, sign if sign is not None else None)
+    headers: Optional[Dict] = _gen_header(
+        auth, token, sign if sign is not None else None)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_resrouce_url)
     try:
-        response: requests.Response = requests.post(url, json=cast(Dict, params), headers=headers)
+        response: requests.Response = requests.post(
+            url, json=cast(Dict, params), headers=headers)
     except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s', response.content, response.request)
+        logger.error('[urllib3] Protocal error %s %s',
+                     response.content, response.request)
         return None
     except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s', response.content, response.request)
+        logger.error('[http] IncompleteRead error %s %s',
+                     response.content, response.request)
         return None
     except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s', response.content, response.request)
+        logger.error('[requests ]ChunkedEncodingError %s %s',
+                     response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s', response.content, response.request)
-
-    if response.status_code != 200:
-        logger.error('error response %s', response)
-        return None
-    return response.json()['result']
+        logger.error('some Exception happed when send and receiving data. %s %s',
+                     response.content, response.request)
+    finally:
+        if response.status_code != 200:
+            logger.error('error response %s', response)
+            return None
+        return response.json()['result']
 
 
 

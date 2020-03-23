@@ -38,11 +38,12 @@ def device_filtered() -> Json:
 def spot_filtered() -> Json:
     pass
 
-@api.route('/spotRecord/filter/<sid>', methods=["POST"])
-def sport_record_filtered(sid: Optional[int]) -> Json:
+
+@api.route('/spotRecord/filter/<int:did>', methods=["POST"])
+def sport_record_filtered(did: Optional[int]) -> Json:
     post_data = request.get_json()
 
-    if is_ApiRequest(post_data) and sid is not None:
+    if is_ApiRequest(post_data) and did is not None:
         filter_request = post_data['request']
         start, end = map(str_to_datetime,
                          itemgetter("startTime",
@@ -52,19 +53,19 @@ def sport_record_filtered(sid: Optional[int]) -> Json:
         response_object: ApiResponse = (
             ApiResponse(
                 status=ReturnCode.OK.value,
-                message=f"filted sport record {sid}"))
+                message=f"filted sport record {did}"))
 
         filtered_res = (
             SpotRecord
             .query
-            .filter(SpotRecord.device_id == sid)
+            .filter(SpotRecord.device_id == did)
             .filter(SpotRecord.spot_record_time >= start)
             .filter(SpotRecord.spot_record_time <= end)
         )
 
         response_object['data'] = {
             'data': [item.to_json() for item in filtered_res if item],
-            'totalElementCount': filtered_res.total
+            'totalElementCount': filtered_res.count(),
         }
 
     else:
