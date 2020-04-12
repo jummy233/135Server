@@ -16,6 +16,8 @@ import base64
 
 
 rand_date = rand_date_in(datetime(2019, 1, 1), datetime(2019, 12, 31))
+TIMEFORMAT = "%Y-%m-%dT%H:%M"
+
 
 def gen_fake_db():
     """ generate fake db data for testing """
@@ -119,14 +121,16 @@ class Location(db.Model):
     """
     __tablename__ = "location"
     location_id = db.Column(db.Integer, primary_key=True)
-    climate_area_id = db.Column(db.Integer, db.ForeignKey("climate_area.climate_area_id"))
+    climate_area_id = db.Column(
+        db.Integer, db.ForeignKey("climate_area.climate_area_id"))
     province = db.Column(db.String(64))
     city = db.Column(db.String(64), unique=True)
 
     project = db.relationship("Project", backref="location", lazy="dynamic")
 
     def update(self, update_location: Location) -> None:
-        self.climate_area_id = update_location.climate_area_id or self.climate_area_id
+        self.climate_area_id = (update_location.climate_area_id
+                                or self.climate_area_id)
         self.province = update_location.province or self.province
         self.city = update_location.city or self.city
 
@@ -174,12 +178,16 @@ class Location(db.Model):
 class Project(db.Model):
     __tablename__ = "project"
     project_id = db.Column(db.Integer, primary_key=True)
-    outdoor_spot_id = db.Column(db.Integer, db.ForeignKey("outdoor_spot.outdoor_spot_id"))
+    outdoor_spot_id = db.Column(
+        db.Integer, db.ForeignKey("outdoor_spot.outdoor_spot_id"))
     location_id = db.Column(db.Integer, db.ForeignKey("location.location_id"))
 
-    tech_support_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
-    project_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
-    construction_company_id = db.Column(db.Integer, db.ForeignKey("company.company_id"))
+    tech_support_company_id = db.Column(
+        db.Integer, db.ForeignKey("company.company_id"))
+    project_company_id = db.Column(
+        db.Integer, db.ForeignKey("company.company_id"))
+    construction_company_id = db.Column(
+        db.Integer, db.ForeignKey("company.company_id"))
 
     project_name = db.Column(db.String(64), unique=True)
     district = db.Column(db.String(64))
@@ -199,7 +207,8 @@ class Project(db.Model):
 
     description = db.Column(db.String(2048))
 
-    spot = db.relationship("Spot", backref="project", cascade="all,delete", uselist=False)
+    spot = db.relationship("Spot", backref="project",
+                           cascade="all,delete", uselist=False)
     project_detail = db.relationship("ProjectDetail", backref="project", cascade="all,delete",
                                      uselist=False)
 
@@ -266,8 +275,10 @@ class Project(db.Model):
             try:
                 proj = cls(outdoor_spot=choice(OutdoorSpot.query.all()),
                            location=choice(Location.query.all()),
-                           company=choice(Company.query.all()),  # TODO deprecated
-                           project_name=str(offset + i) + choice('abcdefghijklmno') * 30,
+                           # TODO deprecated
+                           company=choice(Company.query.all()),
+                           project_name=str(offset + i) + \
+                           choice('abcdefghijklmno') * 30,
                            district=chr(randint(33, 127)),
                            floor=randint(33, 127),
                            longitude=uniform(30, 32),
@@ -393,7 +404,8 @@ class OutdoorSpot(db.Model):
 
     outdoor_record = db.relationship("OutdoorRecord", backref="outdoor_spot",
                                      lazy="dynamic")
-    project = db.relationship("Project", backref="outdoor_spot", lazy="dynamic")
+    project = db.relationship(
+        "Project", backref="outdoor_spot", lazy="dynamic")
 
     def update(self, update_outdoor_spot: OutdoorSpot) -> None:
 
@@ -426,7 +438,8 @@ class OutdoorRecord(db.Model):
     Time interval is 1 hour per record.
     """
     __tablename__ = "outdoor_record"
-    outdoor_record_time = db.Column(db.DateTime, primary_key=True, nullable=False)
+    outdoor_record_time = db.Column(
+        db.DateTime, primary_key=True, nullable=False)
     outdoor_spot_id = db.Column(db.Integer,
                                 db.ForeignKey("outdoor_spot.outdoor_spot_id"))
     outdoor_temperature = db.Column(db.Float)
@@ -439,7 +452,8 @@ class OutdoorRecord(db.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not is_nice_time(step_len=5)(self.outdoor_record_time):
-            self.outdoor_record_time = normalize_time(5)(self.outdoor_record_time)
+            self.outdoor_record_time = normalize_time(
+                5)(self.outdoor_record_time)
 
     def update(self, update_outdoor_record: OutdoorRecord) -> None:
         ...
@@ -468,7 +482,7 @@ class OutdoorRecord(db.Model):
 
     def to_json(self):
         outdoor_record_time = (
-            self.outdoor_record_time.strftime("%Y-%m-%d:%H-%M")
+            self.outdoor_record_time.strftime(TIMEFORMAT)
             if self.outdoor_record_time else None)
 
         return dict(
@@ -493,7 +507,8 @@ class ClimateArea(db.Model):
     climate_area_id = db.Column(db.Integer, primary_key=True)
     area_name = db.Column(db.String(64), unique=True)
 
-    location = db.relationship("Location", backref="climate_area", lazy="dynamic")
+    location = db.relationship(
+        "Location", backref="climate_area", lazy="dynamic")
 
     def update(self, update_climate_area: ClimateArea) -> None:
         ...
@@ -587,7 +602,8 @@ class Spot(db.Model):
             base64.encodebytes(self.image).decode()
 
         return dict(
-            number_of_device=db.session.query(Device).filter_by(spot_id=self.spot_id).count(),
+            number_of_device=db.session.query(
+                Device).filter_by(spot_id=self.spot_id).count(),
             spot_id=self.spot_id,
             project_id=self.project_id,
             project_name=self.project.project_name,
@@ -607,7 +623,8 @@ class Device(db.Model):
     device_name = db.Column(db.String(64))
     device_type = db.Column(db.String(64))
 
-    spot_record = db.relationship("SpotRecord", backref="device", lazy="dynamic")
+    spot_record = db.relationship(
+        "SpotRecord", backref="device", lazy="dynamic")
 
     def update(self, update_device: Device) -> None:
         self.spot_id = update_device.spot_id or self.spot_id
@@ -619,11 +636,11 @@ class Device(db.Model):
 
     def to_json(self):
         create_time = (
-            self.create_time.strftime("%Y-%m-%d:%H-%M")
+            self.create_time.strftime(TIMEFORMAT)
             if self.create_time else None)
 
         modify_time = (
-            self.modify_time.strftime("%Y-%m-%d:%H-%m")
+            self.modify_time.strftime(TIMEFORMAT)
             if self.modify_time else None)
 
         spot_name = self.spot.spot_name if self.spot else None
@@ -700,7 +717,7 @@ class SpotRecord(db.Model):
                 db.session.rollback()
 
     def to_json(self):
-        spot_record_time = (self.spot_record_time.strftime("%Y-%m-%d:%H-%M")
+        spot_record_time = (self.spot_record_time.strftime(TIMEFORMAT)
                             if self.spot_record_time else None)
 
         return dict(spot_record_id=self.spot_record_id,
@@ -728,5 +745,3 @@ Data = Union[Project,
              Company,
              Location,
              ClimateArea]
-
-
