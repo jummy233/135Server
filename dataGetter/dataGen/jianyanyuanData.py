@@ -228,16 +228,13 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         ###############################################
 
         def spot_records_gen() -> Generator[
-
                 Callable[
                     [],
                     Optional[Generator[Optional[SpotRecord], None, None]]],
-
                 None, None]:
             """
             Return a generator iter througth an effectful generator.
             Better
-
             """
 
             def records_factory(
@@ -249,11 +246,16 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                 generate generator of record data.
                 """
 
-                data, param = next(arg)
+                try:
+                    data, param = next(arg)
+                except StopIteration:
+                    return None
 
                 return (
                     None if data is None else
-                    (JianYanYuanData.make_spot_record(sr, param) for sr in data))
+                    (JianYanYuanData.make_spot_record(sr, param)
+                     for sr in data)
+                )
 
             # construct spot_records generator.
 
