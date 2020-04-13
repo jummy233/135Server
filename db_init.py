@@ -545,19 +545,19 @@ def db_init(full=False):
 
     logger.info('<Main Thread> Start to load project informations ... ')
 
-    #load_climate_area()
-    # load_location()
+    load_climate_area()
+    load_location()
     load_projects()
 
     logger.info('<Main Thread> Finsih loading project informations ... ')
-    # if full:
-    #     logger.info('<Main Thread> Start to load devices and spot record... ')
+    if full:
+        logger.info('<Main Thread> Start to load devices and spot record... ')
 
-    #     load_data = JianyanyuanLoadFull(
-    #         datapoint_thread_num=50, datapoint_from=1000)
-    #     load_data.load_spots()
-    #     load_data.load_devices()
-    #     load_data.load_spot_records()
+        load_data = JianyanyuanLoadFull(
+            datapoint_thread_num=50, datapoint_from=1000)
+        load_data.load_spots()
+        load_data.load_devices()
+        load_data.load_spot_records()
 
-    #     logger.info('<Main Thread> Finsihed loading Data ... ')
-    #     load_data.close()
+        logger.info('<Main Thread> Finsihed loading Data ... ')
+        load_data.close()
