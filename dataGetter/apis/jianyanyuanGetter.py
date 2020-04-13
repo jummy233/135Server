@@ -104,6 +104,7 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
 
     try:
         response: requests.Response = requests.post(url, json=request_data)
+        logger.info('[J get_token] response: ', response)
 
         if response.status_code != 200:
             logger.error('error response %s', response)
@@ -122,7 +123,6 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
         return None
     except BaseException as e:
         logger.error('some Exception happed when send and receiving data. %s ', e)
-
     return None
 
 
