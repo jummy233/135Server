@@ -29,7 +29,8 @@ AuthData = (
                'token_url': str,
 
                'grant_type': str,
-               'refresh_token': str,    # only needed when need to refresh token.
+               # only needed when need to refresh token.
+               'refresh_token': str,
 
                'api_query_base_url': str,
                'api_query_pos_url': str,
@@ -61,6 +62,7 @@ class ResourceParam(TypedDict):
     data: List[OneResourceParam]
 
 
+#
 TokenResult = TypedDict('TokenResult',
                         {'access_token': str,
                          'refresh_token': str,
@@ -108,7 +110,6 @@ ResourceResult = List[ResourceData]
 
 
 def _get_auth_code(auth: AuthData) -> Optional[str]:
-
     """ return auth code """
 
     (client_id,
@@ -128,6 +129,7 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
         'redirect_uri': redirect_uri,
         'state': state
     }
+
     login_url: str = url + '?' + urllib.parse.urlencode(getparam)
 
     # Second step is to login with account and password to get auth code.
@@ -163,12 +165,12 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
         return None
 
     returned_params: str = urllib.parse.urlsplit(response_url).query
-    query: Dict = {k: v[0] for k, v in urllib.parse.parse_qs(returned_params).items()}
+    query: Dict = {k: v[0]
+                   for k, v in urllib.parse.parse_qs(returned_params).items()}
     return query['code']
 
 
 def _get_token(auth: AuthData, refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
-
     """
     return token with given auth code
     if refresh token is passed, it is then used to retreive new token.
@@ -209,16 +211,20 @@ def _get_token(auth: AuthData, refresh: Optional[TokenResult] = None) -> Optiona
     try:
         response: requests.Response = requests.post(url, data=params)
     except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s', response.content, response.request)
+        logger.error('[urllib3] Protocal error %s %s',
+                     response.content, response.request)
         return None
     except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s', response.content, response.request)
+        logger.error('[http] IncompleteRead error %s %s',
+                     response.content, response.request)
         return None
     except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s', response.content, response.request)
+        logger.error('[requests ]ChunkedEncodingError %s %s',
+                     response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s', response.content, response.request)
+        logger.error('some Exception happed when send and receiving data. %s %s',
+                     response.content, response.request)
 
     if response.status_code != 200:
         logger.error('error response %s', response)
@@ -393,10 +399,3 @@ def _get_resource(auth: AuthData,
             logger.error('error response %s', response)
             return None
         return response.json()['result']
-
-
-
-
-
-
-

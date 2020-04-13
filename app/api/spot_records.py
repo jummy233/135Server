@@ -35,13 +35,3 @@ def get_spot_records_in_one_day(spot_id, year, month, day):
                order_by(SpotRecord.spot_record_time))
     return jsonify([r.to_json() for r in records])
 
-
-
-
-
-
-
-
-
-
-
