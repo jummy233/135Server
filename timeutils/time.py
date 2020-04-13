@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+import time
 from datetime import timedelta
 from math import floor
 from typing import Generator, Optional, Tuple, List, Union
@@ -12,7 +13,7 @@ def timestamp_setdigits(ts: Union[float, int], digit: int) -> int:
 def currentTimestamp(digit: int) -> int:
     """ return unix timestamp with disired digits """
     factor: int = floor(10 ** (digit - 10))
-    return floor(dt.timestamp(dt.utcnow()) * factor)
+    return floor(time.time() * factor)
 
 
 def datetime_format_resolver(datetime_str: str, formats: List[str]
