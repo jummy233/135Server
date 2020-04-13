@@ -59,10 +59,14 @@ OneResourceParam = (
 
 
 class ResourceParam(TypedDict):
-    data: List[OneResourceParam]
+    did: str
+    attrs: List[str]
+    startTime: str
+    endTime: str
+    pageNum: int
+    pageSize: int
 
 
-#
 TokenResult = TypedDict('TokenResult',
                         {'access_token': str,
                          'refresh_token': str,

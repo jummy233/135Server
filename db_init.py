@@ -180,13 +180,13 @@ def load_location() -> None:
 
 
 def load_projects():
-    logger.debug('- create proejcts')
+    logger.debug('- create projcts')
     path = os.path.join(current_dir, 'dataGetter/static/projects.json')
     with open(path, 'r') as f:
         data: Dict = json.loads(f.read())
 
-    if Project.query.all():
-        return None
+    # if Project.query.all():
+    #     return None
 
     for proj_json in data['data']:
 
@@ -208,9 +208,15 @@ def load_projects():
         proj_json['location'] = location
 
         # construct company
-        proj_json['tech_support_company'] = {'company_name': proj_json['tech_support_company']}
-        proj_json['project_company'] = {'company_name': proj_json['project_company']}
-        proj_json['construction_company'] = {'company_name': proj_json['construction_company']}
+        proj_json['tech_support_company'] = {
+            'company_name': proj_json['tech_support_company']
+        }
+        proj_json['project_company'] = {
+            'company_name': proj_json['project_company']
+        }
+        proj_json['construction_company'] = {
+            'company_name': proj_json['construction_company']
+        }
 
         ModelOperations.Add.add_project(proj_json)
 
@@ -264,8 +270,8 @@ class JianyanyuanLoadFull:
             with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
                 json_data: Dict = json.loads(f.read())
                 projects = [(Project
-                            .query
-                            .filter_by(project_name=pn)).first() for pn in json_data.keys()]
+                             .query
+                             .filter_by(project_name=pn)).first() for pn in json_data.keys()]
 
             names: List[Tuple[str, str]] = list(map(lambda p:
                                                     (spotname_from_projectname(p.project_name),
@@ -275,7 +281,8 @@ class JianyanyuanLoadFull:
             for spot_name, project_name in names:
 
                 if not Spot.query.filter_by(spot_name=spot_name).first():
-                    project = Project.query.filter_by(project_name=project_name).first()
+                    project = Project.query.filter_by(
+                        project_name=project_name).first()
                     if not project:  # project doesn't exist, skip it.
                         continue
 
@@ -294,7 +301,8 @@ class JianyanyuanLoadFull:
 
                 project_name = s.get('project_name')
                 fuzzon = partial(fuzz.partial_ratio, project_name)
-                fuzz_results: List[float] = list(map(lambda p: fuzzon(p.project_name), projects))
+                fuzz_results: List[float] = list(
+                    map(lambda p: fuzzon(p.project_name), projects))
                 max_ratio = max(fuzz_results)
 
                 if max_ratio > 40:  # > 40 means a good match
@@ -365,7 +373,8 @@ class JianyanyuanLoadFull:
 
             project: Optional[Project] = None  # get project for spot.
             if max_address_ratio > max_extra_ratio:
-                project = projects[fuzz_address_results.index(max_address_ratio)]
+                project = projects[fuzz_address_results.index(
+                    max_address_ratio)]
 
             else:
                 project = projects[fuzz_extra_results.index(max_extra_ratio)]
@@ -373,7 +382,8 @@ class JianyanyuanLoadFull:
             if not project:
                 return None
 
-            spot: Spot = Spot.query.filter_by(project=project).first()  # use project to query spot.
+            # use project to query spot.
+            spot: Spot = Spot.query.filter_by(project=project).first()
             if not spot:
                 return None
             return spot
@@ -535,18 +545,19 @@ def db_init(full=False):
 
     logger.info('<Main Thread> Start to load project informations ... ')
 
-    load_climate_area()
-    load_location()
+    #load_climate_area()
+    # load_location()
     load_projects()
 
     logger.info('<Main Thread> Finsih loading project informations ... ')
-    if full:
-        logger.info('<Main Thread> Start to load devices and spot record... ')
+    # if full:
+    #     logger.info('<Main Thread> Start to load devices and spot record... ')
 
-        load_data = JianyanyuanLoadFull(datapoint_thread_num=50, datapoint_from=1000)
-        load_data.load_spots()
-        load_data.load_devices()
-        load_data.load_spot_records()
+    #     load_data = JianyanyuanLoadFull(
+    #         datapoint_thread_num=50, datapoint_from=1000)
+    #     load_data.load_spots()
+    #     load_data.load_devices()
+    #     load_data.load_spot_records()
 
-        logger.info('<Main Thread> Finsihed loading Data ... ')
-        load_data.close()
+    #     logger.info('<Main Thread> Finsihed loading Data ... ')
+    #     load_data.close()

@@ -1,5 +1,6 @@
 from multiprocessing import Process
 from queue import Queue
+from datetime import datetime as dt
 from threading import RLock, Timer
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
@@ -9,7 +10,7 @@ from logger import make_logger
 from .. import authConfig
 from ..apis import xiaomiGetter as xGetter
 from ..dateSequence import DateSequence, date_sequence
-from timeutils.time import back7daytuple_generator, datetime_to_str, str_to_datetime
+from timeutils.time import back7daytuple_generator, datetime_to_str, str_to_datetime, timestamp_setdigits
 from .dataType import (Device, Location, RealTimeSpotData, Spot, SpotData,
                        SpotRecord)
 
@@ -17,6 +18,38 @@ logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
 
 logger.addHandler
+
+deviceResources: Dict = {
+    'lumi.acpartner.v3': ["on_off_status", "cost_energy"],  # AC
+    'lumi.gateway.aq1': [],  # ignore
+    'lumi.plug.v1': ["plug_status", "cost_energy"],  # AC
+    'lumi.sensor_ht.v1': ["humitidy_value", "temperature_value"],
+    'lumi.sensor_magnet.v2': ["magnet_status"],
+    'lumi.sensor_motion.v2': []  # ignore
+}
+
+
+def ResJSONParam(TypedDict):
+    did: str
+    attrs: List[str]
+
+
+def mkResouceParam(
+        device: xGetter.DeviceData,
+        start: dt,
+        end: dt,
+        pn: int = 1,
+        psz: int = 300) -> Dict:
+    did = device.get('did')
+    model = device.get('model')
+    attrs = deviceResources.get(model)
+    return {
+        'did': did,
+        'attrs': attrs,
+        'startTime': str(timestamp_setdigits(start.timestamp(), 13)),
+        'pageNum': pn,
+        'pageSize': psz
+    }
 
 
 class XiaoMiData(SpotData, RealTimeSpotData):
@@ -29,7 +62,8 @@ class XiaoMiData(SpotData, RealTimeSpotData):
     def __init__(self):
         # get authcode and token
         self.auth: xGetter.AuthData = authConfig.xauth
-        self.token: Optional[xGetter.TokenResult] = xGetter._get_token(self.auth)
+        self.token: Optional[xGetter.TokenResult] = xGetter._get_token(
+            self.auth)
         self.refresh: Optional[str] = None
         self.rlock = RLock()
 
@@ -52,7 +86,8 @@ class XiaoMiData(SpotData, RealTimeSpotData):
             token_worker.close()
 
             if not self.token:
-                logger.critical('%s %s', self.source, Spot.token_fetch_error_msg)
+                logger.critical('%s %s', self.source,
+                                Spot.token_fetch_error_msg)
                 raise ConnectionError(self.source, Spot.token_fetch_error_msg)
 
         def init_device_list(device_list) -> Optional[Tuple[int, List[xGetter.DeviceResult]]]:

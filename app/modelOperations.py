@@ -248,13 +248,17 @@ class ModelOperations(ModelInterfaces):
                 if not isinstance(project_data, PostData):
                     return None
 
-                project = Project.query.filter_by(project_name=project_data.get('project_name')).first()
+                project = Project.query.filter_by(
+                    project_name=project_data.get('project_name')).first()
                 if project:
                     logger.debug('project exists')
+                    project = ModelOperations.Update.update_project(
+                        project_data)
                     return project
 
                 try:
-                    new_project: Optional[Project] = ModelOperations._make_project(project_data)
+                    new_project: Optional[Project] = ModelOperations._make_project(
+                        project_data)
                     db.session.add(new_project)
 
                     if cache is not None and new_project is not None:
@@ -265,7 +269,8 @@ class ModelOperations(ModelInterfaces):
                     logger.error("Error! add_project failed {}".format(e))
                     raise
                 except ValueError as e:
-                    logger.error("Error! add_project with unmatched value {}".format(e))
+                    logger.error(
+                        "Error! add_project with unmatched value {}".format(e))
                     raise
                 except IntegrityError as e:
                     logger.error("Error! add_project :  {}".format(e))
@@ -284,9 +289,11 @@ class ModelOperations(ModelInterfaces):
                     return None
 
                 if cache is not None:
-                    spot = get_cache(cache, ModelDataEnum._Spot, spot_data.get("spot_name"))
+                    spot = get_cache(cache, ModelDataEnum._Spot,
+                                     spot_data.get("spot_name"))
                 else:
-                    spot = Spot.query.filter_by(spot_name=spot_data["spot_name"]).first()
+                    spot = Spot.query.filter_by(
+                        spot_name=spot_data["spot_name"]).first()
 
                 if spot:
                     logger.debug('spot exists')
@@ -302,7 +309,8 @@ class ModelOperations(ModelInterfaces):
                         cache[ModelDataEnum._Spot][new_spot.spot_name] = new_spot
 
                 except IndexError as e:
-                    logger.error("Error! add_generic_view failed: {}".format(e))
+                    logger.error(
+                        "Error! add_generic_view failed: {}".format(e))
                     raise
                 except ValueError as e:
                     logger.error(
@@ -388,7 +396,8 @@ class ModelOperations(ModelInterfaces):
                                       normalize_time(5)))
 
                 # query with device id or device name
-                device: Union[Device, str, None] = spot_record_data.get('device')
+                device: Union[Device, str,
+                              None] = spot_record_data.get('device')
 
                 if not isinstance(device, Device):
 
@@ -409,7 +418,8 @@ class ModelOperations(ModelInterfaces):
                 # change in 2020-01-21
                 # generate cache key for records in _LRUDictionary.
                 if isinstance(spot_record_time, dt) and isinstance(device, Device):
-                    cache_key: Optional[GlobalCacheKey] = (spot_record_time, device)
+                    cache_key: Optional[GlobalCacheKey] = (
+                        spot_record_time, device)
                 else:
                     cache_key = None
 
@@ -487,7 +497,8 @@ class ModelOperations(ModelInterfaces):
 
                 new_od_spot = None
                 try:  # need id and name to create a new weather spot when it doesn't exsit
-                    new_od_spot = ModelOperations._make_outdoor_spot(od_spot_data)
+                    new_od_spot = ModelOperations._make_outdoor_spot(
+                        od_spot_data)
                     db.session.add(new_od_spot)
 
                     if cache is not None and new_od_spot is not None:
@@ -495,14 +506,16 @@ class ModelOperations(ModelInterfaces):
                         NotImplementedError
 
                 except IndexError as e:
-                    logger.error("Error! add_outdoor_spot failed: {}".format(e))
+                    logger.error(
+                        "Error! add_outdoor_spot failed: {}".format(e))
                     raise
                 except ValueError as e:
                     logger.error(
                         "Error! add_outdoor_spot with unmatched value: {}".format(e))
                     raise
                 except IntegrityError as e:
-                    logger.error("Error! add_outdoor_spot failed : {}".format(e))
+                    logger.error(
+                        "Error! add_outdoor_spot failed : {}".format(e))
                     raise
 
                 return new_od_spot
@@ -652,7 +665,8 @@ class ModelOperations(ModelInterfaces):
                                       normalize_time(5)))
 
                 # query with device id or device name
-                device: Union[Device, str, None] = spot_record_data.get('device')
+                device: Union[Device, str,
+                              None] = spot_record_data.get('device')
                 if not isinstance(device, Device):
                     device = Device.query.filter_by(
                         device_id=spot_record_data.get("device")).first()
@@ -774,10 +788,12 @@ class ModelOperations(ModelInterfaces):
                     return
 
             except IntegrityError as e:
-                logger.error("Error happened when deleting project: {}".format(e))
+                logger.error(
+                    "Error happened when deleting project: {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error when deleting by delete_project: {}'.format(e))
+                logger.error(
+                    'Error when deleting by delete_project: {}'.format(e))
                 raise
 
         @staticmethod
@@ -799,7 +815,8 @@ class ModelOperations(ModelInterfaces):
 
         @staticmethod
         def delete_spot_record(rid: int) -> None:
-            spot_record = SpotRecord.query.filter_by(spot_record_id=rid).first()
+            spot_record = SpotRecord.query.filter_by(
+                spot_record_id=rid).first()
 
             try:
                 if spot_record:
@@ -810,7 +827,8 @@ class ModelOperations(ModelInterfaces):
                 logger.error("Error! delete_spot_record: : {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error delete by delete_spot_record: {}'.format(e))
+                logger.error(
+                    'Error delete by delete_spot_record: {}'.format(e))
                 raise
 
         @staticmethod
@@ -842,7 +860,8 @@ class ModelOperations(ModelInterfaces):
                 logger.error("Error! delete_outdoor_spot: : {}".format(e))
                 raise
             except Exception as e:
-                logger.error('Error delete by delete_outdoor_spot: {}'.format(e))
+                logger.error(
+                    'Error delete by delete_outdoor_spot: {}'.format(e))
                 raise
 
         # END Delete
@@ -866,9 +885,11 @@ class ModelOperations(ModelInterfaces):
             if outdoor_spot is None:
                 ...
             elif not isinstance(project_data.get("outdoor_spot"), OutdoorSpot):
-                outdoor_spot = ModelOperations.Add.add_outdoor_spot(outdoor_spot)
+                outdoor_spot = ModelOperations.Add.add_outdoor_spot(
+                    outdoor_spot)
 
-            location: Union[Location, Dict, None] = project_data.get("location")
+            location: Union[Location, Dict,
+                            None] = project_data.get("location")
             if location is None:
                 ...
             elif not isinstance(project_data.get("location"), Location):
@@ -894,10 +915,10 @@ class ModelOperations(ModelInterfaces):
 
                     if company_dict is not None:
                         company_name = company_dict.get('company_name')
-                    else:
-                        company_name = None
 
-                    if company_name == '' or company_name is None:
+                        if company_name != '':
+                            result['company_name'] = company_name
+                    else:
                         result['company_name'] = None
 
                     return result
@@ -972,7 +993,8 @@ class ModelOperations(ModelInterfaces):
                 return None
 
             # project id
-            project: Optional[Union[Project, str, int]] = spot_data.get('project')
+            project: Optional[Union[Project, str, int]
+                              ] = spot_data.get('project')
 
             if project is None:
                 ...

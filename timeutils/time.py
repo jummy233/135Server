@@ -1,7 +1,12 @@
 from datetime import datetime as dt
 from datetime import timedelta
 from math import floor
-from typing import Generator, Optional, Tuple, List
+from typing import Generator, Optional, Tuple, List, Union
+
+
+def timestamp_setdigits(ts: Union[float, int], digit: int) -> int:
+    factor: int = floor(10 ** (digit - 10))
+    return floor(int(ts) * factor)
 
 
 def currentTimestamp(digit: int) -> int:
