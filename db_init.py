@@ -448,9 +448,11 @@ class JianyanyuanLoadFull:
         There is no local table look up.
         All info come from dataMidware iterator
         """
-        spot_records: Iterator[Optional[Generator]] = islice(self.j.spot_record(),
-                                                             self.datapoint_from,
-                                                             None)
+        spot_records: Iterator[Optional[Generator]] = (
+            islice(self.j.spot_record(),
+                   self.datapoint_from,
+                   None)
+        )
         if not spot_records:
             logger.warning('empty spot record from JianYanYuanData')
             return None
@@ -472,8 +474,8 @@ class JianyanyuanLoadFull:
                     return
 
                 device = next(
-                    filter(lambda d: d.device_name == sr.get('device_name'), devices))
-
+                    filter(lambda d: d.device_name == sr.get('device_name'),
+                           devices))
                 sr["device"] = device
 
                 ModelOperations.Add.add_spot_record(sr)
