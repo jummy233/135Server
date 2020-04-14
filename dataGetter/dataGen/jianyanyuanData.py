@@ -316,8 +316,9 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
             startTime: str, yyyy-MM-ddTHH:mm:ss
             endTime: str, yyyy-MM-ddTHH:mm:ss
 
-        modelName, prodcutId for devices: 'ESIC-SN\\d{2,2}',     '001', indoor data
-                                          'ESIC-DTU-RB-RF06-2G', '003', AC power
+        modelName, prodcutId for devices:
+            'ESIC-SN\\d{2,2}',     '001', indoor data
+            'ESIC-DTU-RB-RF06-2G', '003', AC power
         """
         if not device_result:
             logger.error('no device result')
