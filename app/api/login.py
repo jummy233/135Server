@@ -22,7 +22,6 @@ def login() -> Json:
     post_data = request.get_json()
     response: ApiResponse = {}
 
-    print(post_data)
     if is_ApiRequest(post_data):
         stored = {}
         login_req = post_data.get('request')
@@ -31,9 +30,6 @@ def login() -> Json:
 
         with open('dataGetter/static/pw.json', 'r') as f:
             stored = json.loads(f.read())
-
-            print("---")
-            print(stored)
 
         if name == stored['name'] and pwhash == stored['pwhash']:
             response = ApiResponse(
