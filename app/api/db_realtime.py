@@ -2,23 +2,18 @@
 Return all the real time device.
 """
 
-import json
-from operator import itemgetter
 from typing import Generator, NewType, Union, List, Callable
 import datetime
-import queue
 import threading
 
 from flask import Response
-from flask import json as FlaskJson
 from flask import jsonify, request
 
 from dataGetter.dataGen.jianyanyuanData import JianYanYuanData
 from dataGetter.dataGen.xiaomiData import XiaoMiData
 from dataGetter.dataGen.dataType import SpotData
 
-from ..api_types import (ApiRequest, ApiResponse, PagingRequest, ReturnCode,
-                         is_ApiRequest)
+from ..api_types import ApiResponse, ReturnCode
 from ..models import Device, SpotRecord
 from . import api
 
@@ -63,35 +58,59 @@ def realtime_spot_record(did: int) -> Union[Response, Json]:
 
 class RealtimeGenProxy:
     """ fetch realtime data and existed data together """
-    date_back = 1
 
     def __init__(self, did: int):
+        self._reatimegen = RealTimeGen(did)
+
+    def generate(self) -> Generator:
+        while self._reatimegen._concate_generator() == []:
+            # yiedl proxy dummy data
+            yield
+
+        for item in self._reatimegen.generate():
+            yield item
+
+
+class RealTimeGen:
+    def __init__(self, did: int):
         self.did = did
-        self.__init_device(did)
-        self.__init_datasource(did)
+        self._init_datasource(did)
+        self._init_datastream()
 
-    def __init_device(self, did: int):
-        self.device = (Device
-                       .query
-                       .filter(Device.device_id == did)
-                       .first())
+    def generate(self) -> Generator:
+        if self._db_datasource_event.is_set() \
+                and self._datastream_event.is_set():
+            for generator in self._concate_generator():
+                for item in generator:
+                    yield item
 
-    def __init_datasource(self, did: int):
+    def _init_datasource(self, did: int):
+        self._db_datasource: List = []
+        self._db_datasource_event = threading.Event()
         self.current = datetime.datetime.now()
         self.yesterday = self.current - datetime.timedelta(days=1)
-        self.__datasource: List = [JianYanYuanData()]  # TODO xiaomi
-        self.__db_datasource = (
-            SpotRecord
-            .query
-            .filter(Device.device_id == did)
-            .filter(SpotRecord.spot_record_time
-                    < self.yesterday)
-            .all())
 
-    def __concate_generator(self):
-        return [self.__db_datasource].extend(self.__datasource)
+        def getdata():
+            self._db_datasource = (
+                SpotRecord
+                .query
+                .filter(Device.device_id == did)
+                .filter(SpotRecord.spot_record_time >= self.yesterday)
+                .all())
 
-    def generate(self):
-        for generator in self.__concate_generator():
-            for item in generator:
-                yield item
+        t = threading.Thread(target=getdata)
+        t.start()
+
+    def _init_datastream(self):
+        self._datastream: List = []
+        self._datastream_event = threading.Event()
+
+        def getdata():
+            self._datastream = JianYanYuanData().spot_record()
+
+        t = threading.Thread(target=getdata)
+        t.start()
+        self._datastream_event.set()
+
+    def _concate_generator(self):
+        return [self._db_datasource].extend(self._datasource)

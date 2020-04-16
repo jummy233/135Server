@@ -68,15 +68,3 @@ class SpotData(ABC):
         value returned will be used to fill `device` table in database schema.
         """
 
-
-class RealTimeSpotData(ABC):
-    """ RealTime mixin """
-    token_fetch_error_msg: str = 'Token fetch Error: Xiaomi Token Error, didn\'t refresh token'
-    datetime_time_eror_msg: str = 'Datetime error: Incorrect datetime'
-
-    @abstractmethod
-    def rt_spot_record(self) -> Optional[Generator[Optional[SpotRecord], dt, str]]:
-        """
-        Get spot record data include temperature, humidity pm2.5 etc in real time.
-        value returned are used to fill `spot_record` table in database schema.
-        """

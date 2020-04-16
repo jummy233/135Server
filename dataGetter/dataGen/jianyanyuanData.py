@@ -9,7 +9,10 @@ from threading import RLock, Timer
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
+import app.models as db
 from logger import make_logger
+from timeutils.time import (back7daytuple_generator, datetime_to_str,
+                            str_to_datetime)
 
 from .. import authConfig
 from ..apis import jianyanyuanGetter as jGetter
@@ -17,18 +20,19 @@ from ..apis.jianyanyuanGetter import DataPointParam as JdatapointParam
 from ..apis.jianyanyuanGetter import DataPointResult as JdatapointResult
 from ..apis.jianyanyuanGetter import DeviceParam as JdevParam
 from ..apis.jianyanyuanGetter import DeviceResult as JdevResult
-from timeutils.time import back7daytuple_generator, datetime_to_str, str_to_datetime
-from .dataType import (Device, Location, RealTimeSpotData, Spot, SpotData,
-                       SpotRecord)
+from .dataType import Device, Location, Spot, SpotData, SpotRecord
+from .tokenManager import TokenManager
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
 
 logger.addHandler
 
+LazySpotRecord = Callable[[], Optional[Generator]]
+
 ######################################
 #  These are intermidiate data       #
-#   structrues!!                     #
+#   structrues                       #
 #  Datatype returned by midware.     #
 #  These data will be further piped  #
 #  into DBRecorder module to finally #
@@ -36,7 +40,7 @@ logger.addHandler
 ######################################
 
 
-class JianYanYuanData(SpotData, RealTimeSpotData):
+class JianYanYuanData(SpotData):
     """
     Jianyanyuan data getter implementation
     """
@@ -57,52 +61,27 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
     def __init__(self, datetime_range: Optional[Tuple[dt, dt]] = None):
         logger.info('init JianYanYuanData')
         self.auth = authConfig.jauth
-        self.token = jGetter._get_token(self.auth)
-        self.rlock = RLock()
+        self.tokenManager = TokenManager(
+            lambda: jGetter._get_token(self.auth),
+            JianYanYuanData.expires_in)
+        self.tokenManager.start()
 
-        if datetime_range is not None:  # data within this date will be collected.
+        # data within this date will be collected.
+        if datetime_range is not None:
+            self.datetime_range = datetime_range
 
-            self.startAt, self.endWith = datetime_range
-
-        if not self.token:
-
+        if not self.tokenManager.token:
             logger.critical('%s %s', self.source,
                             SpotData.token_fetch_error_msg)
             raise ConnectionError(self.source, SpotData.token_fetch_error_msg)
 
-        def _refresh_token():  # token will expire. So need to be refreshed periodcially.
-            """
-            Refresh token. it will run on a separate process to avoid block operations on
-            current process.
-            """
-
-            def worker(q: Queue):
-                with self.rlock:
-                    setattr(q.get(), 'token', jGetter._get_token(self.auth))
-
-            q: Queue = Queue()
-            # refresh token in another process and pause the current one.
-            token_worker = Process(target=worker, args=(q,))
-
-            token_worker.start()
-            token_worker.join()
-            token_worker.close()
-
-            if not self.token:
-                logger.critical('%s %s', self.source,
-                                Spot.token_fetch_error_msg)
-                raise ConnectionError(self.source, Spot.token_fetch_error_msg)
-
-            # reset timer.
-            self.timer = Timer(JianYanYuanData.expires_in - 5, _refresh_token)
-            self.timer.start()
-
-        self.timer = Timer(JianYanYuanData.expires_in - 5, _refresh_token)
-        self.timer.start()
-
         # common states
         self.device_list = jGetter._get_device_list(
             self.auth, self.token, cast(Dict, JianYanYuanData.device_params))
+
+    @property
+    def token(self):
+        return self.tokenManager.token
 
     def close(self):
         """ tear down """
@@ -115,17 +94,75 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
         if not self.device_list:
             return None
 
-        return (self.make_spot(self.make_location(d)) for d in self.device_list)
+        return (_MkDict.make_spot(_MkDict.make_location(d))
+                for d in self.device_list)
 
-    def spot_record(self) -> Iterator[Callable[[], Optional[Generator]]]:
-        """
-        Return  Generator of SpotRecord of a specific Spot
-        """
-
+    def spot_record(self, did: Optional[int] = None) \
+            -> Iterator[LazySpotRecord]:
+        sr = None
         if not self.device_list:
             return iter([])
 
-        def _datapoint_param_iter() -> Optional[Iterator[JdatapointParam]]:
+        if did is None:
+            sr = self._SpotRecord(self).all()
+        else:
+            sr = (self._SpotRecord(self)
+                  .one(did, self.datetime_range))
+
+        if not any(sr):
+            return iter([])
+        return sr
+
+    def device(self) -> Optional[Generator]:
+        if not self.device_list:
+            return None
+        return (_MkDict.make_device(d) for d in self.device_list)
+    ####################################
+    #  spot_location helper functions  #
+    ####################################
+
+    class _SpotRecord:
+        """
+        Handle spotrecord
+        """
+
+        def __init__(self, data: 'JianYanYuanData'):
+            self.data = data
+
+        @property
+        def device_list(self):
+            return self.data.device_list
+
+        @property
+        def token(self):
+            return self.data.token
+
+        @property
+        def auth(self):
+            return self.data.auth
+
+        def one(self, did: int, daterange: Tuple[dt, dt]):
+            """ result for specfic device """
+            device = db.Device.query.filter(db.Device.device_id == did).first()
+            dn = device.device_name
+            device_res = [d for d in self.device_list
+                          if d.get("deviceId") == dn].pop()
+
+            params_list = self._make_datapoint_param(device_res, daterange)
+            return self._gen(params_list)
+
+        def all(self):
+            datapoint_params = self._datapoint_param_iter()
+            if datapoint_params is None:
+                return lambda: iter([])
+            params_list = list(datapoint_params)  # construct param list
+            self.gen(params_list)
+
+        def _gen(self, datapoint_params):
+            datapoints = map(self._datapoint, datapoint_params)
+            return self.gen(datapoints, datapoint_params)
+
+        def _datapoint_param_iter(self) -> Optional[Iterator[JdatapointParam]]:
             """
             Datapoint paramter generator. One parameter match to one datapoint.
             No side effect. just use local device_list fetched eailer to make
@@ -137,238 +174,152 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
                 return None
 
             logger.info('[dataMidware] creating Jianyanyuan datapoint params')
-            # Fetch data within 7 day periodcially. use 7 day is because the api can only fetch
-            # data of 7 data at once.
+            # Fetch data within 7 day periodcially. use 7 day is because the
+            # api can only fetch data of 7 data at once.
 
-            datapoint_param_iter: Iterator[JdatapointParam] = chain.from_iterable(
-                (
-                    filter(
-                        None,
-                        (
-                            # JianYanYuanData._make_datapoint_param(d, back7tuple)
-                            JianYanYuanData._make_datapoint_param(
+            _iter = (filter(None,
+                            (JianYanYuanData._SpotRecord._make_datapoint_param(
                                 d, back7tuple)
-                            for back7tuple
-                            in back7daytuple_generator(str_to_datetime(d.get('createTime')))
-                        )
-
-                    )
-                    for d
-                    in self.device_list
-                )
-            )
+                             for back7tuple
+                             in back7daytuple_generator(
+                                str_to_datetime(d.get('createTime')))))
+                     for d
+                     in self.device_list)
+            datapoint_param_iter = chain.from_iterable(_iter)
 
             if not any(datapoint_param_iter):
-
                 logger.warning(JianYanYuanData.source +
                                'No datapoint parameter.')
                 return None
-
             return datapoint_param_iter
 
-        def _datapoint(datapoint_param: Optional[JdatapointParam]
-                       ) -> Optional[List[JdatapointResult]]:
-            """
-            @SIDE EFFECT
-            @param datapoint_param: element of datapoint_param_iter, prepared separately.
-
-            datapoint of one device
-            """
+        def _datapoint(self, datapoint_param: Optional[JdatapointParam]) \
+                -> Optional[List[JdatapointResult]]:
+            """ datapoint of one device """
             if not datapoint_param:
                 return None
 
             logger.debug('getting datapoint {}'.format(datapoint_param))
+            return jGetter._get_data_points(
+                self.auth, self.token, datapoint_param)
 
-            return jGetter._get_data_points(self.auth, self.token, datapoint_param)
-
-        def _datapoint_iter(datapoint_param_iter: Optional[Iterator]
-                            ) -> Optional[Iterator
-                                          [Optional
-                                           [List[JdatapointResult]]]]:
-            """
-            datapoint data generator.
-
-            @param datapoint_param: datapoint_param_iter, prepared separately.
-
-            It map _datapoint on  _datapoint_param_iter and yield
-            a iterator of datapoint as list.
-            """
-            logger.info('[dataMidware] creating Jianyanyuan datapoint iter')
-
-            if datapoint_param_iter is None:
-                logger.error('empty datapoint_param_iter')
-                return None
-
-            datapoint_iter = (
-                _datapoint(param)
-                for param
-                in datapoint_param_iter
-            )
-
-            if not any(datapoint_iter):
-                logger.warning(JianYanYuanData.source + 'No datapoint list.')
-                return None
-
-            return datapoint_iter
-        # construct spot_record
-
-        datapoint_params: Optional[Iterator[JdatapointParam]
-                                   ] = _datapoint_param_iter()
-
-        if datapoint_params is None:
-            return iter([])
-
-        params_list = list(datapoint_params)  # construct param list
-
-        datapoints: Iterator[                 # construct datapoint iter
-            Optional[List[JdatapointResult]]] = map(_datapoint, params_list)
-
-        ###############################################
-        #  Core strucure for recording spot record !  #
-        ###############################################
-
-        def spot_records_gen() -> Generator[
-                Callable[
-                    [],
-                    Optional[Generator[Optional[SpotRecord], None, None]]],
-                None, None]:
-            """
-            Return a generator iter througth an effectful generator.
-            Better
-            """
-
-            def records_factory(
-                    arg: Iterator[
-                        Tuple[Optional[List[JdatapointResult]],
-                              JdatapointParam]]
-            ) -> Optional[Generator[Optional[SpotRecord], None, None]]:
+            def _datapoint_iter(datapoint_param_iter: Optional[Iterator]) \
+                    -> Optional[Iterator[Optional[List[JdatapointResult]]]]:
                 """
-                generate generator of record data.
-                """
+                datapoint data generator.
 
-                try:
-                    data, param = next(arg)
-                except StopIteration:
+                :param
+                datapoint_param: datapoint_param_iter, prepared separately.
+
+                It map _datapoint on  _datapoint_param_iter and yield
+                a iterator of datapoint as list.
+                """
+                logger.info(
+                    '[dataMidware] creating Jianyanyuan datapoint iter')
+
+                if datapoint_param_iter is None:
+                    logger.error('empty datapoint_param_iter')
                     return None
 
-                return (
-                    None if data is None else
-                    (JianYanYuanData.make_spot_record(sr, param)
-                     for sr in data)
-                )
+                datapoint_iter = (
+                    self._datapoint(param)
+                    for param
+                    in datapoint_param_iter)
 
+                if not any(datapoint_iter):
+                    logger.warning(JianYanYuanData.source +
+                                   'No datapoint list.')
+                    return None
+
+                return datapoint_iter
+
+        def gen(self, datapoints, params_list) \
+            -> Generator[
+                Callable[
+                    [], Optional[Generator[Optional[SpotRecord], None, None]]],
+                None,
+                None]:
+            """
+            Entrance generator.
+            Return a generator iter througth an effectful generator
+            """
             # construct spot_records generator.
-
-            # NOTE Sideeffet is wrapped here
-            # it is the first layer of generator.
-
+            # sideeffet is wrapped here. It is the first layer of generator.
             effectful_pair = zip(datapoints, params_list)
 
             # send out a slice of iterator rather than eval it.
             try:
                 while True:
-                    # lazy eval.
-                    yield lambda: records_factory(islice(effectful_pair, 1))
-
+                    yield (lambda: self._records_factory(
+                        islice(effectful_pair, 1)))
             except StopIteration:
-                ...
+                return
 
-        spot_records = spot_records_gen()
+        def _records_factory(self, arg: Iterator[Tuple[
+            Optional[List[JdatapointResult]], JdatapointParam]]) \
+                -> Optional[Generator[Optional[SpotRecord], None, None]]:
+            """
+            generate generator of record data.
+            """
+            data, param = next(arg)
+            return (None if data is None
+                    else
+                    (_MkDict.make_spot_record(sr, param) for sr in data))
 
-        if not any(spot_records):
-            return iter([])
+        @staticmethod
+        def _make_datapoint_param(
+            device_result: JdevResult,
+            time_range: Optional[Tuple[dt, dt]] = None) \
+                -> Optional[JdatapointParam]:
+            """
+            make query parameter datapoint query.
+            DataPoint query parameter format:
+                gid: str
+                did: str
+                aid: int
+                startTime: str, yyyy-MM-ddTHH:mm:ss
+                endTime: str, yyyy-MM-ddTHH:mm:ss
+            """
+            if not device_result:
+                logger.error('no device result')
+                return None
 
-        return spot_records
+            gid = device_result.get('gid')
+            did = device_result.get('deviceId')
+            createTime = str_to_datetime(device_result.get('createTime'))
+            modifyTime = str_to_datetime(device_result.get('modifyTime'))
 
-    def device(self) -> Optional[Generator]:
-        if not self.device_list:
-            return None
-        return (self.make_device(d) for d in self.device_list)
+            def get_aid() -> str:
+                return '1,2,3,4,32,155'
 
-    ####################################
-    #  spot_location helper functions  #
-    ####################################
+            if not time_range:
+                startTime: Optional[dt] = createTime
+                endTime: Optional[dt] = (
+                    modifyTime if modifyTime  # 1 hour gap avoid bug.
+                    else dt.utcnow() - timedelta(hours=1))
+            # check if datetimes are valid
+            else:
+                startTime, endTime = time_range
+                # handle impossible date.
+                if createTime and startTime < createTime:
+                    startTime = createTime
 
-    @staticmethod
-    def _filter_location_attrs(device_result: JdevResult,
-                               location_attrs: Dict) -> Dict:
-        """
-        filter location attributes from device results
-        """
-        return {k: v for k, v
-                in device_result.items()
-                if k in location_attrs}
+                if endTime > dt.utcnow():
+                    endTime = (modifyTime if modifyTime
+                               else dt.utcnow() - timedelta(hours=1))
 
-    ##################################
-    #  spot_record helper functions  #
-    ##################################
+            datapoint_params: JdatapointParam = (
+                JdatapointParam(
+                    gid=gid,
+                    did=did,
+                    aid=get_aid(),
+                    startTime=datetime_to_str(startTime),
+                    endTime=datetime_to_str(endTime)))
+            return datapoint_params
 
-    @staticmethod
-    def _make_datapoint_param(device_result: JdevResult,
-                              time_range: Optional[Tuple[dt, dt]] = None
-                              ) -> Optional[JdatapointParam]:
-        """
-        make query parameter datapoint query.
-        DataPoint query parameter format:
-            gid: str
-            did: str
-            aid: int
-            startTime: str, yyyy-MM-ddTHH:mm:ss
-            endTime: str, yyyy-MM-ddTHH:mm:ss
 
-        modelName, prodcutId for devices:
-            'ESIC-SN\\d{2,2}',     '001', indoor data
-            'ESIC-DTU-RB-RF06-2G', '003', AC power
-        """
-        if not device_result:
-            logger.error('no device result')
-            return None
-
-        gid = device_result.get('gid')
-        did = device_result.get('deviceId')
-        createTime = str_to_datetime(device_result.get('createTime'))
-        modifyTime = str_to_datetime(device_result.get('modifyTime'))
-
-        def get_aid() -> str:
-            return '1,2,3,4,32,155'
-
-        if not time_range:
-            startTime: Optional[dt] = createTime
-            endTime: Optional[dt] = (modifyTime if modifyTime
-                                     else dt.utcnow() - timedelta(hours=1))  # 1 hour gap avoid bug.
-        # check if datetimes are valid
-
-        else:
-            startTime, endTime = time_range
-
-            # handle impossible date.
-            if createTime and startTime < createTime:
-                startTime = createTime
-
-            if endTime > dt.utcnow():
-                endTime = (modifyTime if modifyTime
-                           else dt.utcnow() - timedelta(hours=1))
-
-        datapoint_params: JdatapointParam = (
-            JdatapointParam(
-                gid=gid,
-                did=did,
-                aid=get_aid(),
-                startTime=datetime_to_str(startTime),
-                endTime=datetime_to_str(endTime)))
-
-        return datapoint_params
-
-    ######################
-    #  Real time         #
-    ######################
-
-    def rt_spot_record(self):
-        ...
-
-    ########################################
-    # Convert json result into TypedDict   #
-    ########################################
+class _MkDict:
+    """ Convert json response from server into TypedDict """
 
     @staticmethod
     def make_location(device_result: JdevResult) -> Location:
@@ -384,7 +335,7 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
         # filter location attributes from device result lists.
         make_attrs: Callable = partial(
-            JianYanYuanData._filter_location_attrs,
+            _MkDict._filter_location_attrs,
             location_attrs=location_attrs)
 
         # attrses: Iterator = map(make_attrs, self.device_list)
@@ -471,9 +422,19 @@ class JianYanYuanData(SpotData, RealTimeSpotData):
 
     @staticmethod
     def make_device(device_result: JdevResult) -> Device:
-        return Device(location_info=JianYanYuanData.make_location(device_result),
+        return Device(location_info=_MkDict.make_location(device_result),
                       device_name=device_result.get('deviceId'),
                       online=device_result.get('online'),
                       device_type=device_result.get('productName'),
                       create_time=device_result.get('createTime'),
                       modify_time=device_result.get('modifyTime'))
+
+    @staticmethod
+    def _filter_location_attrs(device_result: JdevResult,
+                               location_attrs: Dict) -> Dict:
+        """
+        filter location attributes from device results
+        """
+        return {k: v for k, v
+                in device_result.items()
+                if k in location_attrs}
