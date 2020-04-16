@@ -173,23 +173,18 @@ def spot_record_paged(did: int):
 # append outdoor records
 # TODO 2020-01-09
 # od_spot = Device.query.filter_by(device_id=did).first().spot.project.outdoor_spot
-
 # spot_rec_hour: datetime = (
 #     spot_rec
 #     .spot_record_time
 #     .replace(minute=0, second=0, microsecond=0))
-
 # dhour = timedelta(hours=1)
-
 # od_rec = (OutdoorRecord
 #           .query
 #           .filter(and_(
 #               OutdoorRecord.
 #               outdoor_record_time >= spot_rec_hour,
-
 #               OutdoorRecord.
 #               outdoor_record_time < spot_rec_hour + dhour))
 #           .first())
-
 # spot_rec_json = spot_rec.to_json()
 # od_spot_json = od_spot.to_json()

@@ -1,11 +1,8 @@
 from flask import Flask
-from flask_bootstrap import Bootstrap
-from flask_mail import Mail
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from config import config
-from typing import Optional
 from .caching import CacheInstance
 
 from logger import make_logger
@@ -27,7 +24,9 @@ def create_app(config_name: str) -> Flask:
     # application factory function.
 
     app = Flask(__name__)
-    app.config.from_object(config[config_name])  # create app with specific configuration.
+
+    # load config
+    app.config.from_object(config[config_name])
     config[config_name].init_app(app)
 
     moment.init_app(app)
@@ -46,4 +45,3 @@ def create_app(config_name: str) -> Flask:
 
 
 logger.info('app module loaded')
-

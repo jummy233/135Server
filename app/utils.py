@@ -73,15 +73,16 @@ def normalize_time(step_min: int) -> Callable:
                     dt.hour,
                     0) + timedelta(hours=1)
             else:
-                normalized_time = datetime(dt.year, dt.month, dt.day, dt.hour, minute)
-
+                normalized_time = \
+                    datetime(dt.year, dt.month, dt.day, dt.hour, minute)
             return normalized_time
-        else:                                    # cross hours, accurate to nearest hour
+        else:
+            # cross hours, accurate to nearest hour
+            # e,g ((240 + 32) / 120) * 120 = 240
             step_num = round((dt.hour * 60 + dt.minute) / step_min)
-            minutes = step_num * step_min          # e,g ((240 + 32) / 120) * 120 = 240
-            hour = minutes / 60                    # 240 / 60 = 4
-            normalized_time = datetime(dt.year, dt.month, dt.day) + timedelta(hours=hour)
+            minutes = step_num * step_min
+            hour = minutes / 60  # 240 / 60 = 4
+            normalized_time = datetime(
+                dt.year, dt.month, dt.day) + timedelta(hours=hour)
             return normalized_time
     return f
-
-

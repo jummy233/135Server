@@ -1,13 +1,12 @@
-from flask import jsonify
-from . import api
-from ..models import User
+import json
+from typing import NewType, Optional, TypedDict
 
 from flask import json as FlaskJson
 from flask import jsonify, request
-from ..api_types import ApiRequest, ApiResponse, ReturnCode, is_ApiRequest
 
-import json
-from typing import NewType, Optional, TypedDict
+from ..api_types import ApiRequest, ApiResponse, ReturnCode, is_ApiRequest
+from ..models import User
+from . import api
 
 Json = NewType('Json', str)
 

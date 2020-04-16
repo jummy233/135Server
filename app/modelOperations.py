@@ -10,16 +10,15 @@ from abc import ABC, abstractmethod
 from copy import copy
 from datetime import datetime as dt
 from logging import DEBUG
-from typing import (ByteString, Callable, Dict, List, NewType, Optional, Tuple,
-                    TypedDict, Union)
+from typing import (ByteString, Callable, Dict, List, Optional, Union)
 
 from sqlalchemy import and_, exists
 from sqlalchemy.exc import IntegrityError
 
 from app.api_types import ApiRequest, ApiResponse, ReturnCode
 from app.utils import normalize_time
-from timeutils.time import str_to_datetime
 from logger import make_logger
+from timeutils.time import str_to_datetime
 
 from . import db
 from .caching.caching import Cache, get_cache
@@ -41,17 +40,10 @@ global_cache = app.global_cache
 # TODO lazy load global_cache.global_cacheall so it is fully initialized.
 PostData = Dict
 
-# load global_cache.global_cacheall lazily.
-# lazy_caching = lazyload('caching.cache_instance')
-
 
 @global_cache.global_cacheall
 def cacher_test(cache):
     print(cache)
-
-
-def interface(f):
-    return f
 
 
 def fromisoformat(dtstr: str) -> Optional[dt]:
@@ -111,10 +103,6 @@ def id_exist_in_db(id_entry, identifier: int):
     return db.session.query(
         exists().where(id_entry == identifier)).scalar()
 
-###############################
-#  Abstract class definition  #
-###############################
-
 
 class ModelInterfaces(ABC):
     """ Used as a namespace here """
@@ -148,12 +136,14 @@ class ModelInterfaces(ABC):
 
         @staticmethod
         @abstractmethod
-        def add_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
+        def add_spot_record(spot_record_data: PostData) \
+                -> Optional[SpotRecord]:
             """ add spot_record """
 
         @staticmethod
         @abstractmethod
-        def add_outdoor_spot(outdoor_spot_data: PostData) -> Optional[OutdoorSpot]:
+        def add_outdoor_spot(outdoor_spot_data: PostData) \
+                -> Optional[OutdoorSpot]:
             """ add outdoor_spot """
 
     class Update(ABC):
@@ -172,11 +162,13 @@ class ModelInterfaces(ABC):
             """ update spot """
         @staticmethod
         @abstractmethod
-        def update_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
+        def update_spot_record(spot_record_data: PostData) \
+                -> Optional[SpotRecord]:
             """ update spot_record """
         @staticmethod
         @abstractmethod
-        def update_outdoor_spot(outdoor_spot_data: PostData) -> Optional[OutdoorSpot]:
+        def update_outdoor_spot(outdoor_spot_data: PostData) -> \
+                Optional[OutdoorSpot]:
             """ update outdoor_spot """
 
     class Delete(ABC):
@@ -213,7 +205,8 @@ class ModelOperations(ModelInterfaces):
         def add_spot_record_batch(spot_record_data_list: List[PostData]):
 
             @global_cache.global_cacheall
-            def _add_spot_record_batch(cache: Optional[GlobalCache] = None) -> bool:
+            def _add_spot_record_batch(cache: Optional[GlobalCache] = None) \
+                    -> bool:
                 return True
             return _add_spot_record_batch(spot_record_data_list)
 
@@ -223,27 +216,19 @@ class ModelOperations(ModelInterfaces):
         def add_project(project_data: PostData):
 
             @global_cache.global_cacheall
-            def _add_project(cache: Optional[GlobalCache] = None) -> Optional[Project]:
+            def _add_project(cache: Optional[GlobalCache] = None) \
+                    -> Optional[Project]:
                 """
                 add project via project generic view
 
-                - if the operation is successed, it will a create a new project in db.
-
-                - if the given location, company, outdoor spot are not in db, the function
-
-                will create them.
-                - the operation will not create climate area that are not existed.
-
-                - the operation is atomic, it will only commit transaction after all
-                operations are successful.
-
-                Note: add_location, add_company, and add_outdoor_spot will return sqlalchemy
+                Note: add_location, add_company,
+                and add_outdoor_spot will return sqlalchemy
                 object directly if they exists in the db.
 
-                Note: foreign key values like location and company can be either
-                in from of json or sqlalchemy object. If it is the later case, directly
+                Note: foreign key values like location and
+                company can be either in from of json or
+                sqlalchemy object. If it is the later case, directly
                 use the object.
-
                 """
                 if not isinstance(project_data, PostData):
                     return None
@@ -257,13 +242,15 @@ class ModelOperations(ModelInterfaces):
                     return project
 
                 try:
-                    new_project: Optional[Project] = ModelOperations._make_project(
-                        project_data)
+                    new_project: Optional[Project] = (
+                        ModelOperations._make_project(
+                            project_data))
                     db.session.add(new_project)
 
                     if cache is not None and new_project is not None:
-                        cache[ModelDataEnum._Project][new_project.project_name] = new_project
-                        cache[ModelDataEnum._Project][new_project.project_id] = new_project
+                        _enum = ModelDataEnum._Project
+                        cache[_enum][new_project.project_name] = new_project
+                        cache[_enum][new_project.project_id] = new_project
 
                 except IndexError as e:
                     logger.error("Error! add_project failed {}".format(e))
@@ -283,17 +270,21 @@ class ModelOperations(ModelInterfaces):
         def add_spot(spot_data: PostData, core_db_operatoin: bool = False):
 
             @global_cache.global_cacheall
-            def _add_spot(cache: Optional[GlobalCache] = None) -> Optional[Spot]:
+            def _add_spot(cache: Optional[GlobalCache] = None) \
+                    -> Optional[Spot]:
 
                 if not isinstance(spot_data, PostData):
                     return None
 
                 if cache is not None:
-                    spot = get_cache(cache, ModelDataEnum._Spot,
-                                     spot_data.get("spot_name"))
+                    spot = get_cache(
+                        cache, ModelDataEnum._Spot,
+                        spot_data.get("spot_name"))
                 else:
-                    spot = Spot.query.filter_by(
-                        spot_name=spot_data["spot_name"]).first()
+                    spot = (Spot.query
+                            .filter_by(
+                                spot_name=spot_data["spot_name"])
+                            .first())
 
                 if spot:
                     logger.debug('spot exists')
@@ -306,15 +297,16 @@ class ModelOperations(ModelInterfaces):
                     db.session.add(new_spot)
 
                     if cache is not None and new_spot is not None:
-                        cache[ModelDataEnum._Spot][new_spot.spot_name] = new_spot
+                        _enum = ModelDataEnum._Spot
+                        cache[_enum][new_spot.spot_name] = new_spot
 
                 except IndexError as e:
                     logger.error(
                         "Error! add_generic_view failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logger.error(
-                        "Error! add_generic_view with unmatched value: {}".format(e))
+                    msg = f"Error! add_generic_view with unmatched value: {e}"
+                    logger.error(msg)
                     raise
                 except IntegrityError as e:
                     logger.error("Error! add_generic_view: : {}".format(e))
@@ -326,7 +318,8 @@ class ModelOperations(ModelInterfaces):
         def add_device(device_data: PostData):
 
             @global_cache.global_cacheall
-            def _add_device(cache: Optional[GlobalCache] = None) -> Optional[Device]:
+            def _add_device(cache: Optional[GlobalCache] = None) \
+                    -> Optional[Device]:
                 """ if no such location fond, create a new location """
 
                 # TODO 2020-01-04
@@ -335,19 +328,17 @@ class ModelOperations(ModelInterfaces):
 
                 if cache is not None:
                     logger.debug('add device')
-
-                    device = get_cache(cache,
-                                       ModelDataEnum._Device,
-                                       device_data.get("device_name"))
-
+                    device = get_cache(
+                        cache,
+                        ModelDataEnum._Device,
+                        device_data.get("device_name"))
                     logger.debug('device from cache {}'.format('device'))
                 else:
-
                     device = (Device
                               .query
-                              .filter_by(device_name=device_data.get("device_name"))
+                              .filter_by(
+                                  device_name=device_data.get("device_name"))
                               .first())
-
                 if device:
                     logger.debug('device exists')
                     return device
@@ -360,15 +351,16 @@ class ModelOperations(ModelInterfaces):
 
                     # add device into cache if it is not there.
                     if cache is not None and new_device is not None:
-                        cache[ModelDataEnum._Device][new_device.device_name] = new_device
-                        cache[ModelDataEnum._Device][new_device.device_id] = new_device
+                        _enum = ModelDataEnum._Device
+                        cache[_enum][new_device.device_name] = new_device
+                        cache[_enum][new_device.device_id] = new_device
 
                 except IndexError as e:
                     logger.error("Error! add_location failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logger.error(
-                        "Error! add_location with unmatched value: {}".format(e))
+                    msg = f"Error! add_location with unmatched value: {e}"
+                    logger.error(msg)
                     raise
                 except IntegrityError as e:
                     logger.error("Error! add_generic_view: {}".format(e))
@@ -385,19 +377,21 @@ class ModelOperations(ModelInterfaces):
         def add_spot_record(spot_record_data: PostData):
 
             @global_cache.global_cacheall
-            def _add_spot_record(cache: Optional[GlobalCache] = None) -> Optional[SpotRecord]:
+            def _add_spot_record(cache: Optional[GlobalCache] = None) \
+                    -> Optional[SpotRecord]:
                 if not isinstance(spot_record_data, PostData):
                     return None
 
                 logger.debug(spot_record_data)
                 # time can either be dt or string.
                 spot_record_time: Union[dt, str, None] = (
-                    str_dt_normalizer(spot_record_data.get('spot_record_time'),
-                                      normalize_time(5)))
+                    str_dt_normalizer(
+                        spot_record_data.get('spot_record_time'),
+                        normalize_time(5)))
 
                 # query with device id or device name
-                device: Union[Device, str,
-                              None] = spot_record_data.get('device')
+                device: Union[Device, str, None] = \
+                    spot_record_data.get('device')
 
                 if not isinstance(device, Device):
 
@@ -413,11 +407,12 @@ class ModelOperations(ModelInterfaces):
 
                 # change in 2020-01-08
                 # same device and same spot record time means the same record.
-                # if device is None, skip the record because it doesn't form a valid
+                # skip the record if device is None.
 
                 # change in 2020-01-21
                 # generate cache key for records in _LRUDictionary.
-                if isinstance(spot_record_time, dt) and isinstance(device, Device):
+                if isinstance(spot_record_time, dt) \
+                        and isinstance(device, Device):
                     cache_key: Optional[GlobalCacheKey] = (
                         spot_record_time, device)
                 else:
@@ -425,19 +420,21 @@ class ModelOperations(ModelInterfaces):
 
                 if cache is not None and cache_key is not None:
                     spot_record = (
-                        get_cache(cache,
-                                  ModelDataEnum._SpotRecord,
-                                  cache_key))
+                        get_cache(
+                            cache,
+                            ModelDataEnum._SpotRecord,
+                            cache_key))
 
                 else:  # expensive.
+                    _condition = and_(
+                        SpotRecord.spot_record_time == spot_record_time,
+                        SpotRecord.device == device)
+
                     spot_record = (SpotRecord
                                    .query
-                                   .filter_by(spot_record_time=spot_record_time)
-                                   .filter(and_(
-
-                                       SpotRecord.spot_record_time == spot_record_time,
-
-                                       SpotRecord.device == device))
+                                   .filter_by(
+                                       spot_record_time=spot_record_time)
+                                   .filter(_condition)
                                    .first())
                 if spot_record:
                     logger.debug('record already exists.')
@@ -446,23 +443,24 @@ class ModelOperations(ModelInterfaces):
                 new_spot_record = None
 
                 try:
-                    new_spot_record = ModelOperations._make_spot_reocrd(
-                        spot_record_data)
+                    new_spot_record = (
+                        ModelOperations._make_spot_reocrd(
+                            spot_record_data))
                     db.session.add(new_spot_record)
 
                     # add new record into cache.
-                    if (cache_key is not None and
-                            new_spot_record is not None and
-                            cache is not None):
-
-                        cache[ModelDataEnum._SpotRecord][cache_key] = new_spot_record
+                    if (cache_key is not None
+                            and new_spot_record is not None
+                            and cache is not None):
+                        _enum = ModelDataEnum._SpotRecord
+                        cache[_enum][cache_key] = new_spot_record
 
                 except IndexError as e:
                     logger.error("Error! add_spot_record failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logger.error(
-                        "Error! add_spot_record with unmatched value: {}".format(e))
+                    msg = f"Error! add_spot_record with unmatched value: {e}"
+                    logger.error(msg)
                     raise
                 except IntegrityError as e:
                     logger.error("Error! add_spot_record failed: {}".format(e))
@@ -477,9 +475,11 @@ class ModelOperations(ModelInterfaces):
         def add_outdoor_spot(od_spot_data: PostData):
 
             @global_cache.global_cacheall
-            def _add_outdoor_spot(cache: Optional[GlobalCache] = None) -> Optional[OutdoorSpot]:
+            def _add_outdoor_spot(cache: Optional[GlobalCache] = None) \
+                    -> Optional[OutdoorSpot]:
                 """
-                if the given spot is already existed, return it without change anything.
+                if the given spot is already existed, return it without
+                change anything.
                 if no such spot fond, create a new location
                 """
                 if not isinstance(od_spot_data, PostData):
@@ -487,16 +487,20 @@ class ModelOperations(ModelInterfaces):
                 # only need outdoor_spot_id to check if the weather station is
                 # already existed.
 
-                od_spot = (OutdoorSpot
-                           .query
-                           .filter_by(outdoor_spot_id=od_spot_data.get("outdoor_spot_id"))
-                           .first())
+                od_spot = (
+                    OutdoorSpot
+                    .query
+                    .filter_by(
+                        outdoor_spot_id=od_spot_data.get("outdoor_spot_id"))
+                    .first())
 
                 if (od_spot):
                     return od_spot
 
                 new_od_spot = None
-                try:  # need id and name to create a new weather spot when it doesn't exsit
+
+                # create a new weather spot when it doesn't exsit
+                try:
                     new_od_spot = ModelOperations._make_outdoor_spot(
                         od_spot_data)
                     db.session.add(new_od_spot)
@@ -510,8 +514,8 @@ class ModelOperations(ModelInterfaces):
                         "Error! add_outdoor_spot failed: {}".format(e))
                     raise
                 except ValueError as e:
-                    logger.error(
-                        "Error! add_outdoor_spot with unmatched value: {}".format(e))
+                    msg = f"Error! add_outdoor_spot with unmatched value: {e}"
+                    logger.error(msg)
                     raise
                 except IntegrityError as e:
                     logger.error(
@@ -559,18 +563,17 @@ class ModelOperations(ModelInterfaces):
         @staticmethod
         def add_company(company_data: PostData) -> Optional[Company]:
             """
-            if the given company is already existed, return it without change anything.
-            if no such location fond, create a new location
+            if the company is already existed return it directly.
             """
             if not isinstance(company_data, PostData):
                 return None
 
             company = (Company.query
                        .filter_by(
-                           company_name=company_data.get("company_name")).first())
-            if (company):
+                           company_name=company_data.get("company_name"))
+                       .first())
+            if company:
                 return company
-
             new_company = None
 
             try:
@@ -598,7 +601,8 @@ class ModelOperations(ModelInterfaces):
 
     # NOTE: when merging sqlalchemy instance make sure there are no
     # extra dependencies that not in the session.
-    # otherwise it could make the instance unpersistent thus can not be commited.
+    # otherwise it could make the instance unpersistent thus
+    # can not be commited.
 
     # one way to do it is when creating instance that contains other instances,
     # check the existence of the instance be contained and then
@@ -615,15 +619,16 @@ class ModelOperations(ModelInterfaces):
                     return None
 
                 new_project = ModelOperations._make_project(project_data)
-                project = Project.query.filter_by(
-                    project_name=project_data.get('project_name')).first()
+                project = (Project
+                           .query
+                           .filter_by(
+                               project_name=project_data.get('project_name'))
+                           .first())
 
                 if project is not None and new_project is not None:
                     project.update(new_project)
-
                 db.session.merge(project)
                 del new_project
-
                 return project
 
             return _update_project()
@@ -639,7 +644,8 @@ class ModelOperations(ModelInterfaces):
                 new_device = ModelOperations._make_device(device_data)
                 device = (Device
                           .query
-                          .filter_by(device_name=device_data.get("device_name"))
+                          .filter_by(
+                              device_name=device_data.get("device_name"))
                           .first())
 
                 if device is not None and new_device is not None:
@@ -647,13 +653,13 @@ class ModelOperations(ModelInterfaces):
 
                 db.session.merge(device)
                 del new_device
-
                 return device
 
             return _update_device()
 
         @staticmethod
-        def update_spot_record(spot_record_data: PostData) -> Optional[SpotRecord]:
+        def update_spot_record(spot_record_data: PostData) \
+                -> Optional[SpotRecord]:
 
             @global_cache.global_cacheall
             def _update_spot_record(cache: Optional[GlobalCache] = None):
@@ -672,14 +678,14 @@ class ModelOperations(ModelInterfaces):
                         device_id=spot_record_data.get("device")).first()
 
                 # spot_record_time is primary key and can not be modified.
-                spot_record = (
-                    SpotRecord
-                    .query
-                    .filter_by(spot_record_time=spot_record_time)
-                    .filter(and_(
-                        SpotRecord.spot_record_time == spot_record_time,
-                        SpotRecord.device == device))
-                    .first())
+                _condition = and_(
+                    SpotRecord.spot_record_time == spot_record_time,
+                    SpotRecord.device == device)
+                spot_record = (SpotRecord
+                               .query
+                               .filter_by(spot_record_time=spot_record_time)
+                               .filter(_condition)
+                               .first())
 
                 new_spot_record = ModelOperations._make_spot_reocrd(
                     spot_record_data)
@@ -689,7 +695,6 @@ class ModelOperations(ModelInterfaces):
 
                 db.session.merge(spot_record)
                 del new_spot_record
-                # db.session.delete(new_spot_record)
 
                 return spot_record
 
@@ -711,14 +716,14 @@ class ModelOperations(ModelInterfaces):
                 if spot is not None and new_spot is not None:
                     spot.update(new_spot)
 
-                # NOTE: need to delete bc somehow new_spot is somehow persistent
-                # at this state
-                # might because it contains project which is already persistent.
-                # coulbe be improved later.
+                # NOTE: need to delete bc somehow new_spot is
+                # somehow persistentat this state.
+                # might because it contains project which is already
+                # persistent.
 
                 # NOTE: merge first then delete. because value in spot are
-                # refs to values in new_spot. put it into session first to avoid
-                # dependency problem.
+                # refs to values in new_spot. put it into session first to
+                # avoid dependency problem.
 
                 db.session.merge(spot)
                 del new_spot
@@ -728,7 +733,8 @@ class ModelOperations(ModelInterfaces):
             return _update_spot()
 
         @staticmethod
-        def update_outdoor_spot(outdoor_spot_data: PostData) -> Optional[OutdoorSpot]:
+        def update_outdoor_spot(outdoor_spot_data: PostData) \
+                -> Optional[OutdoorSpot]:
 
             @global_cache.global_cacheall
             def _update_outdoor_spot(cache: Optional[GlobalCache] = None):
@@ -737,11 +743,12 @@ class ModelOperations(ModelInterfaces):
 
                 new_outdoor_spot = ModelOperations._make_outdoor_spot(
                     outdoor_spot_data)
-                outdoor_spot = (
-                    OutdoorSpot
-                    .query
-                    .filter_by(outdoor_spot_name=outdoor_spot_data.get('project_name'))
-                    .first())
+                outdoor_spot = (OutdoorSpot
+                                .query
+                                .filter_by(
+                                    outdoor_spot_name=outdoor_spot_data
+                                    .get('project_name'))
+                                .first())
                 if outdoor_spot is not None and new_outdoor_spot is not None:
                     outdoor_spot.update(new_outdoor_spot)
 
@@ -751,10 +758,6 @@ class ModelOperations(ModelInterfaces):
                 return outdoor_spot
 
             return _update_outdoor_spot()
-
-    ###################
-    #  Delete module  #
-    ###################
 
     class Delete(ModelInterfaces.Delete):
         @staticmethod
@@ -784,16 +787,13 @@ class ModelOperations(ModelInterfaces):
                 if project:
                     db.session.delete(project)
 
-                else:
-                    return
-
             except IntegrityError as e:
-                logger.error(
-                    "Error happened when deleting project: {}".format(e))
+                msg = f"Error happened when deleting project: {e}"
+                logger.error(msg)
                 raise
             except Exception as e:
-                logger.error(
-                    'Error when deleting by delete_project: {}'.format(e))
+                msg = f'Error when deleting by delete_project: {e}'
+                logger.error(msg)
                 raise
 
         @staticmethod
@@ -803,26 +803,25 @@ class ModelOperations(ModelInterfaces):
             try:
                 if spot:
                     db.session.delete(spot)
-                else:
-                    return
             except IntegrityError as e:
-                logger.error("Error! delete_spot: : {}".format(e))
+                msg = f"Error! delete_spot: : {e}"
+                logger.error(msg)
                 raise
             except Exception as e:
-                logger.error('Error delete by delete_spot: {}'.format(e))
+                msg = f'Error delete by delete_spot: {e}'
+                logger.error(msg)
                 raise
         # END Delete
 
         @staticmethod
         def delete_spot_record(rid: int) -> None:
-            spot_record = SpotRecord.query.filter_by(
-                spot_record_id=rid).first()
-
+            spot_record = (SpotRecord
+                           .query
+                           .filter_by(
+                               spot_record_id=rid).first())
             try:
                 if spot_record:
                     db.session.delete(spot_record)
-                else:
-                    return
             except IntegrityError as e:
                 logger.error("Error! delete_spot_record: : {}".format(e))
                 raise
@@ -838,8 +837,6 @@ class ModelOperations(ModelInterfaces):
             try:
                 if device:
                     db.session.delete(device)
-                else:
-                    return
             except IntegrityError as e:
                 logger.error("Error! delete_device: : {}".format(e))
                 raise
@@ -854,8 +851,6 @@ class ModelOperations(ModelInterfaces):
             try:
                 if outdoor_spot:
                     db.session.delete(outdoor_spot)
-                else:
-                    return
             except IntegrityError as e:
                 logger.error("Error! delete_outdoor_spot: : {}".format(e))
                 raise
@@ -878,8 +873,8 @@ class ModelOperations(ModelInterfaces):
             project = None
 
             # add foregien key records.
-            # if the record is not a model object, then it is a project_data form dictionary.
-            # convert it into
+            # if the record is not a model object, then it is a project_data
+            # form dictionary convert it into
             outdoor_spot: Union[OutdoorSpot, PostData, None] = (
                 project_data.get("outdoor_spot"))
             if outdoor_spot is None:
@@ -888,16 +883,19 @@ class ModelOperations(ModelInterfaces):
                 outdoor_spot = ModelOperations.Add.add_outdoor_spot(
                     outdoor_spot)
 
-            location: Union[Location, Dict,
-                            None] = project_data.get("location")
+            location: Union[Location, Dict, None] = \
+                project_data.get("location")
             if location is None:
                 ...
             elif not isinstance(project_data.get("location"), Location):
                 location = ModelOperations.Add.add_location(location)
 
             # add companies
-            company_lists = ["tech_support_company",
-                             "project_company", "construction_company"]
+            company_lists = [
+                "tech_support_company",
+                "project_company",
+                "construction_company"
+            ]
 
             def is_company(data):
                 return isinstance(data, Company)
@@ -908,9 +906,10 @@ class ModelOperations(ModelInterfaces):
                 construction_company = project_data.get("construction_company")
 
             else:
-                # else assume all are project_data jsons. Error will be catched in add company.
-                def check_company(company_dict: Optional[PostData]) -> PostData:
-                    # set '' company to None
+                # else assume all are project_data jsons.
+                # Error will be catched in add company.
+                def check_company(company_dict: Optional[PostData]) \
+                        -> PostData:
                     result: Dict = {}
 
                     if company_dict is not None:
@@ -999,8 +998,8 @@ class ModelOperations(ModelInterfaces):
             if project is None:
                 ...
 
-            elif (isinstance(project, str) and
-                    id_exist_in_db(Project.project_id, int(project))):
+            elif isinstance(project, str) and \
+                    id_exist_in_db(Project.project_id, int(project)):
                 project = int(project)
 
             elif isinstance(project, Project):
@@ -1087,8 +1086,9 @@ class ModelOperations(ModelInterfaces):
 
             # time can either be dt or string.
             spot_record_time: Union[dt, str, None] = (
-                str_dt_normalizer(spot_record_data.get('spot_record_time'),
-                                  normalize_time(5)))
+                str_dt_normalizer(
+                    spot_record_data.get('spot_record_time'),
+                    normalize_time(5)))
 
             # query with device id or device name
             device: Optional[Union[Device, str, int]] = (
@@ -1096,8 +1096,8 @@ class ModelOperations(ModelInterfaces):
             if device is None:
                 ...
 
-            elif (isinstance(device, str) and
-                    id_exist_in_db(Device.device_id, int(device))):
+            elif isinstance(device, str) and \
+                    id_exist_in_db(Device.device_id, int(device)):
                 device = int(device)
 
             elif isinstance(device, Device):
@@ -1162,7 +1162,8 @@ class ModelOperations(ModelInterfaces):
         return Company(company_name=company_data.get("company_name"))
 
     @staticmethod
-    def _make_outdoor_spot(outdoor_spot_data: PostData) -> Optional[OutdoorSpot]:
+    def _make_outdoor_spot(outdoor_spot_data: PostData) \
+            -> Optional[OutdoorSpot]:
         if not isinstance(outdoor_spot_data, PostData):
             return None
 
@@ -1171,29 +1172,22 @@ class ModelOperations(ModelInterfaces):
             outdoor_spot_name=outdoor_spot_data.get("outdoor_spot_name"))
 
 
-#####################################
-#  run operation and handle error   #
-#####################################
+#  run operation and handle error  #
 
-@interface
 def commit():
     try:  # commit after all transaction are successed.
         db.session.commit()
-    except IntegrityError:
-        raise
-    except IndexError:
-        raise
     except Exception:
         raise
     finally:
         db.session.rollback()
 
 
-@interface
-def commit_db_operation(response_object: ApiResponse,
-                        op: Callable[[Dict], None],
-                        post_data: Dict,
-                        name: str) -> ApiResponse:
+def commit_db_operation(
+    response_object: ApiResponse,
+        op: Callable[[Dict], None],
+        post_data: Dict,
+        name: str) -> ApiResponse:
     """
     run given db operation and return the response object
     if commit failed, handle exceptions.

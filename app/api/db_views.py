@@ -56,10 +56,9 @@ def spot_view(pid: int):
 
     spots: List[Dict] = [
         s.to_json() for s in
-        (Spot
-         .query
-         .filter_by(project_id=pid)
-         .all()) if s]
+        Spot.query
+        .filter_by(project_id=pid)
+        .all() if s]
 
     response_object["data"] = spots
     return jsonify(response_object)
@@ -79,7 +78,8 @@ def spot_record_view(did: int):
     for spot_rec in SpotRecord.query.filter_by(device_id=did):
 
         # fetch relevent objects.
-        od_spot = Device.query.filter_by(device_id=did).first().spot.project.outdoor_spot
+        od_spot = Device.query.filter_by(
+            device_id=did).first().spot.project.outdoor_spot
 
         spot_rec_hour: datetime = (
             spot_rec
@@ -129,5 +129,3 @@ def project_pic_view(pid):
     response_object['data'] = project_images_json
 
     return jsonify(response_object)
-
-

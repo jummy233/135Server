@@ -69,7 +69,8 @@ def init_global_cache(cache_instance: Optional[CacheInstance]
         cache_instance.global_cache = empty_cache()
 
         # note cacheall is decorator
-        cache_instance.global_cacheall = make_cacheall(cache_instance.global_cache)
+        cache_instance.global_cacheall = \
+            make_cacheall(cache_instance.global_cache)
 
         return cache_instance
 
@@ -179,6 +180,3 @@ def make_cacheall(cache: Cache) -> Callable:
         return _cachall_deco
 
     return init_cache(cache)
-
-
-

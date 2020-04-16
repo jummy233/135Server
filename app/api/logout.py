@@ -1,8 +1,12 @@
 from flask import jsonify
+
+from ..api_types import ApiResponse, ReturnCode
 from . import api
-from ..models import User
 
 
-@api.route('/logout')
+@api.route('/logout', methods=["GET"])
 def logout():
-    return "logout"
+    response = ApiResponse(
+        status=ReturnCode.OK.value,
+        message="logout")
+    return jsonify(response)

@@ -39,6 +39,3 @@ def is_ApiRequest(data: Optional[Dict]) -> bool:
         return False
     return 'request' in data.keys()
 
-
-
-

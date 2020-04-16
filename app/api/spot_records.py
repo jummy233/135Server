@@ -8,7 +8,9 @@ import calendar
 
 @api.route('/spot/<spot_id>', methods=['GET'])
 def get_spot_records(spot_id):
-    spot_records = [r.to_json() for r in SpotRecord.query.filter_by(spot_id=spot_id)]
+    spot_records = [r.to_json()
+                    for r in
+                    SpotRecord.query.filter_by(spot_id=spot_id)]
     return jsonify(spot_records)
 
 
@@ -34,4 +36,3 @@ def get_spot_records_in_one_day(spot_id, year, month, day):
                filter(SpotRecord.spot_record_time < date + timedelta(days=1)).
                order_by(SpotRecord.spot_record_time))
     return jsonify([r.to_json() for r in records])
-
