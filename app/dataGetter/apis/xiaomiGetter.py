@@ -15,47 +15,58 @@ logger = make_logger('xiaomiGetter', 'dataGetter_log')
 
 
 AuthData = (
-    TypedDict('AuthData',
-              {'account': str,
-               'password': str,
-               'appId': str,            # called client_id in json request.
-               'appKey': str,           # called client_secret in json request.
+    TypedDict(
+        'AuthData',
+        {
+            'account': str,
+            'password': str,
+            'appId': str,            # called client_id in json request.
+            # called client_secret in json request.
+            'appKey': str,
 
-               'state': str,            # arbitrary string.
-               'redirect_uri': str,     # callback uri, see document.
+            'state': str,            # arbitrary string.
+            'redirect_uri': str,     # callback uri, see document.
 
-               'auth_base_url': str,
-               'authorize_url': str,
-               'token_url': str,
+            'auth_base_url': str,
+            'authorize_url': str,
+            'token_url': str,
 
-               'grant_type': str,
-               # only needed when need to refresh token.
-               'refresh_token': str,
+            'grant_type': str,
+            # only needed when need to refresh token.
+            'refresh_token': str,
 
-               'api_query_base_url': str,
-               'api_query_pos_url': str,
-               'api_query_dev_url': str,
-               'api_query_resrouce_url': str}, total=False))
+            'api_query_base_url': str,
+            'api_query_pos_url': str,
+            'api_query_dev_url': str,
+            'api_query_resrouce_url': str
+        }, total=False))
 
 
 PosParam = (  # Method: Get
-    TypedDict('PosParam',
-              {'positionId': str,
-               'pageNum': int,
-               'pageSize': int}, total=False))
+    TypedDict(
+        'PosParam',
+        {
+            'positionId': str,
+            'pageNum': int,
+            'pageSize': int
+        }, total=False))
 
 DeviceParam = (
-    TypedDict('DeviceParam',
-              {'did': str,
-               'positionId': str,
-               'pageNum': int,
-               'pageSize': int}, total=False))
+    TypedDict(
+        'DeviceParam',
+        {
+            'did': str,
+            'positionId': str,
+            'pageNum': int,
+            'pageSize': int}, total=False))
 
 # Nested type declaration
 OneResourceParam = (
     TypedDict('OneResourceParam',
-              {'did': str,
-               'attrs': List[str]}))
+              {
+                  'did': str,
+                  'attrs': List[str]
+              }))
 
 
 class ResourceParam(TypedDict):
@@ -67,19 +78,25 @@ class ResourceParam(TypedDict):
     pageSize: int
 
 
-TokenResult = TypedDict('TokenResult',
-                        {'access_token': str,
-                         'refresh_token': str,
-                         'openId': str,
-                         'state': str,
-                         'token_type': str,
-                         'expires_in': int})
+TokenResult = TypedDict(
+    'TokenResult',
+    {
+        'access_token': str,
+        'refresh_token': str,
+        'openId': str,
+        'state': str,
+        'token_type': str,
+        'expires_in': int
+    })
 
-PosData = TypedDict('PosData',
-                    {'positionName': str,
-                     'positionId': str,
-                     'description': str,
-                     'createTime': str})
+PosData = TypedDict(
+    'PosData',
+    {
+        'positionName': str,
+        'positionId': str,
+        'description': str,
+        'createTime': str
+    })
 
 
 class PosResult(TypedDict):
@@ -87,14 +104,17 @@ class PosResult(TypedDict):
     totalCount: int
 
 
-DeviceData = TypedDict('DeviceData',
-                       {'did': str,
-                        'name': str,
-                        'model': str,
-                        'parentId': str,
-                        'positionId': str,
-                        'state': int,
-                        'registerTime': str})
+DeviceData = TypedDict(
+    'DeviceData',
+    {
+        'did': str,
+        'name': str,
+        'model': str,
+        'parentId': str,
+        'positionId': str,
+        'state': int,
+        'registerTime': str
+    })
 
 
 class DeviceResult(TypedDict):
