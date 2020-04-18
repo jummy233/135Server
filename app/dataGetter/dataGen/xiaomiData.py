@@ -1,7 +1,9 @@
+from flask import Flask
 from multiprocessing import Process
 from queue import Queue
 from datetime import datetime as dt
 from threading import RLock, Timer
+from functools import partial
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
@@ -60,12 +62,13 @@ class XiaoMiData(SpotData):
     source: str = '<xiaomi>'
     expires_in: int = 5000  # token is valid in 20 seconds.
 
-    def __init__(self):
+    def __init__(self, app: Flask):
         # get authcode and token
-        self.device_list = []
+        self.app = app
+        self.device_list: List = []
         self.auth: xGetter.AuthData = authConfig.xauth
         self.tokenManager = TokenManager(
-            lambda: xGetter._get_token(self.auth),
+            partial(xGetter._get_token, self.auth),
             XiaoMiData.expires_in)
 
         self.refresh: Optional[str] = None
@@ -106,7 +109,6 @@ class XiaoMiData(SpotData):
         if not self.device_list:
             return None
         return (self.make_device(d) for d in self.device_list)
-    # TODO make deivce 2020-01-15 after philosophy class.
 
     def spot(self) -> Optional[Generator]:
         ...

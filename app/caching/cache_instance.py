@@ -13,10 +13,6 @@ class CacheInstance:
     # expensive !
     def __init__(self):
 
-        # def cache_init_error_info(f):
-        #     logging.debug('cache init error')
-        #     return f
-
         self.is_init: bool = False
 
         self._global_cache: Cache = empty_cache()

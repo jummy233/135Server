@@ -9,13 +9,13 @@ from operator import itemgetter
 from flask import jsonify, request
 from sqlalchemy import desc
 from . import api
-from ..api_types import ApiResponse, ReturnCode
-from ..api_types import is_ApiRequest
-from ..api_types import PagingRequest
-from ..models import User, Location, Project, ProjectDetail
-from ..models import ClimateArea, Company, Permission
-from ..models import OutdoorSpot, OutdoorRecord
-from ..models import Spot, SpotRecord, Device
+from app.api.api_types import ApiResponse, ReturnCode
+from app.api.api_types import is_ApiRequest
+from app.api.api_types import PagingRequest
+from app.models import User, Location, Project, ProjectDetail
+from app.models import ClimateArea, Company, Permission
+from app.models import OutdoorSpot, OutdoorRecord
+from app.models import Spot, SpotRecord, Device
 
 
 @api.route('/project', methods=['POST'])
@@ -148,17 +148,14 @@ def spot_record_paged(did: int):
                 .filter_by(
                     device_id=did)
                 .order_by(desc(SpotRecord.spot_record_time))
-                .paginate(pageNo, size)
-            )
-
+                .paginate(pageNo, size))
             response_object['data'] = {
                 'data': [
                     item.to_json()
                     for item in spot_records_page.items if item],
                 'totalElementCount': spot_records_page.total,
                 'currentPage': pageNo,
-                'pageSize': size
-            }
+                'pageSize': size}
 
     else:
         response_object = (

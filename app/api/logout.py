@@ -1,6 +1,6 @@
 from flask import jsonify
 
-from ..api_types import ApiResponse, ReturnCode
+from app.api.api_types import ApiResponse, ReturnCode
 from . import api
 
 

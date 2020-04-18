@@ -1,11 +1,14 @@
-from collections import namedtuple
+
+"""
+These are intermidiate data structrues Datatype returned by midware.
+These data will be further piped into DBRecorder module to finally into db.
+"""
+
+from flask import Flask
 from datetime import datetime as dt
 from datetime import timedelta
 from functools import partial
-from itertools import chain, islice, tee
-from multiprocessing import Process
-from queue import Queue
-from threading import RLock, Timer
+from itertools import chain, islice
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
@@ -14,13 +17,13 @@ from logger import make_logger
 from timeutils.time import (back7daytuple_generator, datetime_to_str,
                             str_to_datetime)
 
-from .. import authConfig
-from ..apis import jianyanyuanGetter as jGetter
-from ..apis.jianyanyuanGetter import DataPointParam as JdatapointParam
-from ..apis.jianyanyuanGetter import DataPointResult as JdatapointResult
-from ..apis.jianyanyuanGetter import DeviceParam as JdevParam
-from ..apis.jianyanyuanGetter import DeviceResult as JdevResult
-from .dataType import Device, Location, Spot, SpotData, SpotRecord
+from app.dataGetter import authConfig
+from app.dataGetter.apis import jianyanyuanGetter as jGetter
+from app.dataGetter.apis.jianyanyuanGetter import DataPointParam as JdatapointParam
+from app.dataGetter.apis.jianyanyuanGetter import DataPointResult as JdatapointResult
+from app.dataGetter.apis.jianyanyuanGetter import DeviceParam as JdevParam
+from app.dataGetter.apis.jianyanyuanGetter import DeviceResult as JdevResult
+from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord
 from .tokenManager import TokenManager
 
 logger = make_logger('dataMidware', 'dataGetter_log')
@@ -29,15 +32,6 @@ logger.propagate = False
 logger.addHandler
 
 LazySpotRecord = Callable[[], Optional[Generator]]
-
-######################################
-#  These are intermidiate data       #
-#   structrues                       #
-#  Datatype returned by midware.     #
-#  These data will be further piped  #
-#  into DBRecorder module to finally #
-#  into db.                          #
-######################################
 
 
 class JianYanYuanData(SpotData):
@@ -58,11 +52,13 @@ class JianYanYuanData(SpotData):
         'pageSize': size  # @2020-01-06 could be str.
     }
 
-    def __init__(self, datetime_range: Optional[Tuple[dt, dt]] = None):
+    def __init__(self, app: Flask,
+                 datetime_range: Optional[Tuple[dt, dt]] = None):
         logger.info('init JianYanYuanData')
+        self.app = app
         self.auth = authConfig.jauth
         self.tokenManager = TokenManager(
-            lambda: jGetter._get_token(self.auth),
+            partial(jGetter._get_token, self.auth),
             JianYanYuanData.expires_in)
         self.tokenManager.start()
 
@@ -97,26 +93,33 @@ class JianYanYuanData(SpotData):
         return (_MkDict.make_spot(_MkDict.make_location(d))
                 for d in self.device_list)
 
-    def spot_record(self, did: Optional[int] = None) \
+    def spot_record(
+            self,
+            did: Optional[int] = None,
+            daterange: Optional[Tuple[dt, dt]] = None) \
             -> Iterator[LazySpotRecord]:
-        sr = None
         if not self.device_list:
             return iter([])
+        sr = self._SpotRecord(self)
+
+        dr: Tuple[dt, dt] = (dt.now() - timedelta(days=1),
+                             dt.now()) \
+            if not daterange else daterange
 
         if did is None:
-            sr = self._SpotRecord(self).all()
+            generator = sr.all()
         else:
-            sr = (self._SpotRecord(self)
-                  .one(did, self.datetime_range))
+            generator = sr.one(did, dr)
 
-        if not any(sr):
+        if not any(generator):
             return iter([])
-        return sr
+        return generator
 
     def device(self) -> Optional[Generator]:
         if not self.device_list:
             return None
         return (_MkDict.make_device(d) for d in self.device_list)
+
     ####################################
     #  spot_location helper functions  #
     ####################################
@@ -141,26 +144,35 @@ class JianYanYuanData(SpotData):
         def auth(self):
             return self.data.auth
 
+        # TODO: need to push a context
         def one(self, did: int, daterange: Tuple[dt, dt]):
-            """ result for specfic device """
-            device = db.Device.query.filter(db.Device.device_id == did).first()
+            """ generator for one device """
+            with self.data.app.app_context():
+                device = (db.
+                          Device.
+                          query.
+                          filter(db.Device.device_id == did).first())
             dn = device.device_name
             device_res = [d for d in self.device_list
                           if d.get("deviceId") == dn].pop()
+            # __import__('pdb').set_trace()
 
-            params_list = self._make_datapoint_param(device_res, daterange)
-            return self._gen(params_list)
+            param = self._make_datapoint_param(device_res, daterange)
+            if param is None:
+                return iter([])
+
+            return self._gen([param])
 
         def all(self):
             datapoint_params = self._datapoint_param_iter()
             if datapoint_params is None:
-                return lambda: iter([])
+                return iter([])
             params_list = list(datapoint_params)  # construct param list
-            self.gen(params_list)
+            return self._gen(params_list)
 
         def _gen(self, datapoint_params):
             datapoints = map(self._datapoint, datapoint_params)
-            return self.gen(datapoints, datapoint_params)
+            return self.entrance_generator(datapoints, datapoint_params)
 
         def _datapoint_param_iter(self) -> Optional[Iterator[JdatapointParam]]:
             """
@@ -233,7 +245,7 @@ class JianYanYuanData(SpotData):
 
                 return datapoint_iter
 
-        def gen(self, datapoints, params_list) \
+        def entrance_generator(self, datapoints, params_list) \
             -> Generator[
                 Callable[
                     [], Optional[Generator[Optional[SpotRecord], None, None]]],
@@ -253,7 +265,7 @@ class JianYanYuanData(SpotData):
                     yield (lambda: self._records_factory(
                         islice(effectful_pair, 1)))
             except StopIteration:
-                return
+                raise
 
         def _records_factory(self, arg: Iterator[Tuple[
             Optional[List[JdatapointResult]], JdatapointParam]]) \

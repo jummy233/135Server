@@ -59,7 +59,6 @@ def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
     ]
 
     res = datetime_format_resolver(sdate, formats)
-    print(res)
     return res
 
 

@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 import json
 if TYPE_CHECKING:  # avoid circular importing.
     # Note cannot use type constructor since it is runtime method
-    import dataGetter.apis.jianyanyuanGetter as j
-    import dataGetter.apis.xiaomiGetter as x
+    import app.dataGetter.apis.jianyanyuanGetter as j
+    import app.dataGetter.apis.xiaomiGetter as x
 
 
 with open(os.path.join(os.path.realpath(os.path.dirname(__file__)),

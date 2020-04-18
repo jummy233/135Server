@@ -324,13 +324,3 @@
 (print-hash-table #t)
 (display (hash-ref (combine-projects) 'data))
 
-#| (define data1 (get-data (concat-path data-folder-path "a1.txt"))) |#
-#| (define data2 (get-data (concat-path data-folder-path "a2.txt"))) |#
-#| (define data5 (get-data (concat-path data-folder-path "a16.txt"))) |#
-#| (print data5) |#
-#| (display (hash-ref (project-to-hash (parse-project data5)) 'started_time)) |#
-#| (print (hash-ref (project-to-hash (parse-project data2)) 'started_time)) |#
-#| (print (project-to-hash (parse-project data4))) |#
-#| (print (project-to-hash (parse-project data5))) |#
-#| (trace combine-projects) |#
-#| (combine-projects) |#

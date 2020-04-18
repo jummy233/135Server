@@ -7,16 +7,16 @@ from flask import jsonify, request
 from flask import json as FlaskJson
 from sqlalchemy.exc import IntegrityError
 from . import api
-from ..api_types import ApiResponse, ReturnCode, ApiRequest
-from ..api_types import is_ApiRequest
-from ..modelOperations import ModelOperations
-from ..modelOperations import commit_db_operation
-from ..modelOperations import commit
-from ..models import User, Location, Project, ProjectDetail
-from ..models import ClimateArea, Company, Permission
-from ..models import OutdoorSpot, OutdoorRecord
-from ..models import Spot, SpotRecord, Device
-from ..models import Data
+from app.api.api_types import ApiResponse, ReturnCode, ApiRequest
+from app.api.api_types import is_ApiRequest
+from app.modelOperations import ModelOperations
+from app.modelOperations import commit_db_operation
+from app.modelOperations import commit
+from app.models import User, Location, Project, ProjectDetail
+from app.models import ClimateArea, Company
+from app.models import OutdoorSpot, OutdoorRecord
+from app.models import Spot, SpotRecord, Device
+from app.models import Data
 
 Json = NewType('Json', str)
 AddOperation = Callable[[Dict], Optional[Data]]

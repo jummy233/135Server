@@ -8,14 +8,14 @@ from datetime import timedelta, datetime
 from operator import itemgetter
 from flask import jsonify, request
 from . import api
-from ..api_types import ApiRequest, ApiResponse, ReturnCode
-from ..api_types import is_ApiRequest
-from ..modelOperations import commit_db_operation
-from ..modelOperations import commit
-from ..models import User, Location, Project, ProjectDetail
-from ..models import ClimateArea, Company, Permission
-from ..models import OutdoorSpot, OutdoorRecord
-from ..models import Spot, SpotRecord, Device
+from app.api.api_types import ApiRequest, ApiResponse, ReturnCode
+from app.api.api_types import is_ApiRequest
+from app.modelOperations import commit_db_operation
+from app.modelOperations import commit
+from app.models import User, Location, Project, ProjectDetail
+from app.models import ClimateArea, Company, Permission
+from app.models import OutdoorSpot, OutdoorRecord
+from app.models import Spot, SpotRecord, Device
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
 

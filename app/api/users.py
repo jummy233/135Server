@@ -1,8 +1,8 @@
 from flask import jsonify
 from sqlalchemy.exc import IntegrityError
 
-from .. import db
-from ..models import User
+from app import db
+from app.models import User
 from . import api
 
 

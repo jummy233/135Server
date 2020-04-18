@@ -15,7 +15,7 @@ from typing import (ByteString, Callable, Dict, List, Optional, Union)
 from sqlalchemy import and_, exists
 from sqlalchemy.exc import IntegrityError
 
-from app.api_types import ApiRequest, ApiResponse, ReturnCode
+from app.api.api_types import ApiRequest, ApiResponse, ReturnCode
 from app.utils import normalize_time
 from logger import make_logger
 from timeutils.time import str_to_datetime

@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
+import enum
 from datetime import datetime as dt
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
+
+
+class DataSource(enum.Enum):
+    JIANYANYUAN = 0
+    XIAOMI = 1
 
 
 class Location(TypedDict):

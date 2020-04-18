@@ -1,6 +1,6 @@
 from flask import jsonify
 from . import api
-from ..models import SpotRecord
+from app.models import SpotRecord
 from datetime import datetime
 from datetime import timedelta
 import calendar

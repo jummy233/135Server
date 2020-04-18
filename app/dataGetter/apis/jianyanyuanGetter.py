@@ -5,7 +5,7 @@ from hashlib import md5, sha1
 import threading
 from operator import itemgetter
 from typing import (Dict, Iterator, List, NewType, Optional, Tuple, TypedDict,
-                    Union)
+                    Union, cast)
 
 import requests
 import urllib3
@@ -23,7 +23,8 @@ logger = make_logger('JianYanYuanGetter', 'dataGetter_log')
 
 Token = NewType('Token', str)
 Uid = NewType('Uid', str)
-AuthToken = NewType('AuthToken', Tuple[Token, Uid])  # Necessary value for authenticion.
+# Necessary value for authenticion.
+AuthToken = NewType('AuthToken', Tuple[Token, Uid])
 
 AuthData = (
     TypedDict('AuthData',
@@ -50,7 +51,8 @@ DataPointParam = (
     TypedDict('DataPointParam',
               {'gid': Optional[str],
                'did': Optional[str],
-               'aid': Optional[str],  # list of attrs. string in form "<aid>, <aid>"
+               # list of attrs. string in form "<aid>, <aid>"
+               'aid': Optional[str],
                'startTime': Optional[str],
                'endTime': Optional[str]}))  # time format: yyyy-MM-ddTHH:mm:ss
 
@@ -82,7 +84,8 @@ attrs: Dict = {
     'ac_power2': '32'}
 
 
-def _get_token(auth: AuthData) -> Optional[AuthToken]:
+def _get_token(auth: AuthData, timestamp: Optional[int] = None) \
+        -> Optional[AuthToken]:
     """
     get token
     """
@@ -91,7 +94,7 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
 
     # construct request
     url: str = urllib.parse.urljoin(base_url, auth_url)
-    timestamp: int = currentTimestamp(digit=13)
+    timestamp = cast(int, timestamp or currentTimestamp(digit=13))
 
     md5pw: str = md5(password.encode('ascii')).hexdigest()
     sign: str = md5((md5pw + str(timestamp)).encode('ascii')).hexdigest()
@@ -122,7 +125,8 @@ def _get_token(auth: AuthData) -> Optional[AuthToken]:
         logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logger.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error(
+            'some Exception happed when send and receiving data. %s ', e)
     return None
 
 
@@ -178,7 +182,8 @@ def _get_device_list(auth: AuthData,
         logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logger.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error(
+            'some Exception happed when send and receiving data. %s ', e)
 
     return None
 
@@ -238,7 +243,8 @@ def _get_device_attrs(auth: AuthData,
         logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logger.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error(
+            'some Exception happed when send and receiving data. %s ', e)
     return None
 
 
@@ -268,12 +274,14 @@ def _get_data_points(auth: AuthData,
 
     try:
         with threading.RLock():
-            response: requests.Response = requests.post(url, data=param_json, headers=headers)
+            response: requests.Response = requests.post(
+                url, data=param_json, headers=headers)
 
         logger.debug('datapoint response {} '.format(response))
 
         if response.status_code != 200:
-            logger.error('error response %s %s', response.content, response.request.body)
+            logger.error('error response %s %s',
+                         response.content, response.request.body)
             return None
         rj = response.json()
 
@@ -301,6 +309,7 @@ def _get_data_points(auth: AuthData,
         logger.error('[requests ]ChunkedEncodingError %s ', e)
         return None
     except BaseException as e:
-        logger.error('some Exception happed when send and receiving data. %s ', e)
+        logger.error(
+            'some Exception happed when send and receiving data. %s ', e)
 
     return None
