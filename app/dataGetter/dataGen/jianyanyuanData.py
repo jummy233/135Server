@@ -12,7 +12,6 @@ from itertools import chain, islice
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
-import app.models as db
 from logger import make_logger
 from timeutils.time import (back7daytuple_generator, datetime_to_str,
                             str_to_datetime)
@@ -23,15 +22,13 @@ from app.dataGetter.apis.jianyanyuanGetter import DataPointParam as JdatapointPa
 from app.dataGetter.apis.jianyanyuanGetter import DataPointResult as JdatapointResult
 from app.dataGetter.apis.jianyanyuanGetter import DeviceParam as JdevParam
 from app.dataGetter.apis.jianyanyuanGetter import DeviceResult as JdevResult
-from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord
+from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord, LazySpotRecord
 from .tokenManager import TokenManager
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
 
 logger.addHandler
-
-LazySpotRecord = Callable[[], Optional[Generator]]
 
 
 class JianYanYuanData(SpotData):
@@ -90,7 +87,7 @@ class JianYanYuanData(SpotData):
         if not self.device_list:
             return None
 
-        return (_MkDict.make_spot(_MkDict.make_location(d))
+        return (MakeDict.make_spot(MakeDict.make_location(d))
                 for d in self.device_list)
 
     def spot_record(
@@ -118,7 +115,7 @@ class JianYanYuanData(SpotData):
     def device(self) -> Optional[Generator]:
         if not self.device_list:
             return None
-        return (_MkDict.make_device(d) for d in self.device_list)
+        return (MakeDict.make_device(d) for d in self.device_list)
 
     ####################################
     #  spot_location helper functions  #
@@ -148,10 +145,9 @@ class JianYanYuanData(SpotData):
         def one(self, did: int, daterange: Tuple[dt, dt]):
             """ generator for one device """
             with self.data.app.app_context():
-                device = (db.
-                          Device.
-                          query.
-                          filter(db.Device.device_id == did).first())
+                from app.models import Device as MD
+                device = (MD.query.
+                          filter(MD.device_id == did).first())
             dn = device.device_name
             device_res = [d for d in self.device_list
                           if d.get("deviceId") == dn].pop()
@@ -260,12 +256,9 @@ class JianYanYuanData(SpotData):
             effectful_pair = zip(datapoints, params_list)
 
             # send out a slice of iterator rather than eval it.
-            try:
-                while True:
-                    yield (lambda: self._records_factory(
-                        islice(effectful_pair, 1)))
-            except StopIteration:
-                raise
+            while True:
+                yield (lambda: self._records_factory(
+                    islice(effectful_pair, 1)))
 
         def _records_factory(self, arg: Iterator[Tuple[
             Optional[List[JdatapointResult]], JdatapointParam]]) \
@@ -276,7 +269,7 @@ class JianYanYuanData(SpotData):
             data, param = next(arg)
             return (None if data is None
                     else
-                    (_MkDict.make_spot_record(sr, param) for sr in data))
+                    (MakeDict.make_spot_record(sr, param) for sr in data))
 
         @staticmethod
         def _make_datapoint_param(
@@ -330,7 +323,7 @@ class JianYanYuanData(SpotData):
             return datapoint_params
 
 
-class _MkDict:
+class MakeDict:
     """ Convert json response from server into TypedDict """
 
     @staticmethod
@@ -347,7 +340,7 @@ class _MkDict:
 
         # filter location attributes from device result lists.
         make_attrs: Callable = partial(
-            _MkDict._filter_location_attrs,
+            MakeDict._filter_location_attrs,
             location_attrs=location_attrs)
 
         # attrses: Iterator = map(make_attrs, self.device_list)
@@ -434,7 +427,7 @@ class _MkDict:
 
     @staticmethod
     def make_device(device_result: JdevResult) -> Device:
-        return Device(location_info=_MkDict.make_location(device_result),
+        return Device(location_info=MakeDict.make_location(device_result),
                       device_name=device_result.get('deviceId'),
                       online=device_result.get('online'),
                       device_type=device_result.get('productName'),

@@ -12,7 +12,8 @@ from typing import Generator, NewType, Optional
 DateSequence = Generator[dt, dt, None]
 
 
-def date_sequence(begin: dt, end: dt, min_interval: int) -> Optional[DateSequence]:
+def date_sequence(begin: dt, end: dt, min_interval: int) \
+        -> Optional[DateSequence]:
     """ min_interval is in minutes """
     if end < begin:
         return None

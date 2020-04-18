@@ -4,6 +4,7 @@ provides app context.
 """
 from flask import Flask
 from typing import Callable, Optional
+from utils import partialclass
 from app.dataGetter.dataGen.dataType import DataSource, SpotData
 from app.dataGetter.dataGen.jianyanyuanData import JianYanYuanData
 from app.dataGetter.dataGen.xiaomiData import XiaoMiData
@@ -19,14 +20,14 @@ class DataGetterFactory:
 
     def get_data_getter(self, source: DataSource) \
             -> Callable[[], Optional[SpotData]]:
-        with self.app.app_context() as context:
-            if source.value == DataSource.JIANYANYUAN.value:
-                return lambda: JianYanYuanData(context)
-            elif source.value == DataSource.XIAOMI.value:
-                return lambda: XiaoMiData(context)
-            return lambda: None
+        """
+        TODO: unfinished. need to provide a universial interface.
+        """
+        if source.value == DataSource.JIANYANYUAN.value:
+            return lambda: JianYanYuanData(self.app)
+        elif source.value == DataSource.XIAOMI.value:
+            return lambda: XiaoMiData(self.app)
+        return lambda: None
 
-    def realtime_streamer(self) ->
-
-
-
+    def get_data_streamer(self, did: int) -> RealtimeGenProxy:
+        return RealtimeGenProxy(self.app, did)

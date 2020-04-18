@@ -18,17 +18,12 @@ with open(os.path.join(os.path.realpath(os.path.dirname(__file__)),
                        'static/auth.json'), 'r') as authdata:
     authdict = json.loads(authdata.read())
 
-    ###############
-    #  auth data  #
-    ###############
+    """ auth data """
 
     jauth: 'j.AuthData' = authdict['jianyanyuanAuth']
     xauth: 'x.AuthData' = authdict['xiaomiAuth']
 
-    #################
-    #  Test params  #
-    #################
+    """ Test params """
 
     jdevice = authdict['jianyanyuanTestDeviceParams']
     jdatapoint = authdict['jianyanyuanTestDataPointParams']
-

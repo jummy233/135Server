@@ -36,7 +36,8 @@ def add_update_delete_template(
         response_object: ApiResponse = (
             ApiResponse(status=ReturnCode.OK.value))
 
-        if post_data is None or not is_ApiRequest(cast(Optional[Dict], post_data)):
+        if post_data is None \
+                or not is_ApiRequest(cast(Optional[Dict], post_data)):
             response_object['status'] = ReturnCode.NO_DATA.value
             response_object['message'] = "post failed "
             return response_object
@@ -166,6 +167,3 @@ def outdoor_spot_add_update_delete(oid: Optional[int] = None):
         oid, (ModelOperations.Add.add_outdoor_spot,
               ModelOperations.Update.update_outdoor_spot,
               ModelOperations.Delete.delete_outdoor_spot))
-
-
-

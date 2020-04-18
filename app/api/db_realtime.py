@@ -9,7 +9,8 @@ from flask import Response, jsonify, request
 from app.api import api
 from app.api.api_types import ApiResponse, ReturnCode
 from app.models import Device, SpotRecord
-from app.dataGetter.reatime.RealTimeStreamGetter import RealtimeGenProxy
+from app.modelOperations import ModelOperations
+from app import dataGetterFactory
 
 Json = NewType('Json', str)
 
@@ -33,7 +34,7 @@ def realtime_device() -> Json:
     return jsonify(response_object)
 
 
-@api.route('/realtime/device/<did>/spot_records', methods=["GET", "DELETTE"])
+@api.route('/realtime/device/<int:did>/spot_records', methods=["GET", "DELETTE"])
 def realtime_spot_record(did: int) -> Union[Response, Json]:
     """
     Stream realtime data to client.
@@ -44,7 +45,17 @@ def realtime_spot_record(did: int) -> Union[Response, Json]:
             ApiResponse(status=ReturnCode.OK.value,
                         message="stream stopped"))
 
-    realtime = RealtimeGenProxy(did)
-    return Response(
-        realtime.generate(),
-        mimetype="application/json")
+    l = []
+    realtime = dataGetterFactory.get_data_streamer(int(did))
+    __import__('pdb').set_trace()
+    for data in realtime.generate():
+
+        print(data)
+        l.append(data)
+        # ModelOperations.Add.add_outdoor_spot(data)
+
+    return jsonify(l)
+
+    # return Response(
+    #     realtime.generate(),
+    #     mimetype="application/json")

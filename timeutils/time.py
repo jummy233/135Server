@@ -13,7 +13,7 @@ def timestamp_setdigits(ts: Union[float, int], digit: int) -> int:
 def currentTimestamp(digit: int) -> int:
     """ return unix timestamp with disired digits """
     factor: int = floor(10 ** (digit - 10))
-    return floor(time.time() * factor)
+    return floor(dt.timestamp(dt.utcnow()) * factor)
 
 
 def datetime_format_resolver(datetime_str: str, formats: List[str]
@@ -65,12 +65,13 @@ def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
 def datetime_to_str(datetime: Optional[dt]) -> str:
     if not datetime:
         return ''
-    return '{}-{:02}-{:02}T{:02}:{:02}:{:02}'.format(datetime.year,
-                                                     datetime.month,
-                                                     datetime.day,
-                                                     datetime.hour,
-                                                     datetime.minute,
-                                                     datetime.second)
+    return '{}-{:02}-{:02}T{:02}:{:02}:{:02}'.format(
+        datetime.year,
+        datetime.month,
+        datetime.day,
+        datetime.hour,
+        datetime.minute,
+        datetime.second)
 
 
 def coutback7day_tuple(prev_tuple: Tuple[dt, dt]) -> Tuple[dt, dt]:
@@ -83,14 +84,14 @@ def coutback7day_tuple(prev_tuple: Tuple[dt, dt]) -> Tuple[dt, dt]:
     return start - delta_seven, start
 
 
-def back7daytuple_generator(create_time: Optional[dt]) -> Generator[Tuple[dt, dt], None, None]:
+def back7daytuple_generator(create_time: Optional[dt]) \
+        -> Generator[Tuple[dt, dt], None, None]:
     """ 7 day tuple generator. stop when back to create time"""
     delta_seven = timedelta(days=7)
     now = dt.utcnow()
 
     if create_time is None:  # if no create time default go back for a month.
         create_time = now - 30 * delta_seven
-
     date_tuple = (now - delta_seven, now)
 
     if date_tuple[0] < create_time:
@@ -100,6 +101,6 @@ def back7daytuple_generator(create_time: Optional[dt]) -> Generator[Tuple[dt, dt
         yield date_tuple
         date_tuple = coutback7day_tuple(date_tuple)
         d1, d2 = date_tuple
-
-        if d1 < create_time:  # if less than create time construct from create time.
+        # if less than create time construct from create time.
+        if d1 < create_time:
             yield (create_time, d2)

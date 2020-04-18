@@ -4,6 +4,8 @@ from datetime import datetime as dt
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
+LazySpotRecord = Callable[[], Optional[Generator]]
+
 
 class DataSource(enum.Enum):
     JIANYANYUAN = 0

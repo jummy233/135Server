@@ -229,8 +229,6 @@ def _get_device_attrs(auth: AuthData,
         if rj['code'] != 0:
             logger.error('error return code: ', rj)
             return None
-        # __import__('pprint').pprint(rj)
-        # print('------->')
         return rj['data']['jsonArray']
 
     except urllib3.response.ProtocolError as e:

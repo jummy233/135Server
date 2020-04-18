@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from config import config
 from .caching import CacheInstance
+from .dataGetter.dataGetter import DataGetterFactory
 
 from logger import make_logger
 from logging import DEBUG
@@ -14,6 +15,7 @@ logger.warning('initializing app')
 global_cache = CacheInstance()  # create cache instance here.
 moment = Moment()
 db = SQLAlchemy()
+dataGetterFactory = DataGetterFactory()
 
 
 login_manager = LoginManager()
@@ -32,6 +34,7 @@ def create_app(config_name: str) -> Flask:
     moment.init_app(app)
     db.init_app(app)
     login_manager.init_app(app)
+    dataGetterFactory.init_app(app)
 
     if app.config['SHISANWU_CACHE_ON']:
         global_cache.init_app(app)  # cache database.
