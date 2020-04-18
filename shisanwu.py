@@ -71,7 +71,8 @@ def init_db(full, cache):
 
 
 @app.cli.command()
-@click.option('--coverage/--no-coverage', default=False, help='Run coverage test')
+@click.option('--coverage/--no-coverage',
+              default=False, help='Run coverage test')
 @click.argument('test_names', nargs=-1)
 def test(coverage, test_names):
     """run unit tests."""
@@ -96,5 +97,3 @@ def test(coverage, test_names):
         COV.html_report(directory=covdir)
         print("HTML version: file://%s/index/html" % covdir)
         COV.erase()
-
-

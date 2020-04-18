@@ -26,36 +26,30 @@ def realtime_device() -> Json:
         .filter(Device.online))
 
     response_object = (
-        ApiResponse(
-            status=ReturnCode.OK.value,
-            message="data fetched",
-            data=[device.to_json() for device in online_devices]))
+        ApiResponse(status=ReturnCode.OK.value,
+                    message="data fetched",
+                    data=[device.to_json() for device in online_devices]))
 
     return jsonify(response_object)
 
 
-@api.route('/realtime/device/<int:did>/spot_records', methods=["GET", "DELETTE"])
+@api.route('/realtime/device/<int:did>/spot_records',
+           methods=["GET", "DELETTE"])
 def realtime_spot_record(did: int) -> Union[Response, Json]:
     """
     Stream realtime data to client.
     """
     if request.method == 'DELETTE':
         # stop existing generator.
-        return jsonify(
-            ApiResponse(status=ReturnCode.OK.value,
-                        message="stream stopped"))
+        return jsonify(ApiResponse(status=ReturnCode.OK.value,
+                                   message="stream stopped"))
 
-    l = []
+    streamdata = []
     realtime = dataGetterFactory.get_data_streamer(int(did))
-    __import__('pdb').set_trace()
     for data in realtime.generate():
-
+        __import__('pdb').set_trace()
         print(data)
-        l.append(data)
+        streamdata.append(next(data))
         # ModelOperations.Add.add_outdoor_spot(data)
 
-    return jsonify(l)
-
-    # return Response(
-    #     realtime.generate(),
-    #     mimetype="application/json")
+    return jsonify(streamdata)

@@ -1,12 +1,12 @@
 from typing import Optional
 import unittest
-from dataGetter import dataMidware
+from app.dataGetter.dataGen.jianyanyuanData import JianYanYuanData
 import time
 
 
 class SpotDataTest(unittest.TestCase):
     def setUp(self):
-        self.j = dataMidware.JianYanYuanData()
+        self.j = JianYanYuanData()
         self.location_attrs = (
             'cityIdLogin',
             'provinceIdLogin',
@@ -29,10 +29,10 @@ class SpotDataTest(unittest.TestCase):
     def test_filter_attrs(self):
         d = self.j._filter_location_attrs(
             self.j.device_list[5], self.location_attrs)
-        self.assertTrue(d is not None and len(d.keys()) <= len(self.location_attrs))
+        self.assertTrue(
+            d is not None and len(d.keys()) <= len(self.location_attrs))
 
     def test_make_datapoint_param(self):
         r = self.j.device_list[8]
         param = self.j._make_datapoint_param(r)
         self.assertTrue(param is not None and 'gid' in param.keys())
-

@@ -26,9 +26,10 @@ DeleteOperation = Callable[[int], Optional[Data]]
 
 def add_update_delete_template(
         some_id: Optional[int],
-        model_operations: Tuple[AddOperation,
-                                UpdateOperation,
-                                DeleteOperation]) -> Json:
+        model_operations: Tuple[
+            AddOperation,
+            UpdateOperation,
+            DeleteOperation]) -> Json:
     add, update, delete = model_operations
 
     def handle_post(post_data: Optional[ApiRequest]) -> ApiResponse:
@@ -68,7 +69,8 @@ def add_update_delete_template(
         response_object: ApiResponse = (
             ApiResponse(status=ReturnCode.OK.value))
 
-        if post_data is None or not is_ApiRequest(cast(Optional[Dict], post_data)):
+        if post_data is None \
+                or not is_ApiRequest(cast(Optional[Dict], post_data)):
             response_object['status'] = ReturnCode.NO_DATA.value
             response_object['message'] = "post failed "
             return response_object

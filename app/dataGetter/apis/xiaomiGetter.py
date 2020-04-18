@@ -142,8 +142,15 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
      redirect_uri,
      state,
      account,
-     password) = itemgetter('appId', 'auth_base_url', 'authorize_url', 'redirect_uri', 'state',
-                            'account', 'password')(auth)
+     password) = \
+        itemgetter(
+        'appId',
+        'auth_base_url',
+        'authorize_url',
+        'redirect_uri',
+        'state',
+        'account',
+        'password')(auth)
 
     # First get to the login page
     url: str = urllib.parse.urljoin(auth_base_url, authorize_url)
@@ -178,8 +185,9 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
         return None
 
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s',
-                     response.content, response.request)
+        logger.error(
+            'some Exception happed when send and receiving data. %s %s',
+            response.content, response.request)
 
     response_url: str = response.url
 
@@ -194,7 +202,8 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     return query['code']
 
 
-def _get_token(auth: AuthData, refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
+def _get_token(auth: AuthData,
+               refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
     """
     return token with given auth code
     if refresh token is passed, it is then used to retreive new token.
@@ -247,8 +256,9 @@ def _get_token(auth: AuthData, refresh: Optional[TokenResult] = None) -> Optiona
                      response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s',
-                     response.content, response.request)
+        logger.error(
+            'some Exception happed when send and receiving data. %s %s',
+            response.content, response.request)
 
     if response.status_code != 200:
         logger.error('error response %s', response)
@@ -279,7 +289,8 @@ def _gen_sign(auth: AuthData, token: Optional[TokenResult]) -> Optional[str]:
     return sign
 
 
-def _gen_header(auth: AuthData, token: Optional[TokenResult], sign: Optional[str]) -> Optional[Dict]:
+def _gen_header(auth: AuthData, token: Optional[TokenResult],
+                sign: Optional[str]) -> Optional[Dict]:
     if not token:
         logger.error('token is None')
         return None
@@ -305,15 +316,18 @@ def _get_pos(auth: AuthData,
              token: Optional[TokenResult],
              params: PosParam = {}) -> Optional[PosResult]:
 
-    (api_query_base_url, api_query_pos_url) = itemgetter('api_query_base_url',
-                                                         'api_query_pos_url')(auth)
+    api_query_base_url, api_query_pos_url = \
+        itemgetter('api_query_base_url',
+                   'api_query_pos_url')(auth)
     if not token:
         logger.error('token is None')
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
     headers: Optional[Dict] = _gen_header(
-        auth, token, sign if sign is not None else None)
+        auth, token, sign
+        if sign is not None
+        else None)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
     try:
@@ -332,8 +346,9 @@ def _get_pos(auth: AuthData,
                      response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s',
-                     response.content, response.request)
+        logger.error(
+            'some Exception happed when send and receiving data. %s %s',
+            response.content, response.request)
 
     finally:
         if response.status_code != 200:
@@ -346,8 +361,9 @@ def _get_device(auth: AuthData,
                 token: Optional[TokenResult],
                 params: DeviceParam = {}) -> Optional[DeviceResult]:
 
-    (api_query_base_url, api_query_dev_url) = itemgetter('api_query_base_url',
-                                                         'api_query_dev_url')(auth)
+    api_query_base_url, api_query_dev_url = \
+        itemgetter('api_query_base_url',
+                   'api_query_dev_url')(auth)
     if not token:
         logger.error('token is None')
         return None
@@ -374,8 +390,9 @@ def _get_device(auth: AuthData,
                      response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s',
-                     response.content, response.request)
+        logger.error(
+            'some Exception happed when send and receiving data. %s %s',
+            response.content, response.request)
 
     finally:
         if response.status_code != 200:
@@ -388,9 +405,9 @@ def _get_resource(auth: AuthData,
                   token: Optional[TokenResult],
                   params: ResourceParam) -> Optional[ResourceResult]:
 
-    (api_query_base_url,
-     api_query_resrouce_url) = itemgetter('api_query_base_url',
-                                          'api_query_resrouce_url')(auth)
+    api_query_base_url, api_query_resrouce_url = \
+        itemgetter('api_query_base_url',
+                   'api_query_resrouce_url')(auth)
     if not token:
         logger.error('token is None')
         return None
@@ -416,8 +433,9 @@ def _get_resource(auth: AuthData,
                      response.content, response.request)
         return None
     except BaseException:
-        logger.error('some Exception happed when send and receiving data. %s %s',
-                     response.content, response.request)
+        logger.error(
+            'some Exception happed when send and receiving data. %s %s',
+            response.content, response.request)
     finally:
         if response.status_code != 200:
             logger.error('error response %s', response)

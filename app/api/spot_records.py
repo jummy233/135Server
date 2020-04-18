@@ -14,13 +14,15 @@ def get_spot_records(spot_id):
     return jsonify(spot_records)
 
 
-@api.route('/spot/<spot_id>/from/<int:year1>/<int:month1>/to/<int:year2>/<int:month2>', methods=['GET'])
-def get_spot_records_in_date_range(spot_id, year1, month1, year2, month2):
+@api.route(
+    '/spot/<sid>/from/<int:year1>/<int:month1>/to/<int:year2>/<int:month2>',
+    methods=['GET'])
+def get_spot_records_in_date_range(sid, year1, month1, year2, month2):
     date1 = datetime(year1, month1, 1)
     _, day_range_of_month2 = calendar.monthrange(year2, month2)
     date2 = datetime(year2, month2, day_range_of_month2)
     records = (SpotRecord.query.
-               filter(SpotRecord.spot_id == spot_id).
+               filter(SpotRecord.spot_id == sid).
                filter(SpotRecord.spot_record_time > date1).
                filter(SpotRecord.spot_record_time < date2).
                order_by(SpotRecord.spot_record_time))

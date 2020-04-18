@@ -30,7 +30,8 @@ def login() -> Json:
         with open('dataGetter/static/pw.json', 'r') as f:
             stored = json.loads(f.read())
 
-        if name == stored['name'] and pwhash == stored['pwhash']:
+        if name == stored['name'] \
+                and pwhash == stored['pwhash']:
             response = ApiResponse(
                 status=ReturnCode.OK.value,
                 message="logined")

@@ -27,14 +27,17 @@ Uid = NewType('Uid', str)
 AuthToken = NewType('AuthToken', Tuple[Token, Uid])
 
 AuthData = (
-    TypedDict('AuthData',
-              {'account': str,
-               'password': str,
-               'base_url': str,
-               'auth_url': str,
-               'device_url': str,
-               'attr_url': str,
-               'datapoint_url': str}))
+    TypedDict(
+        'AuthData',
+        {
+            'account': str,
+            'password': str,
+            'base_url': str,
+            'auth_url': str,
+            'device_url': str,
+            'attr_url': str,
+            'datapoint_url': str
+        }))
 
 #######################
 #  param type  #
@@ -48,13 +51,16 @@ DeviceParam = (
                'pageSize': Optional[int]}))
 
 DataPointParam = (
-    TypedDict('DataPointParam',
-              {'gid': Optional[str],
-               'did': Optional[str],
-               # list of attrs. string in form "<aid>, <aid>"
-               'aid': Optional[str],
-               'startTime': Optional[str],
-               'endTime': Optional[str]}))  # time format: yyyy-MM-ddTHH:mm:ss
+    TypedDict(
+        'DataPointParam',
+        {
+            'gid': Optional[str],
+            'did': Optional[str],
+            # list of attrs. string in form "<aid>, <aid>"
+            'aid': Optional[str],
+            'startTime': Optional[str],
+            'endTime': Optional[str]
+        }))  # time format: yyyy-MM-ddTHH:mm:ss
 
 Gid = NewType('Gid', str)
 
@@ -64,9 +70,12 @@ Gid = NewType('Gid', str)
 
 DeviceResult = NewType('DeviceResult', Dict)
 AttrResult = NewType('AttrResult', Dict)
-DataPointResult = TypedDict('DataPointResult',
-                            {'as': Dict,
-                             'key': str})
+DataPointResult = TypedDict(
+    'DataPointResult',
+    {
+        'as': Dict,
+        'key': str
+    })
 
 
 #############
@@ -81,7 +90,8 @@ attrs: Dict = {
 
     # there are two ac power aid for differnt devices.
     'ac_power1': '155',
-    'ac_power2': '32'}
+    'ac_power2': '32'
+}
 
 
 def _get_token(auth: AuthData, timestamp: Optional[int] = None) \
@@ -103,7 +113,8 @@ def _get_token(auth: AuthData, timestamp: Optional[int] = None) \
         'account': account,
         'sign': sign,
         'ts': timestamp,
-        'ukey': ''}
+        'ukey': ''
+    }
 
     try:
         response: requests.Response = requests.post(url, json=request_data)
@@ -151,13 +162,18 @@ def _get_device_list(auth: AuthData,
     url = urllib.parse.urljoin(base_url, device_url)
 
     sign: str = sha1(
-        (method + device_url + params_json + str(timestamp) + token).encode('ascii')).hexdigest()
+        (method
+         + device_url
+         + params_json
+         + str(timestamp)
+         + token).encode('ascii')).hexdigest()
 
     headers: Dict = {
         'Content-Type': 'application/json;charset=UTF-8',
         'ts': str(timestamp),
         'uid': uid,
-        'sign': sign}
+        'sign': sign
+    }
     try:
         response = requests.post(url, data=params_json, headers=headers)
 
@@ -188,9 +204,10 @@ def _get_device_list(auth: AuthData,
     return None
 
 
-def _get_device_attrs(auth: AuthData,
-                      authtoken: Optional[AuthToken],
-                      gid: str) -> Optional[List[AttrResult]]:
+def _get_device_attrs(
+        auth: AuthData,
+        authtoken: Optional[AuthToken],
+        gid: str) -> Optional[List[AttrResult]]:
     """
     (token + attrId) return paramter attr table
     only return the Array with data.
@@ -210,7 +227,10 @@ def _get_device_attrs(auth: AuthData,
     url: str = urllib.parse.urljoin(base_url, attr_url_gid)
 
     sign: str = sha1(
-        (method + attr_url_gid + str(timestamp) + token).encode('ascii')).hexdigest()
+        (method
+         + attr_url_gid
+         + str(timestamp)
+         + token).encode('ascii')).hexdigest()
 
     headers: Dict = {
         'Content-Type': 'application/json;charset=UTF-8',
@@ -246,9 +266,11 @@ def _get_device_attrs(auth: AuthData,
     return None
 
 
-def _get_data_points(auth: AuthData,
-                     authtoken: Optional[AuthToken],
-                     params: DataPointParam) -> Optional[List[DataPointResult]]:
+def _get_data_points(
+        auth: AuthData,
+        authtoken: Optional[AuthToken],
+        params: DataPointParam) \
+        -> Optional[List[DataPointResult]]:
     """ return data """
     method: str = 'POST'
     timestamp: int = currentTimestamp(13)
@@ -264,16 +286,22 @@ def _get_data_points(auth: AuthData,
     url: str = urllib.parse.urljoin(base_url, datapoint_url)
 
     sign: str = sha1(
-        (method + datapoint_url + param_json + str(timestamp) + token).encode('ascii')).hexdigest()
-    headers: Dict = {'Content-Type': 'application/json;charset=UTF-8',
-                     'ts': str(timestamp),
-                     'uid': uid,
-                     'sign': sign}
+        (method
+         + datapoint_url
+         + param_json
+         + str(timestamp)
+         + token).encode('ascii')).hexdigest()
+    headers: Dict = {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'ts': str(timestamp),
+        'uid': uid,
+        'sign': sign
+    }
 
     try:
         with threading.RLock():
-            response: requests.Response = requests.post(
-                url, data=param_json, headers=headers)
+            response: requests.Response = \
+                requests.post(url, data=param_json, headers=headers)
 
         logger.debug('datapoint response {} '.format(response))
 
@@ -291,7 +319,9 @@ def _get_data_points(auth: AuthData,
         # notice some apis are broken and return attrs
         if 'asData' not in rj['data'].keys():
             logger.warning(
-                'warning, broken api, no data in datapoint return keys: %s %s', rj['code'], response.request.body)
+                'warning, broken api, no data in datapoint return keys: %s %s',
+                rj['code'],
+                response.request.body)
             return None
 
         logger.debug('correct authtoken %s', str(authtoken))

@@ -46,10 +46,11 @@ def sport_record_filtered(did: Optional[int]) -> Json:
 
     if is_ApiRequest(post_data) and did is not None:
         filter_request = post_data['request']
-        start, end = map(str_to_datetime,
-                         itemgetter("startTime",
-                                    "endTime")
-                         (filter_request))
+        start, end = map(
+            str_to_datetime,
+            itemgetter("startTime",
+                       "endTime")
+            (filter_request))
 
         response_object: ApiResponse = (
             ApiResponse(
@@ -61,8 +62,7 @@ def sport_record_filtered(did: Optional[int]) -> Json:
             .query
             .filter(SpotRecord.device_id == did)
             .filter(SpotRecord.spot_record_time >= start)
-            .filter(SpotRecord.spot_record_time <= end)
-        )
+            .filter(SpotRecord.spot_record_time <= end))
 
         response_object['data'] = {
             'data': [item.to_json() for item in filtered_res if item],

@@ -16,11 +16,8 @@ JobBox = LazyBox[T]
 
 def thread_fetcher(jobs: Iterable[Callable[[], T]],
                    max_thread: int,
-
                    fetcher: Callable[[Queue, Callable[[], T], Lock], None],
-
                    consumer: Callable[[Queue], None] = lambda q: None,
-
                    before_consume_hook: Callable = lambda: None,
                    after_consume_hook: Callable = lambda: None) -> None:
     """
@@ -91,7 +88,3 @@ def _spawn_threads(subjobs: LazyBox[Callable[[], T]],
 
         t.join()
         logger.debug(f"Thread {idx} joined")
-
-
-
-

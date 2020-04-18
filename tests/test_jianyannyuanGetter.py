@@ -1,8 +1,7 @@
 from typing import Optional
 import unittest
-from dataGetter import jianyanyuanGetter as j
-from dataGetter import authConfig
-from dataGetter import dataMidware
+from app.dataGetter.apis import jianyanyuanGetter as j
+from app.dataGetter import authConfig
 import time
 import json
 jauth = authConfig.jauth
@@ -68,7 +67,7 @@ class JianyanyuanGetterTest(unittest.TestCase):
                 'gid': 'sougci',  # 32 power
                 'data': j._get_device_attrs(jauth, self.token, 'sougci')}
         ]
-        with open('dataGetter/static/j_device_attrs.json', 'w') as f:
+        with open('app/dataGetter/static/j_device_attrs.json', 'w') as f:
             f.write(json.dumps(data))
 
         expected_len = [6, 9, 26, 6, 24, 101, 67, 22, 6, 5, 6, 5]

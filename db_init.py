@@ -19,12 +19,15 @@ from typing import (Any, Callable, Dict, Generator, Generic, Iterator, List,
 
 from fuzzywuzzy import fuzz
 from sqlalchemy.exc import IntegrityError
+from flask import current_app
 
 from app import db
 from app.modelOperations import ModelOperations, commit
 from app.models import ClimateArea, Device, Location, Project, Spot, SpotRecord
 from concurrent_fetch import thread_fetcher
-from dataGetter import dataMidware
+from app.dataGetter.dataGen import JianYanYuanData
+from app.dataGetter.dataGen import XiaoMiData
+from app.dataGetter.dataGen import dataType as DGType
 from lazybox import LazyBox, LazyGenerator
 from logger import make_logger
 
@@ -64,22 +67,17 @@ def create_db(name='development.sqlite', force=True) -> None:
 ##############################
 
 
-def threaded_collector(jobs: Iterator[Job],
-                       max_concurrent_thread_num: int,
-                       queue: Queue,  # T
-
-                       worker: Callable[
-                           [
-                               Queue,  # T
-                               Iterator[Job]  # lazy
-                           ],
-                           None],
-
-                       consumer: Callable[[T], None],
-                       hook: Callable[..., None]) -> None:
+def threaded_collector(
+        jobs: Iterator[Job],
+        max_concurrent_thread_num: int,
+        queue: Queue,  # T
+        worker: Callable[[Queue,  Iterator[Job]], None],
+        consumer: Callable[[T], None],
+        hook: Callable[..., None]) -> None:
     """
     Colletor data with thread worker and pipe results to consumer.
-    spawn limit amount of thread once at a time and consume the result right after
+    spawn limit amount of thread once at a time and consume the result
+    right after
     """
 
     total_count: int = 0
@@ -91,7 +89,8 @@ def threaded_collector(jobs: Iterator[Job],
 
             # list of jobs wrap in iterator. Will be evaled in thread.
             # job_buffer is garuanteed to be exthausted.
-            # ps: job_buffer has known length, which is max_concurrent_thread_num
+            # ps: job_buffer has known length, which is
+            # max_concurrent_thread_num
             job_buffer: LazyGenerator[Job] = LazyGenerator(
                 islice(jobs, max_concurrent_thread_num))
 
@@ -237,8 +236,11 @@ class JianyanyuanLoadFull:
     devices spot and records are large and has heavy state dependency.
     """
 
-    def __init__(self, datapoint_thread_num: int = 30, datapoint_from: int = 0):
-        self.j = dataMidware.JianYanYuanData()
+    def __init__(
+            self,
+            datapoint_thread_num: int = 30,
+            datapoint_from: int = 0):
+        self.j = JianYanYuanData(current_app)
         self.datapoint_thread_num = datapoint_thread_num
         self.datapoint_from = datapoint_from
 
@@ -250,8 +252,10 @@ class JianyanyuanLoadFull:
         -----------------------------------------
          Different methods to get spot
         -----------------------------------------
-        method 1:    use the j_project_device_table's projects name. (all project from jianyanyuan)
-        method 2:    fuzzy match the JianyanyuanData Location typedict with project name
+        method 1:    use the j_project_device_table's projects name.
+                     (all project from jianyanyuan)
+        method 2:    fuzzy match the JianyanyuanData Location typedict with
+                     project name
         other wise:  no enough information, pass
 
         Jianyanyuan spot are just project. There is no room information.
@@ -267,16 +271,20 @@ class JianyanyuanLoadFull:
 
         def load_by_table_lookup():
             """ method 1: Use keys of j_project_device_table. """
-            with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
+            with open('./dataGetter/static/j_project_device_table.json',
+                      'r') as f:
                 json_data: Dict = json.loads(f.read())
-                projects = [(Project
-                             .query
-                             .filter_by(project_name=pn)).first() for pn in json_data.keys()]
+                projects = [
+                    (Project
+                     .query
+                     .filter_by(project_name=pn))
+                    .first() for pn in json_data.keys()]
 
-            names: List[Tuple[str, str]] = list(map(lambda p:
-                                                    (spotname_from_projectname(p.project_name),
-                                                     p.project_name),
-                                                    projects))
+            names: List[Tuple[str, str]] = list(
+                map(lambda p:
+                    (spotname_from_projectname(p.project_name),
+                     p.project_name),
+                    projects))
 
             for spot_name, project_name in names:
 
@@ -288,7 +296,8 @@ class JianyanyuanLoadFull:
 
                     spot_post = {
                         "project": project,
-                        "spot_name": spotname_from_projectname(project.project_name),
+                        "spot_name": spotname_from_projectname(
+                            project.project_name),
                         "spot_type": None,
                         "image": None
                     }
@@ -309,7 +318,8 @@ class JianyanyuanLoadFull:
                     project = projects[fuzz_results.index(max_ratio)]
                     spot_post = {
                         "project": project,
-                        "spot_name": spotname_from_projectname(project.project_name),
+                        "spot_name": spotname_from_projectname(
+                            project.project_name),
                         "spot_type": None,
                         "image": None
                     }
@@ -389,15 +399,22 @@ class JianyanyuanLoadFull:
             return spot
 
         # Note: Two methods both loop through device list.
-        def load_by_table_lookup(d: dataMidware.Device, json_data: Dict, json_spot_list: List[Spot]):
-            """ method 1 load project name from json table for given device id """
+        def load_by_table_lookup(
+                d: DGType.Device,
+                json_data: Dict,
+                json_spot_list: List[Spot]):
+            """
+            method 1 load project name from json table for given device id
+            """
 
             did = d.get('device_name')
 
             for project_name, did_lists in json_data.items():
                 if did in did_lists:
-                    spot = next(filter(lambda s: s.project.project_name == project_name,
-                                       json_spot_list))
+                    spot = next(
+                        filter(
+                            lambda s: s.project.project_name == project_name,
+                            json_spot_list))
 
                     device_post_data = {
                         'device_name': did,
@@ -409,8 +426,11 @@ class JianyanyuanLoadFull:
                     }
                     ModelOperations.Add.add_device(device_post_data)
 
-        def load_by_location_info(d: dataMidware.Device):
-            """ method 2, deduce the spot by location_info typedict come with Device typedict """
+        def load_by_location_info(d: DGType.Device):
+            """
+            method 2, deduce the spot by location_info typedict come
+            with Device typedict
+            """
 
             spot: Optional[Spot] = handle_location_info(d['location_info'])
 
@@ -429,15 +449,17 @@ class JianyanyuanLoadFull:
         with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
             json_data: Dict = json.loads(f.read())
 
-            json_spot_list = [(Project
-                               .query
-                               .filter_by(project_name=pn)).first().spot.first()
-                              for pn in json_data.keys()]
+            json_spot_list = [
+                (Project
+                 .query
+                 .filter_by(project_name=pn)).first().spot.first()
+                for pn in json_data.keys()]
 
         for d in devices:  # consumer
 
             # second operation will overwrite the first one.
-            # table lookup has higher accuracy so has higher priority than fuzzy match.
+            # table lookup has higher accuracy so has higher priority
+            # than fuzzy match.
             load_by_table_lookup(d, json_data, json_spot_list)
             load_by_location_info(d)
 
@@ -446,7 +468,7 @@ class JianyanyuanLoadFull:
     def load_spot_records(self):
         """
         There is no local table look up.
-        All info come from dataMidware iterator
+        All info come from dataGen iterator
         """
         spot_records: Iterator[Optional[Generator]] = (
             islice(self.j.spot_record(),
@@ -521,18 +543,6 @@ class JianyanyuanLoadFull:
                 ...
 
         logger.info('<Main Thread> Start to fetch data...')
-
-        # threaded_collector collect data, and then feed them to
-        # paralleled consumer to process data and record into database.
-
-        # consumer = partial(paralleled_consumer, do_record_sr, 6)
-
-        # threaded_collector(jobs=spot_records,
-        #                    max_concurrent_thread_num=self.datapoint_thread_num,
-        #                    queue=queue,
-        #                    worker=record_fetching_worker,
-        #                    consumer=do_record_sr,
-        #                    hook=commit)
 
         thread_fetcher(jobs=spot_records,
                        max_thread=self.datapoint_thread_num,

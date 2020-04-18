@@ -242,9 +242,8 @@ class JianYanYuanData(SpotData):
                 return datapoint_iter
 
         def entrance_generator(self, datapoints, params_list) \
-            -> Generator[
-                Callable[
-                    [], Optional[Generator[Optional[SpotRecord], None, None]]],
+            -> Generator[Callable[
+                [], Optional[Generator[Optional[SpotRecord], None, None]]],
                 None,
                 None]:
             """
@@ -257,8 +256,11 @@ class JianYanYuanData(SpotData):
 
             # send out a slice of iterator rather than eval it.
             while True:
-                yield (lambda: self._records_factory(
-                    islice(effectful_pair, 1)))
+                try:
+                    yield (lambda: self._records_factory(
+                        islice(effectful_pair, 1)))
+                except Exception:
+                    break
 
         def _records_factory(self, arg: Iterator[Tuple[
             Optional[List[JdatapointResult]], JdatapointParam]]) \
@@ -440,6 +442,4 @@ class MakeDict:
         """
         filter location attributes from device results
         """
-        return {k: v for k, v
-                in device_result.items()
-                if k in location_attrs}
+        return {k: v for k, v in device_result.items() if k in location_attrs}

@@ -1,8 +1,7 @@
 from typing import Optional
 import unittest
-from dataGetter import xiaomiGetter as x
-from dataGetter import authConfig
-from dataGetter import dataMidware
+from app.dataGetter.apis import xiaomiGetter as x
+from app.dataGetter import authConfig
 import time
 xauth = authConfig.xauth
 
@@ -40,9 +39,14 @@ class XiaomiGetterTest(unittest.TestCase):
         self.assertTrue(dev is not None)
 
     def test_get_resource(self):
-        params: x.ResourceParam = {
-            'data': [{'did': 'lumi.158d0002374da1', 'attrs': ['3', 'humidity_value']}]}
-        res: Optional[x.ResourceResult] = x._get_resource(xauth, self.token, params)
+        params: x.ResourceParam = {  # wrong type. but its fine.
+            'data': [
+                {
+                    'did': 'lumi.158d0002374da1',
+                    'attrs': ['3', 'humidity_value']
+                }
+            ]
+        }
+        res: Optional[x.ResourceResult] = x._get_resource(
+            xauth, self.token, params)
         self.assertTrue(res is not None)
-
-

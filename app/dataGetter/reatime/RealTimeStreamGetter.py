@@ -16,10 +16,9 @@ class RealtimeGenProxy:
     def __init__(self, app: Flask, did: int):
         self._reatimegen = RealTimeGen(app, did)
 
-    def generate(self) -> Iterator[LazySpotRecord]:
+    def generate(self) -> Generator[LazySpotRecord, None, None]:
         # note item is a generator.
         # TODO proxy dummy data for error handling.
-
         for item in self._reatimegen.generate():
             yield item
 
@@ -35,12 +34,15 @@ class RealTimeGen:
     def generate(self) -> Generator[LazySpotRecord, None, None]:
         # steeam data. output None if datastream is not avaiable.
         # how to handle None is up to the caller.
-        if self._datastream is None:
-            yield None
+        try:
+            if self._datastream is None:
+                yield None
 
-        for generator in self._datastream:
-            for item in generator:
-                yield item()
+            for generator in self._datastream:
+                for item in generator:
+                    yield item()
+        except StopIteration:
+            return
 
     @property
     def datastream(self):

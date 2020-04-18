@@ -3,7 +3,7 @@ from app import db, create_app, models, utils
 from app.api import db_views
 import json
 from datetime import datetime, timedelta
-from .fake_db import gen_fake
+from tests.fake_db import gen_fake
 
 
 class DBViewTestCase(unittest.TestCase):

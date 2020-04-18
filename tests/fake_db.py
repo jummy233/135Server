@@ -1,3 +1,7 @@
+"""
+NOTE: deprecated test
+"""
+
 from app import modelOperations as mops
 from datetime import datetime
 from app import models as m
@@ -65,5 +69,3 @@ def gen_fake():
         "co2": "22"
     }
     mops.add_spot_record(spot_record)
-
-

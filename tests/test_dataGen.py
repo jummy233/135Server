@@ -1,14 +1,21 @@
 import unittest
-from dataGetter import dataMidware
-from dataGetter import jianyanyuanGetter
+import app.dataGetter.dataGen as DG
+from app import create_app, db
+from app.dataGetter.apis import jianyanyuanGetter
 from datetime import datetime
 from typing import Dict, List, Iterator, Generator
 from itertools import islice
+from tests.fake_db import gen_fake
 
 
-class TestdataMidwareJianYanYuanData(unittest.TestCase):
+class TestdataGenJianYanYuanData(unittest.TestCase):
     def setUp(self):
-        self.j = dataMidware.JianYanYuanData()
+        self.j = DG.JianYanYuanData()
+        self.app = create_app('testing')
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+        db.create_all()
+        gen_fake()
 
     def tearDown(self):
         self.j.close()
@@ -20,7 +27,9 @@ class TestdataMidwareJianYanYuanData(unittest.TestCase):
         datapoints = map(self.j._datapoint, datapoint_params)
 
         spot_records = map(
-            lambda dp: None if not dp else self.j.make_spot_record(dp[0]), datapoints)
+            lambda dp: None
+            if not dp
+            else self.j.make_spot_record(dp[0]), datapoints)
 
         # for sr in spot_records:
         #     __import__('pprint').pprint(sr)
@@ -38,8 +47,8 @@ class TestdataMidwareJianYanYuanData(unittest.TestCase):
     def test_JianYanYuanData_make_device(self):
         device_result = self.j.device_list[4]
         device = self.j.make_device(device_result)
-        self.assertTrue(
-            isinstance(device, Dict) and isinstance(device['device_name'], str))
+        self.assertTrue(isinstance(device, Dict)
+                        and isinstance(device['device_name'], str))
 
     def test_JianYanYuanData_device(self):
         devices = self.j.device()
@@ -65,5 +74,5 @@ class TestdataMidwareJianYanYuanData(unittest.TestCase):
 
 
 @unittest.skip('skip')
-class TestdataMidware_XiaomiData(unittest.TestCase):
+class TestdataGen_XiaomiData(unittest.TestCase):
     pass

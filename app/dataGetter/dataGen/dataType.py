@@ -75,4 +75,3 @@ class SpotData(ABC):
         Get device information
         value returned will be used to fill `device` table in database schema.
         """
-

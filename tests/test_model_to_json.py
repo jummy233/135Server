@@ -7,6 +7,7 @@ from .fake_db import gen_fake
 import db_init
 
 
+@unittest.skip("Not needed")
 class TestModelToJson(unittest.TestCase):
 
     def setUp(self):
