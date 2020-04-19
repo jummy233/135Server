@@ -14,9 +14,10 @@ class TestModelOperation(unittest.TestCase):
         self.app_context.push()
         db.create_all()
         self.client = self.app.test_client()
-        db_init.create_db()
-
+        db_init.create_db('testing.sqlite')
         db_init.load_climate_area()
+        db_init.load_location()
+        db_init.load_projects()
 
     def tearDown(self):
         db.session.remove()
@@ -30,7 +31,7 @@ class TestModelOperation(unittest.TestCase):
             "climate_area_name": "A1"
         }
 
-        mops.add_location(location)
+        mops.ModelOperations.Add.add_location(location)
 
     def _project(self):
         project = {
@@ -41,7 +42,7 @@ class TestModelOperation(unittest.TestCase):
             "description": "",
             "project_name": "Project",
             "latitude": "31.908271",
-            "building_height": 23,  # not necessary for all records to be string.
+            "building_height": 23,
             "demo_area": "2311.94",
             "longitude": "121.172900",
             "building_type": "House",
@@ -53,16 +54,19 @@ class TestModelOperation(unittest.TestCase):
             "record_started_from": datetime(2019, 4, 20),
             "area": "2311.94"
         }
-        mops.add_project(project)
+        with self.app_context:
+            mops.ModelOperations.Add.add_project(project)
 
     def _spot(self):
         spot = {
-            "project": m.Project.query.first().project_id,  # project id or project object.
+            # project id or project object.
+            "project": m.Project.query.first().project_id,
             "spot_name": "Spot",
             "spot_type": "Bedroom",
             "image": b"asjdlasd"
         }
-        mops.add_spot(spot)
+        with self.app_context:
+            mops.ModelOperations.Add.add_spot(spot)
 
     def _device(self):
         device = {
@@ -73,7 +77,8 @@ class TestModelOperation(unittest.TestCase):
             "create_time": "2019-04-20T00:00:00",
             "modify_time": datetime(2019, 4, 24)
         }
-        mops.add_device(device)
+        with self.app_context:
+            mops.ModelOperations.Add.add_device(device)
 
     def _spot_record(self):
         spot_record = {
@@ -87,7 +92,8 @@ class TestModelOperation(unittest.TestCase):
             "pm25": "34",
             "co2": "22"
         }
-        mops.add_spot_record(spot_record)
+        with self.app_context:
+            mops.ModelOperations.Add.add_spot_record(spot_record)
 
     def test_add_location(self):
         self._location()

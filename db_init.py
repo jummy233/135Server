@@ -46,7 +46,7 @@ Job = Callable[[], Optional[Generator[T, None, None]]]
 
 def create_db(name='development.sqlite', force=True) -> None:
 
-    logger.debug('- createcreate init  db')
+    logger.debug('- creating db')
     db_path = os.path.join(current_dir, name)
     schema_path = os.path.join(current_dir, 'schema.sql')
 
@@ -138,7 +138,7 @@ def threaded_collector(
 
 def load_climate_area() -> None:
     logger.debug('- create climate area')
-    path = os.path.join(current_dir, 'dataGetter/static/climate_area.json')
+    path = os.path.join(current_dir, 'app/dataGetter/static/climate_area.json')
     with open(path, 'r') as f:
         data: Dict = json.loads(f.read())
     climate_areas: List = data['climate_area']
@@ -159,7 +159,7 @@ def load_climate_area() -> None:
 
 def load_location() -> None:
     logger.debug('- create location')
-    path = os.path.join(current_dir, 'dataGetter/static/locations.json')
+    path = os.path.join(current_dir, 'app/dataGetter/static/locations.json')
     with open(path, 'r') as f:
         data: Dict = json.loads(f.read())
 
@@ -180,7 +180,7 @@ def load_location() -> None:
 
 def load_projects():
     logger.debug('- create projcts')
-    path = os.path.join(current_dir, 'dataGetter/static/projects.json')
+    path = os.path.join(current_dir, 'app/dataGetter/static/projects.json')
     with open(path, 'r') as f:
         data: Dict = json.loads(f.read())
 
@@ -271,7 +271,7 @@ class JianyanyuanLoadFull:
 
         def load_by_table_lookup():
             """ method 1: Use keys of j_project_device_table. """
-            with open('./dataGetter/static/j_project_device_table.json',
+            with open('app/dataGetter/static/j_project_device_table.json',
                       'r') as f:
                 json_data: Dict = json.loads(f.read())
                 projects = [
@@ -446,7 +446,7 @@ class JianyanyuanLoadFull:
             ModelOperations.Add.add_device(device_post_data)
 
         # read json files
-        with open('./dataGetter/static/j_project_device_table.json', 'r') as f:
+        with open('app/dataGetter/static/j_project_device_table.json', 'r') as f:
             json_data: Dict = json.loads(f.read())
 
             json_spot_list = [

@@ -998,15 +998,15 @@ class ModelOperations(ModelInterfaces):
             if project is None:
                 ...
 
-            elif isinstance(project, str) and \
-                    id_exist_in_db(Project.project_id, int(project)):
+            elif (isinstance(project, str) or isinstance(project, int)) \
+                    and id_exist_in_db(Project.project_id, int(project)):
                 project = int(project)
 
             elif isinstance(project, Project):
                 project = project.project_id
 
             else:
-                logger.error('add_device error, spot type is incorrect.')
+                logger.error('add_spot error, project type is incorrect.')
                 return None
 
             image: Optional[ByteString] = spot_data.get('image')
@@ -1038,8 +1038,8 @@ class ModelOperations(ModelInterfaces):
             if spot is None:
                 ...
 
-            elif (isinstance(spot, str) and
-                    id_exist_in_db(Spot.spot_id, int(spot))):
+            elif (isinstance(spot, str) or isinstance(spot, int))  \
+                    and id_exist_in_db(Spot.spot_id, int(spot)):
                 spot = int(spot)
 
             elif isinstance(spot, Spot):
@@ -1050,15 +1050,19 @@ class ModelOperations(ModelInterfaces):
                 return None
 
             # location must have a climate area.
+            create_time: Union[dt, str, None] = None
+            modify_time: Union[dt, str, None] = None
             if not isinstance(device_data.get('create_time'), dt):
-                create_time: Union[dt, str, None] = (
-                    str_to_datetime(
-                        device_data.get('create_time')))
+                create_time = (str_to_datetime(
+                    device_data.get('create_time')))
+            else:
+                create_time = device_data.get('create_time')
 
             if not isinstance(device_data.get('modify_time'), dt):
-                modify_time: Union[dt, str, None] = (
-                    str_to_datetime(
-                        device_data.get('modify_time')))
+                modify_time = (str_to_datetime(
+                    device_data.get('modify_time')))
+            else:
+                modify_time = device_data.get('modify_time')
 
             if not isinstance(device_data.get('online'), bool):
                 json_convert(device_data, 'online', json_to_bool)
@@ -1096,7 +1100,7 @@ class ModelOperations(ModelInterfaces):
             if device is None:
                 ...
 
-            elif isinstance(device, str) and \
+            elif (isinstance(device, str) or isinstance(device, int)) and \
                     id_exist_in_db(Device.device_id, int(device)):
                 device = int(device)
 

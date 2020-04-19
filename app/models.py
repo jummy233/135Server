@@ -238,17 +238,19 @@ class Project(db.Model):
         if a value is not present in the given data, fall back to
         the original record.
         """
-        self.outdoor_spot_id = update_project.outdoor_spot_id or self.outdoor_spot_id
-        self.location_id = update_project.location_id or self.location_id
+        self.outdoor_spot_id = update_project.outdoor_spot_id  \
+            or self.outdoor_spot_id
+        self.location_id = update_project.location_id \
+            or self.location_id
 
-        self.tech_support_company_id = (
-            update_project.tech_support_company_id or self.tech_support_company_id)
+        self.tech_support_company_id = update_project.tech_support_company_id \
+            or self.tech_support_company_id
 
-        self.project_company_id = (
-            update_project.project_company_id or self.project_company_id)
+        self.project_company_id = update_project.project_company_id \
+            or self.project_company_id
 
-        self.construction_company_id = (
-            update_project.construction_company_id or self.construction_company_id)
+        self.construction_company_id = update_project.construction_company_id \
+            or self.construction_company_id
 
         self.project_name = update_project.project_name or self.project_name
         self.district = update_project.district or self.district
@@ -260,12 +262,13 @@ class Project(db.Model):
         self.area = update_project.area or self.area
         self.demo_area = update_project.demo_area or self.demo_area
         self.building_type = update_project.building_type or self.building_type
-        self.building_height = update_project.building_height or self.building_height
+        self.building_height = update_project.building_height \
+            or self.building_height
         self.started_time = update_project.started_time or self.started_time
         self.finished_time = update_project.finished_time or self.finished_time
 
-        self.record_started_from = (
-            update_project.record_started_from or self.record_started_from)
+        self.record_started_from = update_project.record_started_from \
+            or self.record_started_from
         self.description = update_project.description or self.description
 
     @classmethod
@@ -372,8 +375,8 @@ class ProjectDetail(db.Model):
         if update_project_detail.image:
             self.image = update_project_detail.image
 
-        self.image_description = (
-            update_project_detail.image_description or self.image_description)
+        self.image_description = update_project_detail.image_description \
+            or self.image_description
 
     @classmethod
     def gen_fake(cls, count=10):
@@ -404,8 +407,8 @@ class OutdoorSpot(db.Model):
 
     outdoor_record = db.relationship("OutdoorRecord", backref="outdoor_spot",
                                      lazy="dynamic")
-    project = db.relationship(
-        "Project", backref="outdoor_spot", lazy="dynamic")
+    project = db.relationship("Project", backref="outdoor_spot",
+                              lazy="dynamic")
 
     def update(self, update_outdoor_spot: OutdoorSpot) -> None:
 
@@ -452,8 +455,8 @@ class OutdoorRecord(db.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not is_nice_time(step_len=5)(self.outdoor_record_time):
-            self.outdoor_record_time = normalize_time(
-                5)(self.outdoor_record_time)
+            self.outdoor_record_time = \
+                normalize_time(5)(self.outdoor_record_time)
 
     def update(self, update_outdoor_record: OutdoorRecord) -> None:
         ...
@@ -481,9 +484,8 @@ class OutdoorRecord(db.Model):
                 db.session.rollback()
 
     def to_json(self):
-        outdoor_record_time = (
-            self.outdoor_record_time.strftime(TIMEFORMAT)
-            if self.outdoor_record_time else None)
+        outdoor_record_time = (self.outdoor_record_time.strftime(TIMEFORMAT)
+                               if self.outdoor_record_time else None)
 
         return dict(
             outdoor_spot_id=self.outdoor_spot_id,
@@ -496,7 +498,9 @@ class OutdoorRecord(db.Model):
             wind_speed=self.wind_speed)
 
     def __repr__(self):
-        return "<OutdoorRecord {} {}>".format(self.outdoor_spot_id, self.outdoor_record_time)
+        return ("<OutdoorRecord {} {}>"
+                .format(self.outdoor_spot_id,
+                        self.outdoor_record_time))
 
 
 class ClimateArea(db.Model):
@@ -507,8 +511,8 @@ class ClimateArea(db.Model):
     climate_area_id = db.Column(db.Integer, primary_key=True)
     area_name = db.Column(db.String(64), unique=True)
 
-    location = db.relationship(
-        "Location", backref="climate_area", lazy="dynamic")
+    location = db.relationship("Location", backref="climate_area",
+                               lazy="dynamic")
 
     def update(self, update_climate_area: ClimateArea) -> None:
         ...
@@ -644,10 +648,10 @@ class Device(db.Model):
             if self.modify_time else None)
 
         spot_name = self.spot.spot_name if self.spot else None
-        project_id = (
-            self.spot.project.project_id if self.spot and self.spot.project else None)
-        project_name = (
-            self.spot.project.project_name if self.spot and self.spot.project else None)
+        project_id = (self.spot.project.project_id
+                      if self.spot and self.spot.project else None)
+        project_name = (self.spot.project.project_name if
+                        self.spot and self.spot.project else None)
 
         return dict(device_id=self.device_id,
                     spot_id=self.spot_id,
@@ -684,9 +688,11 @@ class SpotRecord(db.Model):
             self.spot_record_time = normalize_time(5)(self.spot_record_time)
 
     def update(self, update_spot_record: SpotRecord) -> None:
-        self.spot_record_time = update_spot_record.spot_record_time or self.spot_record_time
+        self.spot_record_time = update_spot_record.spot_record_time \
+            or self.spot_record_time
         self.device_id = update_spot_record.device_id or self.device_id
-        self.window_opened = update_spot_record.window_opened or self.window_opened
+        self.window_opened = update_spot_record.window_opened \
+            or self.window_opened
         self.temperature = update_spot_record.temperature or self.temperature
         self.humidity = update_spot_record.humidity or self.humidity
         self.ac_power = update_spot_record.ac_power or self.ac_power
@@ -735,13 +741,14 @@ class SpotRecord(db.Model):
             self.spot_record_id, self.spot_record_time, self.device_id)
 
 
-Data = Union[Project,
-             Spot,
-             ProjectDetail,
-             SpotRecord,
-             OutdoorSpot,
-             OutdoorRecord,
-             Device,
-             Company,
-             Location,
-             ClimateArea]
+Data = Union[
+    Project,
+    Spot,
+    ProjectDetail,
+    SpotRecord,
+    OutdoorSpot,
+    OutdoorRecord,
+    Device,
+    Company,
+    Location,
+    ClimateArea]

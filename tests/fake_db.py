@@ -3,6 +3,7 @@ NOTE: deprecated test
 """
 
 from app import modelOperations as mops
+from app.modelOperations import commit
 from datetime import datetime
 from app import models as m
 import db_init
@@ -15,7 +16,7 @@ def gen_fake():
         "city": "City",
         "climate_area_name": "A1"
     }
-    mops.add_location(location)
+    mops.ModelOperations.Add.add_location(location)
 
     project = {
         "location": {"province": "Province", "city": "City"},
@@ -37,7 +38,7 @@ def gen_fake():
         "record_started_from": datetime(2019, 4, 20),
         "area": "2311.94"
     }
-    mops.add_project(project)
+    mops.ModelOperations.Add.add_project(project)
 
     spot = {
         "project": m.Project.query.first().project_id,
@@ -45,7 +46,7 @@ def gen_fake():
         "spot_type": "Bedroom",
         "image": b"asjdlasd"
     }
-    mops.add_spot(spot)
+    mops.ModelOperations.Add.add_spot(spot)
 
     device = {
         "device_name": "Device",
@@ -55,7 +56,7 @@ def gen_fake():
         "create_time": "2019-04-20T00:00:00",
         "modify_time": datetime(2019, 4, 24)
     }
-    mops.add_device(device)
+    mops.ModelOperations.Add.add_device(device)
 
     spot_record = {
         "spot_record_time": datetime(2019, 9, 24, 12, 30),
@@ -68,4 +69,5 @@ def gen_fake():
         "pm25": "34",
         "co2": "22"
     }
-    mops.add_spot_record(spot_record)
+    mops.ModelOperations.Add.add_spot_record(spot_record)
+    commit()

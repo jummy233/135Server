@@ -32,7 +32,7 @@ class TokenManager(Generic[T]):
         self.timer.start()
 
     def close(self):
-        self.cleanup()
+        self._cleanup()
 
     def _cleanup(self):
         self.timer.cancel()

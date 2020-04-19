@@ -78,8 +78,7 @@ class JianYanYuanData(SpotData):
 
     def close(self):
         """ tear down """
-        if self.timer.is_alive():
-            self.timer.cancel()
+        self.tokenManager.close()
         del self
 
     def spot(self) -> Optional[Generator]:
@@ -95,6 +94,11 @@ class JianYanYuanData(SpotData):
             did: Optional[int] = None,
             daterange: Optional[Tuple[dt, dt]] = None) \
             -> Iterator[LazySpotRecord]:
+        """
+        By defualt spot_record() generate all data.
+        spot_record(did) generate data for device did in the same day.
+        the date range can be changed by pass a datetime tuple.
+        """
         if not self.device_list:
             return iter([])
         sr = self._SpotRecord(self)
@@ -151,7 +155,6 @@ class JianYanYuanData(SpotData):
             dn = device.device_name
             device_res = [d for d in self.device_list
                           if d.get("deviceId") == dn].pop()
-            # __import__('pdb').set_trace()
 
             param = self._make_datapoint_param(device_res, daterange)
             if param is None:
@@ -168,6 +171,8 @@ class JianYanYuanData(SpotData):
 
         def _gen(self, datapoint_params):
             datapoints = map(self._datapoint, datapoint_params)
+            print(datapoint_params[:2])
+            print(list(datapoints)[:2])
             return self.entrance_generator(datapoints, datapoint_params)
 
         def _datapoint_param_iter(self) -> Optional[Iterator[JdatapointParam]]:

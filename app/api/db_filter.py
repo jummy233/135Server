@@ -32,7 +32,40 @@ def project_filtered() -> Json:
 
 @api.route('/device/filter', methods=["POST"])
 def device_filtered() -> Json:
-    pass
+    post_data = request.get_json()
+
+    if is_ApiRequest(post_data):
+        filter_request = post_data['request']
+        start, end = map(
+            str_to_datetime,
+            itemgetter("startTime",
+                       "endTime",
+                       "keyword",)
+            (filter_request))
+
+        response_object: ApiResponse = (
+            ApiResponse(
+                status=ReturnCode.OK.value,
+                message=f"filted device"))
+
+        filtered_res = (
+            SpotRecord
+            .query
+            .filter(Device.create_time >= start)
+            .filter(Device.modify_time <= end)
+            .filter(Device.device_name == "keyword"))
+
+        response_object['data'] = {
+            'data': [item.to_json() for item in filtered_res if item],
+            'totalElementCount': filtered_res.count(),
+        }
+
+    else:
+        response_object = (
+            ApiResponse(
+                status=ReturnCode.BAD_REQUEST.value,
+                message="bad request format"))
+    return jsonify(response_object)
 
 
 @api.route('/spot/filter', methods=["POST"])
@@ -74,5 +107,5 @@ def sport_record_filtered(did: Optional[int]) -> Json:
             ApiResponse(
                 status=ReturnCode.BAD_REQUEST.value,
                 message="bad request format"))
-
     return jsonify(response_object)
+
