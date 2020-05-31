@@ -1,3 +1,15 @@
+"""
+Note:
+best way to debug api is to step through the apis module functions.
+The raw http response will be there and you can see the error message
+returned from the server.
+
+There are some design issues here, like I really don't need to separate
+raw api and the actor, or at least provide a mechanism to manage the
+error message and real data. But it is a old project and better to leave
+it as it is.
+"""
+
 import requests
 from hashlib import md5, sha1
 from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Callable, cast, TypeVar
@@ -14,6 +26,10 @@ from logger import make_logger
 logger = make_logger('xiaomiGetter', 'dataGetter_log')
 
 
+"""
+information for authentication, used for establishing the connecetion
+with xiaomi platform.
+"""
 AuthData = (
     TypedDict(
         'AuthData',
@@ -41,7 +57,7 @@ AuthData = (
             'api_query_resrouce_url': str
         }, total=False))
 
-
+""" json request for querying position  """
 PosParam = (  # Method: Get
     TypedDict(
         'PosParam',
@@ -51,6 +67,7 @@ PosParam = (  # Method: Get
             'pageSize': int
         }, total=False))
 
+""" json request for querying device """
 DeviceParam = (
     TypedDict(
         'DeviceParam',
@@ -60,22 +77,24 @@ DeviceParam = (
             'pageNum': int,
             'pageSize': int}, total=False))
 
-# Nested type declaration
-OneResourceParam = (
-    TypedDict('OneResourceParam',
-              {
-                  'did': str,
-                  'attrs': List[str]
-              }))
+"""
+json request for querying resource by give device id
+"""
+OneResourceParam = TypedDict(
+    'OneResourceParam',
+    {
+        'did': str,
+        'attrs': List[str],
+        'startTime': str,
+        'endTime': str,
+        'pageNum': int,
+        'pageSize': int
+    }
+)
 
 
 class ResourceParam(TypedDict):
-    did: str
-    attrs: List[str]
-    startTime: str
-    endTime: str
-    pageNum: int
-    pageSize: int
+    data: List[OneResourceParam]
 
 
 TokenResult = TypedDict(
@@ -113,7 +132,7 @@ DeviceData = TypedDict(
         'parentId': str,
         'positionId': str,
         'state': int,
-        'registerTime': str
+        'registerTime': str  #
     })
 
 
@@ -186,8 +205,7 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
 
     except BaseException:
         logger.error(
-            'some Exception happed when send and receiving data. %s %s',
-            response.content, response.request)
+            'some Exception happed when send and receiving data.')
 
     response_url: str = response.url
 
@@ -202,8 +220,8 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     return query['code']
 
 
-def _get_token(auth: AuthData,
-               refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
+def get_token(auth: AuthData,
+              refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
     """
     return token with given auth code
     if refresh token is passed, it is then used to retreive new token.
@@ -312,9 +330,9 @@ def _gen_header(auth: AuthData, token: Optional[TokenResult],
 #####################
 
 
-def _get_pos(auth: AuthData,
-             token: Optional[TokenResult],
-             params: PosParam = {}) -> Optional[PosResult]:
+def get_pos(auth: AuthData,
+            token: Optional[TokenResult],
+            params: PosParam = {}) -> Optional[PosResult]:
 
     api_query_base_url, api_query_pos_url = \
         itemgetter('api_query_base_url',
@@ -357,9 +375,9 @@ def _get_pos(auth: AuthData,
         return response.json()['result']
 
 
-def _get_device(auth: AuthData,
-                token: Optional[TokenResult],
-                params: DeviceParam = {}) -> Optional[DeviceResult]:
+def get_device(auth: AuthData,
+               token: Optional[TokenResult],
+               params: DeviceParam = {}) -> Optional[DeviceResult]:
 
     api_query_base_url, api_query_dev_url = \
         itemgetter('api_query_base_url',
@@ -401,9 +419,10 @@ def _get_device(auth: AuthData,
         return response.json()['result']
 
 
-def _get_resource(auth: AuthData,
-                  token: Optional[TokenResult],
-                  params: ResourceParam) -> Optional[ResourceResult]:
+def get_resource(auth: AuthData,
+                 token: Optional[TokenResult],
+                 params: ResourceParam) -> Optional[ResourceResult]:
+    """ Notice this function use /open/resource/history/query """
 
     api_query_base_url, api_query_resrouce_url = \
         itemgetter('api_query_base_url',
@@ -420,6 +439,7 @@ def _get_resource(auth: AuthData,
     try:
         response: requests.Response = requests.post(
             url, json=cast(Dict, params), headers=headers)
+        __import__('pdb').set_trace()
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
                      response.content, response.request)

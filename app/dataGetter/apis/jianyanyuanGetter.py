@@ -94,7 +94,7 @@ attrs: Dict = {
 }
 
 
-def _get_token(auth: AuthData, timestamp: Optional[int] = None) \
+def get_token(auth: AuthData, timestamp: Optional[int] = None) \
         -> Optional[AuthToken]:
     """
     get token
@@ -141,9 +141,9 @@ def _get_token(auth: AuthData, timestamp: Optional[int] = None) \
     return None
 
 
-def _get_device_list(auth: AuthData,
-                     authtoken: Optional[AuthToken],
-                     params: Dict = {}) -> Optional[List[DeviceResult]]:
+def get_device_list(auth: AuthData,
+                    authtoken: Optional[AuthToken],
+                    params: Dict = {}) -> Optional[List[DeviceResult]]:
     """
     (token + params) return device list as dict by given param
     only return the Array with data.
@@ -204,7 +204,7 @@ def _get_device_list(auth: AuthData,
     return None
 
 
-def _get_device_attrs(
+def get_device_attrs(
         auth: AuthData,
         authtoken: Optional[AuthToken],
         gid: str) -> Optional[List[AttrResult]]:
@@ -266,7 +266,7 @@ def _get_device_attrs(
     return None
 
 
-def _get_data_points(
+def get_data_points(
         auth: AuthData,
         authtoken: Optional[AuthToken],
         params: DataPointParam) \
@@ -275,7 +275,6 @@ def _get_data_points(
     method: str = 'POST'
     timestamp: int = currentTimestamp(13)
     param_json = json.dumps(params)
-
     if not authtoken:
         logger.error('token is None')
         return None

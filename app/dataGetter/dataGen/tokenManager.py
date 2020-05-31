@@ -1,11 +1,10 @@
 from typing import Callable, Generic, TypeVar, Optional
 from threading import Timer, Lock
-from timeutils.time import currentTimestamp
 import logging
 
 
 T = TypeVar('T')
-TokenGetter = Callable[[Optional[int]], T]
+TokenGetter = Callable[[], T]
 
 
 class TokenManager(Generic[T]):
@@ -19,7 +18,7 @@ class TokenManager(Generic[T]):
 
     def _init_token(self, gettoken: TokenGetter[T]):
         self._gettoken = gettoken
-        self._token = self._gettoken(currentTimestamp(digit=13))
+        self._token = self._gettoken()
 
     def _init_timer(self):
         self.timer = Timer(self._expires_in, self._refresh)
@@ -40,7 +39,7 @@ class TokenManager(Generic[T]):
 
     def _refresh(self):
         logging.debug("refreshing token")
-        self._token = self._gettoken(currentTimestamp(digit=13))
+        self._token = self._gettoken()
         self._cleanup()
         self._init_timer()
         self.timer.start()

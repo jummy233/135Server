@@ -16,19 +16,28 @@ from logger import make_logger
 from timeutils.time import (back7daytuple_generator, datetime_to_str,
                             str_to_datetime)
 
+from timeutils.time import currentTimestamp
 from app.dataGetter import authConfig
 from app.dataGetter.apis import jianyanyuanGetter as jGetter
 from app.dataGetter.apis.jianyanyuanGetter import DataPointParam as JdatapointParam
 from app.dataGetter.apis.jianyanyuanGetter import DataPointResult as JdatapointResult
 from app.dataGetter.apis.jianyanyuanGetter import DeviceParam as JdevParam
 from app.dataGetter.apis.jianyanyuanGetter import DeviceResult as JdevResult
-from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord, LazySpotRecord
+from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord, LazySpotRecord, WrongDidException, did_check, DataSource
 from .tokenManager import TokenManager
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
-
 logger.addHandler
+
+"""
+RecordGen:      Generator contains data from one request.
+RecordThunk:    Unevaled record data.
+RecordThunkGen: Generator of multiple RecordThunk s.
+"""
+RecordGen = Generator[Optional[SpotRecord], None, None]
+RecordThunk = Callable[[], Optional[RecordGen]]
+RecordThunkGen = Generator[RecordThunk, None, None]
 
 
 class JianYanYuanData(SpotData):
@@ -55,7 +64,7 @@ class JianYanYuanData(SpotData):
         self.app = app
         self.auth = authConfig.jauth
         self.tokenManager = TokenManager(
-            partial(jGetter._get_token, self.auth),
+            lambda: jGetter.get_token(self.auth, currentTimestamp(digit=13)),
             JianYanYuanData.expires_in)
         self.tokenManager.start()
 
@@ -69,7 +78,7 @@ class JianYanYuanData(SpotData):
             raise ConnectionError(self.source, SpotData.token_fetch_error_msg)
 
         # common states
-        self.device_list = jGetter._get_device_list(
+        self.device_list = jGetter.get_device_list(
             self.auth, self.token, cast(Dict, JianYanYuanData.device_params))
 
     @property
@@ -98,13 +107,16 @@ class JianYanYuanData(SpotData):
         By defualt spot_record() generate all data.
         spot_record(did) generate data for device did in the same day.
         the date range can be changed by pass a datetime tuple.
+
+        @param did:  chose a specific device. by default fetch from all devices
+        @param daterange:  default is all time.
+
+        @return:  Iterator of spot record thunk
         """
         if not self.device_list:
             return iter([])
         sr = self._SpotRecord(self)
-
-        dr: Tuple[dt, dt] = (dt.now() - timedelta(days=1),
-                             dt.now()) \
+        dr: Tuple[dt, dt] = (dt.now() - timedelta(days=1), dt.now()) \
             if not daterange else daterange
 
         if did is None:
@@ -148,11 +160,22 @@ class JianYanYuanData(SpotData):
         # TODO: need to push a context
         def one(self, did: int, daterange: Tuple[dt, dt]):
             """ generator for one device """
-            with self.data.app.app_context():
-                from app.models import Device as MD
-                device = (MD.query.
-                          filter(MD.device_id == did).first())
-            dn = device.device_name
+            try:
+                with self.data.app.app_context():
+                    from app.models import Device as MD
+                    device = (MD.query.
+                              filter(MD.device_id == did).first())
+                dn = did_check(device.device_name, DataSource.JIANYANYUAN)
+            except AttributeError:
+                logger.warning("JianYanYuanData] fetch spot_record failed, "
+                               + "device is not in database")
+                return iter([])
+            except WrongDidException:
+                logger.warning('[XiaomiData] fetch spot_record failed, '
+                               + 'device not in database')
+                return iter([])
+
+            # get one from the list.
             device_res = [d for d in self.device_list
                           if d.get("deviceId") == dn].pop()
 
@@ -163,120 +186,101 @@ class JianYanYuanData(SpotData):
             return self._gen([param])
 
         def all(self):
-            datapoint_params = self._datapoint_param_iter()
+            """ for all devlce on device list """
+            datapoint_params = self._mk_datapoint_param_iter()
             if datapoint_params is None:
                 return iter([])
             params_list = list(datapoint_params)  # construct param list
             return self._gen(params_list)
 
-        def _gen(self, datapoint_params):
-            datapoints = map(self._datapoint, datapoint_params)
-            print(datapoint_params[:2])
-            print(list(datapoints)[:2])
-            return self.entrance_generator(datapoints, datapoint_params)
-
-        def _datapoint_param_iter(self) -> Optional[Iterator[JdatapointParam]]:
+        def _gen(self, datapoint_params) -> RecordThunkGen:
             """
+            * Main generator entrance.
+            Both self.one() and self.all() will use this generator to obtain
+            """
+            def entrance(datapoints, params_list) -> RecordThunkGen:
+                """
+                Return a generator iter througth an effectful generator
+                effectful_pair is the inner most layer of the generator.
+                It comprise a iterator of a datapoint-parameter pair.
+
+                """
+                effectful_pair = zip(datapoints, params_list)
+
+                while True:  # send unevalued slice of iterator.
+                    try:
+                        yield (lambda: type(self)._records_factory(
+                            islice(effectful_pair, 1)))
+                    except Exception:
+                        break
+
+            datapoints = map(self._datapoint, datapoint_params)
+            # print(datapoint_params[:2])
+            # print(list(datapoints)[:2])
+            return entrance(datapoints, datapoint_params)
+
+        def _mk_datapoint_param_iter(self) \
+                -> Optional[Iterator[JdatapointParam]]:
+            """
+            ***
             Datapoint paramter generator. One parameter match to one datapoint.
             No side effect. just use local device_list fetched eailer to make
             parameter list.
             The parameter iter will later be used to fetch datapoints.
             """
-
             if self.device_list is None:
                 return None
-
             logger.info('[dataMidware] creating Jianyanyuan datapoint params')
             # Fetch data within 7 day periodcially. use 7 day is because the
             # api can only fetch data of 7 data at once.
 
-            _iter = (filter(None,
-                            (JianYanYuanData._SpotRecord._make_datapoint_param(
-                                d, back7tuple)
-                             for back7tuple
-                             in back7daytuple_generator(
-                                str_to_datetime(d.get('createTime')))))
-                     for d
-                     in self.device_list)
-            datapoint_param_iter = chain.from_iterable(_iter)
+            def param_gen():
+                for d in self.device_list:
+                    b7gen = back7daytuple_generator(
+                        str_to_datetime(d.get('createTime')))
+                    for back7tuple in b7gen:
+                        param = (JianYanYuanData
+                                 ._SpotRecord
+                                 ._make_datapoint_param(d, back7tuple))
+                        if param is not None:
+                            yield param
 
+            datapoint_param_iter = chain.from_iterable(param_gen())
             if not any(datapoint_param_iter):
                 logger.warning(JianYanYuanData.source +
                                'No datapoint parameter.')
                 return None
             return datapoint_param_iter
 
-        def _datapoint(self, datapoint_param: Optional[JdatapointParam]) \
+        def _datapoint(self,
+                       datapoint_param: Optional[JdatapointParam]) \
                 -> Optional[List[JdatapointResult]]:
-            """ datapoint of one device """
+            """
+            *** EFFECTFUL
+            datapoint of one device.
+            query for datapoint based on the parameter passed in.
+
+            @param datapoint_param:
+            @return: list of query result.
+            """
             if not datapoint_param:
                 return None
 
             logger.debug('getting datapoint {}'.format(datapoint_param))
-            return jGetter._get_data_points(
-                self.auth, self.token, datapoint_param)
+            return jGetter.get_data_points(self.auth,
+                                           self.token, datapoint_param)
 
-            def _datapoint_iter(datapoint_param_iter: Optional[Iterator]) \
-                    -> Optional[Iterator[Optional[List[JdatapointResult]]]]:
-                """
-                datapoint data generator.
-
-                :param
-                datapoint_param: datapoint_param_iter, prepared separately.
-
-                It map _datapoint on  _datapoint_param_iter and yield
-                a iterator of datapoint as list.
-                """
-                logger.info(
-                    '[dataMidware] creating Jianyanyuan datapoint iter')
-
-                if datapoint_param_iter is None:
-                    logger.error('empty datapoint_param_iter')
-                    return None
-
-                datapoint_iter = (
-                    self._datapoint(param)
-                    for param
-                    in datapoint_param_iter)
-
-                if not any(datapoint_iter):
-                    logger.warning(JianYanYuanData.source +
-                                   'No datapoint list.')
-                    return None
-
-                return datapoint_iter
-
-        def entrance_generator(self, datapoints, params_list) \
-            -> Generator[Callable[
-                [], Optional[Generator[Optional[SpotRecord], None, None]]],
-                None,
-                None]:
+        @staticmethod
+        def _records_factory(
+                arg: Iterator[Tuple[Optional[List[JdatapointResult]],
+                                    JdatapointParam]]) -> Optional[RecordGen]:
             """
-            Entrance generator.
-            Return a generator iter througth an effectful generator
-            """
-            # construct spot_records generator.
-            # sideeffet is wrapped here. It is the first layer of generator.
-            effectful_pair = zip(datapoints, params_list)
-
-            # send out a slice of iterator rather than eval it.
-            while True:
-                try:
-                    yield (lambda: self._records_factory(
-                        islice(effectful_pair, 1)))
-                except Exception:
-                    break
-
-        def _records_factory(self, arg: Iterator[Tuple[
-            Optional[List[JdatapointResult]], JdatapointParam]]) \
-                -> Optional[Generator[Optional[SpotRecord], None, None]]:
-            """
-            generate generator of record data.
+            * generate generator of record data.
             """
             data, param = next(arg)
-            return (None if data is None
-                    else
-                    (MakeDict.make_spot_record(sr, param) for sr in data))
+            if data is None:
+                return None
+            return (MakeDict.make_spot_record(sr, param) for sr in data)
 
         @staticmethod
         def _make_datapoint_param(

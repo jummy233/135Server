@@ -4,8 +4,6 @@ from datetime import datetime as dt
 from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
-LazySpotRecord = Callable[[], Optional[Generator]]
-
 
 class DataSource(enum.Enum):
     JIANYANYUAN = 0
@@ -41,9 +39,38 @@ class Device(TypedDict):
     location_info: Optional[Location]  # Location info help to deduce the spot.
     device_name: Optional[str]
     device_type: Optional[str]
-    online: Union[int, bool, None]
+    online: Union[int, bool, None]  # different possible boolean representation
     create_time: Optional[dt]
     modify_time: Optional[dt]
+
+
+LazySpotRecord = Callable[[], Optional[Generator[Device, None, None]]]
+
+
+class WrongDidException(Exception):
+    pass
+
+
+def did_check(did: str, data_source: DataSource) -> str:
+    """Description
+
+    @param param:  Description
+    @type  param:  Type
+
+    @return:  Description
+    @rtype :  Type
+
+    @raise e:  WrongDidException
+    """
+    if data_source is DataSource.JIANYANYUAN:
+        if len(did) == 20 and did.isdigit():
+            return did
+
+    elif data_source is DataSource.XIAOMI:
+        if did.startswith('lumi') and len(did) == 19:
+            return did
+
+    raise WrongDidException
 
 
 class SpotData(ABC):

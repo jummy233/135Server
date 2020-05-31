@@ -46,7 +46,7 @@ def device_filtered() -> Json:
         response_object: ApiResponse = (
             ApiResponse(
                 status=ReturnCode.OK.value,
-                message=f"filted device"))
+                message="filted device"))
 
         filtered_res = (
             SpotRecord
@@ -108,4 +108,3 @@ def sport_record_filtered(did: Optional[int]) -> Json:
                 status=ReturnCode.BAD_REQUEST.value,
                 message="bad request format"))
     return jsonify(response_object)
-

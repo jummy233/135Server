@@ -10,6 +10,7 @@ import db_init
 
 
 def gen_fake():
+
     db_init.load_climate_area()
     location = {
         "province": "Province",

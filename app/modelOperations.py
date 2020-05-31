@@ -88,8 +88,8 @@ def json_to_bool(val: Union[bool, int, str, None]) -> Optional[bool]:
 
 
 def str_dt_normalizer(date: Union[dt, str, None],
-                      normalize: Callable[[Optional[dt]], Optional[dt]]
-                      ) -> Optional[dt]:
+                      normalize: Callable[[Optional[dt]], Optional[dt]]) \
+        -> Optional[dt]:
     if date is None:
         return None
 

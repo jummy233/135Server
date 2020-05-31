@@ -2,8 +2,9 @@ import unittest
 import app.dataGetter.dataGen as DG
 import app.dataGetter.dataGen.jianyanyuanData as jianyanyuanData
 from app import create_app, db
+from app.modelOperations import commit
 from app.dataGetter.apis import jianyanyuanGetter
-from timeutils.time import str_to_datetime
+import db_init
 from datetime import datetime
 from datetime import timedelta
 from typing import Dict, List, Iterator, Generator, Optional
@@ -15,7 +16,10 @@ import json
 logging.basicConfig(level=logging.WARNING)
 
 
-class TestdataGenJianYanYuanData(unittest.TestCase):
+class TestdataGenJianYanYuanDataStatic(unittest.TestCase):
+    """
+    Static method test
+    """
     daterange = (datetime.now() - timedelta(days=2),
                  datetime.now() - timedelta(days=1))
 
@@ -38,19 +42,6 @@ class TestdataGenJianYanYuanData(unittest.TestCase):
         "busModelId": 2,
         "public": false }
     """)
-
-    def setUp(self):
-        self.app = create_app('testing')
-        self.app_context = self.app.app_context()
-        self.app_context.push()
-        self.j = DG.JianYanYuanData(self.app)
-        db.create_all()
-        gen_fake()
-
-    def tearDown(self):
-        self.j.close()
-        db.drop_all()
-        self.app_context.pop()
 
     def test_JianYanYuanData_make_spot_record(self):
         # range test.
@@ -84,35 +75,62 @@ class TestdataGenJianYanYuanData(unittest.TestCase):
 
     def test_JianYanYuanData_make_device(self):
         device_result = self.device_result
-        __import__('pdb').set_trace()
         device = jianyanyuanData.MakeDict.make_device(device_result)
-        self.assertTrue(
-            device_result.get("deviceId") == device.get("device_name")
-            and device_result.get("productName") == device.get("device_type")
-            and str_to_datetime(device_result.get("createTime"))
-            == device.get("create_time"))
 
-    def test_JianYanYuanData_device(self):
-        devices = self.j.device()
-        self.assertTrue(isinstance(devices, Iterator)
-                and )
+        self.assertTrue(device_result.get("deviceId")
+                        == device.get("device_name"))
+        self.assertTrue(device_result.get("productName")
+                        == device.get("device_type"))
+        self.assertTrue(device_result.get("createTime")
+                        == device.get("create_time"))
 
     def test_JianYanYuanData_make_location(self):
         location = jianyanyuanData.MakeDict.make_location(self.device_result)
         self.assertTrue(isinstance(location, Dict)
                         and "province" in location.keys())
 
+
+class TestdataGenJianYanYuanDataState(unittest.TestCase):
+    """
+    Statful method test
+    """
+
+    def setUp(self):
+        self.app = create_app('testing')
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+        self.j = DG.JianYanYuanData(self.app)
+        db.create_all()
+        db_init.create_db("testing.sqlite")
+        db_init.load_climate_area()
+        db_init.load_location()
+        gen_fake()
+
+    def tearDown(self):
+        self.j.close()
+        db.drop_all()
+        self.app_context.pop()
+
+    def test_JianYanYuanData_device(self):
+        devices = self.j.device()
+        self.assertTrue(isinstance(devices, Iterator)
+                        and next(devices).get("device_name") is not None)
+
     def test_JianYanYuanData_spot(self):
-        spot = self.j.spot()
-        # for n in spot:
-        #     print(n)
+        spot = next(self.j.spot())
+        # all entry should be None
+        # because the API doesn't provides enough
+        # information.
+        self.assertTrue(spot == {
+            "spot_name": None,
+            "project_name": None,
+            "spot_type": None})
 
     def test_JianYanYuanData_spot_record(self):
         spot_records = self.j.spot_record(49)
-        slice_spot_record = islice(spot_records, 3, 5)
+        sr = spot_records
 
-        self.assertTrue(isinstance(slice_spot_record, Iterator) and
-                        isinstance(next(slice_spot_record), Generator))
+        self.assertTrue(isinstance(sr, Iterator))
 
 
 @unittest.skip('skip')
