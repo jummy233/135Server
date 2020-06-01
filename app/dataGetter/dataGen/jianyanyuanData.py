@@ -157,7 +157,7 @@ class JianYanYuanData(SpotData):
         def auth(self):
             return self.data.auth
 
-        # TODO: need to push a context
+        # need to push a context
         def one(self, did: int, daterange: Tuple[dt, dt]):
             """ generator for one device """
             try:
@@ -205,12 +205,12 @@ class JianYanYuanData(SpotData):
                 It comprise a iterator of a datapoint-parameter pair.
 
                 """
-                effectful_pair = zip(datapoints, params_list)
+                effectful = zip(datapoints, params_list)
 
                 while True:  # send unevalued slice of iterator.
                     try:
                         yield (lambda: type(self)._records_factory(
-                            islice(effectful_pair, 1)))
+                            islice(effectful, 1)))
                     except Exception:
                         break
 
@@ -235,6 +235,7 @@ class JianYanYuanData(SpotData):
             # api can only fetch data of 7 data at once.
 
             def param_gen():
+                """ param generator based on time sequence """
                 for d in self.device_list:
                     b7gen = back7daytuple_generator(
                         str_to_datetime(d.get('createTime')))
@@ -253,7 +254,7 @@ class JianYanYuanData(SpotData):
             return datapoint_param_iter
 
         def _datapoint(self,
-                       datapoint_param: Optional[JdatapointParam]) \
+                       datapoint_param: JdatapointParam) \
                 -> Optional[List[JdatapointResult]]:
             """
             *** EFFECTFUL
@@ -263,9 +264,6 @@ class JianYanYuanData(SpotData):
             @param datapoint_param:
             @return: list of query result.
             """
-            if not datapoint_param:
-                return None
-
             logger.debug('getting datapoint {}'.format(datapoint_param))
             return jGetter.get_data_points(self.auth,
                                            self.token, datapoint_param)
@@ -275,7 +273,7 @@ class JianYanYuanData(SpotData):
                 arg: Iterator[Tuple[Optional[List[JdatapointResult]],
                                     JdatapointParam]]) -> Optional[RecordGen]:
             """
-            * generate generator of record data.
+            * generate database compatible record data type.
             """
             data, param = next(arg)
             if data is None:

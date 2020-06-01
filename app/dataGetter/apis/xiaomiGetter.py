@@ -77,25 +77,6 @@ DeviceParam = (
             'pageNum': int,
             'pageSize': int}, total=False))
 
-"""
-json request for querying resource by give device id
-"""
-OneResourceParam = TypedDict(
-    'OneResourceParam',
-    {
-        'did': str,
-        'attrs': List[str],
-        'startTime': str,
-        'endTime': str,
-        'pageNum': int,
-        'pageSize': int
-    }
-)
-
-
-class ResourceParam(TypedDict):
-    data: List[OneResourceParam]
-
 
 TokenResult = TypedDict(
     'TokenResult',
@@ -141,13 +122,34 @@ class DeviceResult(TypedDict):
     totalCount: int
 
 
+"""
+json request for querying resource by give device id
+"""
+
+ResourceParam = TypedDict(
+    'ResourceParam',
+    {
+        'did': str,
+        'attrs': List[str],
+        'startTime': str,
+        'endTime': str,
+        'pageNum': int,
+        'pageSize': int
+    }
+)
+
+
+class ResourceParams(TypedDict):
+    data: List[ResourceParam]
+
+
 ResourceData = TypedDict('ResourceData', {
     'did': str,
     'attr': str,
     'value': str,
     'time': int
 })
-ResourceResult = List[ResourceData]
+ResourceDataList = List[ResourceData]
 
 ###############################################
 

@@ -39,6 +39,7 @@ class XiaomiGetterTest(unittest.TestCase):
         self.assertTrue(dev is not None)
 
     def test_get_resource(self):
+        ...
         # params: x.ResourceParam = {  # wrong type. but its fine.
         #     'data': [
         #         {

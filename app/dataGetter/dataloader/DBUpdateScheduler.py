@@ -5,7 +5,7 @@ import threading
 import time
 from collections import defaultdict
 from typing import Dict
-from app.dataGetter.reatime.Exchange import Exchange
+from app.dataGetter.dataloader.Exchange import Exchange
 from enum import Enum
 
 
