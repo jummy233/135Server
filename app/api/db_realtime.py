@@ -10,7 +10,6 @@ from app.api import api
 from app.api.api_types import ApiResponse, ReturnCode
 from app.models import Device, SpotRecord
 from app.modelOperations import ModelOperations
-from app import dataGetterFactory
 
 Json = NewType('Json', str)
 
@@ -34,22 +33,8 @@ def realtime_device() -> Json:
 
 
 @api.route('/realtime/device/<int:did>/spot_records',
-           methods=["GET", "DELETTE"])
+           methods=["GET"])
 def realtime_spot_record(did: int) -> Union[Response, Json]:
-    """
-    Stream realtime data to client.
-    """
-    if request.method == 'DELETTE':
-        # stop existing generator.
-        return jsonify(ApiResponse(status=ReturnCode.OK.value,
-                                   message="stream stopped"))
+    """ Fetch the newest data for the last 5 minute. """
+    ...
 
-    streamdata = []
-    realtime = dataGetterFactory.get_data_streamer(int(did))
-    for data in realtime.generate():
-        __import__('pdb').set_trace()
-        print(data)
-        streamdata.append(next(data))
-        # ModelOperations.Add.add_outdoor_spot(data)
-
-    return jsonify(streamdata)

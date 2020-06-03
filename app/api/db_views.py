@@ -3,18 +3,13 @@ Provide joined table search.
 Basic db query will be aggregated here and dispatched to frontend components.
 Idempotent operations.
 """
-from typing import Dict, Optional, List, Tuple, Callable
+from typing import Dict, List
 from datetime import timedelta, datetime
-from operator import itemgetter
-from flask import jsonify, request
+from flask import jsonify
 from . import api
-from app.api.api_types import ApiRequest, ApiResponse, ReturnCode
-from app.api.api_types import is_ApiRequest
-from app.modelOperations import commit_db_operation
-from app.modelOperations import commit
-from app.models import User, Location, Project, ProjectDetail
-from app.models import ClimateArea, Company, Permission
-from app.models import OutdoorSpot, OutdoorRecord
+from app.api.api_types import ApiResponse, ReturnCode
+from app.models import Project, ProjectDetail
+from app.models import ClimateArea, OutdoorRecord
 from app.models import Spot, SpotRecord, Device
 from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError

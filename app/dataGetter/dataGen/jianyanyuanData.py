@@ -13,7 +13,7 @@ from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast)
 
 from logger import make_logger
-from timeutils.time import (back7daytuple_generator, datetime_to_str,
+from timeutils.time import (date_range_iter, datetime_to_str,
                             str_to_datetime)
 
 from timeutils.time import currentTimestamp
@@ -23,21 +23,11 @@ from app.dataGetter.apis.jianyanyuanGetter import DataPointParam as JdatapointPa
 from app.dataGetter.apis.jianyanyuanGetter import DataPointResult as JdatapointResult
 from app.dataGetter.apis.jianyanyuanGetter import DeviceParam as JdevParam
 from app.dataGetter.apis.jianyanyuanGetter import DeviceResult as JdevResult
-from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord, LazySpotRecord, WrongDidException, did_check, DataSource
+from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord, LazySpotRecord, WrongDidException, device_check, DataSource, RecordGen, RecordThunkIter
 from .tokenManager import TokenManager
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
-logger.addHandler
-
-"""
-RecordGen:      Generator contains data from one request.
-RecordThunk:    Unevaled record data.
-RecordThunkGen: Generator of multiple RecordThunk s.
-"""
-RecordGen = Generator[Optional[SpotRecord], None, None]
-RecordThunk = Callable[[], Optional[RecordGen]]
-RecordThunkGen = Generator[RecordThunk, None, None]
 
 
 class JianYanYuanData(SpotData):
@@ -61,7 +51,7 @@ class JianYanYuanData(SpotData):
     def __init__(self, app: Flask,
                  datetime_range: Optional[Tuple[dt, dt]] = None):
         logger.info('init JianYanYuanData')
-        self.app = app
+        self._app = app
         self.auth = authConfig.jauth
         self.tokenManager = TokenManager(
             lambda: jGetter.get_token(self.auth, currentTimestamp(digit=13)),
@@ -73,13 +63,26 @@ class JianYanYuanData(SpotData):
             self.datetime_range = datetime_range
 
         if not self.tokenManager.token:
-            logger.critical('%s %s', self.source,
-                            SpotData.token_fetch_error_msg)
+            logger.error('%s %s', self.source,
+                         SpotData.token_fetch_error_msg)
             raise ConnectionError(self.source, SpotData.token_fetch_error_msg)
 
-        # common states
-        self.device_list = jGetter.get_device_list(
+        self.device_list = self.make_device_list()
+
+    def make_device_list(self):
+        return jGetter.get_device_list(
             self.auth, self.token, cast(Dict, JianYanYuanData.device_params))
+
+    def __del__(self):
+        self.tokenManager.close()
+
+    @property
+    def normed_device_list(self) -> List[Device]:
+        return list(map(MakeDict.make_device, self.device_list))
+
+    @property
+    def app(self):
+        return self._app
 
     @property
     def token(self):
@@ -101,8 +104,7 @@ class JianYanYuanData(SpotData):
     def spot_record(
             self,
             did: Optional[int] = None,
-            daterange: Optional[Tuple[dt, dt]] = None) \
-            -> Iterator[LazySpotRecord]:
+            daterange: Optional[Tuple[dt, dt]] = None) -> RecordThunkIter:
         """
         By defualt spot_record() generate all data.
         spot_record(did) generate data for device did in the same day.
@@ -159,19 +161,22 @@ class JianYanYuanData(SpotData):
 
         # need to push a context
         def one(self, did: int, daterange: Tuple[dt, dt]):
-            """ generator for one device """
+            """
+            generator for one device
+            """
+            __import__('pdb').set_trace()
             try:
                 with self.data.app.app_context():
                     from app.models import Device as MD
                     device = (MD.query.
                               filter(MD.device_id == did).first())
-                dn = did_check(device.device_name, DataSource.JIANYANYUAN)
+                dn = device_check(device.device_name, DataSource.JIANYANYUAN)
             except AttributeError:
-                logger.warning("JianYanYuanData] fetch spot_record failed, "
+                logger.warning("[JianYanYuanData] fetch spot_record failed, "
                                + "device is not in database")
                 return iter([])
             except WrongDidException:
-                logger.warning('[XiaomiData] fetch spot_record failed, '
+                logger.warning('[Jianyanyuan] fetch spot_record failed, '
                                + 'device not in database')
                 return iter([])
 
@@ -186,19 +191,22 @@ class JianYanYuanData(SpotData):
             return self._gen([param])
 
         def all(self):
-            """ for all devlce on device list """
+            """
+            for all devlce on device list
+            Note: Not necessary since the job will be done by actors.
+            """
             datapoint_params = self._mk_datapoint_param_iter()
             if datapoint_params is None:
                 return iter([])
             params_list = list(datapoint_params)  # construct param list
             return self._gen(params_list)
 
-        def _gen(self, datapoint_params) -> RecordThunkGen:
+        def _gen(self, datapoint_params) -> RecordThunkIter:
             """
             * Main generator entrance.
             Both self.one() and self.all() will use this generator to obtain
             """
-            def entrance(datapoints, params_list) -> RecordThunkGen:
+            def entrance(datapoints, params_list) -> RecordThunkIter:
                 """
                 Return a generator iter througth an effectful generator
                 effectful_pair is the inner most layer of the generator.
@@ -237,12 +245,13 @@ class JianYanYuanData(SpotData):
             def param_gen():
                 """ param generator based on time sequence """
                 for d in self.device_list:
-                    b7gen = back7daytuple_generator(
-                        str_to_datetime(d.get('createTime')))
-                    for back7tuple in b7gen:
+                    back7days = date_range_iter(
+                        str_to_datetime(d.get('createTime')),
+                        timedelta(days=7))
+                    for date_tuple in back7days:
                         param = (JianYanYuanData
                                  ._SpotRecord
-                                 ._make_datapoint_param(d, back7tuple))
+                                 ._make_datapoint_param(d, date_tuple))
                         if param is not None:
                             yield param
 

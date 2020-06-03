@@ -1,15 +1,17 @@
 """
 NOTE: deprecated test
+All framework test are based on jianyanyuan data.
 """
 
-from app import modelOperations as mops
-from app.modelOperations import commit
 from datetime import datetime
-from app import models as m
-import db_init
 
 
 def gen_fake():
+    """ avoid circular import """
+    from app import modelOperations as mops
+    from app.modelOperations import commit
+    from app import models as m
+    import db_init
 
     db_init.load_climate_area()
     location = {

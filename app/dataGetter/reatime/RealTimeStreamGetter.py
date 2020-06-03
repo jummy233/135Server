@@ -1,3 +1,7 @@
+"""
+NOTE: Deprecated! Use Scheduler instead.
+"""
+
 import datetime
 import threading
 from typing import Callable, Iterator, List, NewType, Union, Generator

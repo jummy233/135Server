@@ -1,13 +1,22 @@
+"""
+Some types definitions and utility tools around this types.
+"""
+
+from flask import Flask
 from abc import ABC, abstractmethod
 import enum
 from datetime import datetime as dt
-from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
-                    Optional, Tuple, TypedDict, Union, cast)
+from typing import (List, Callable, Dict, Generator, Iterator, List, NewType,
+                    Optional, Tuple, TypedDict, Union, cast, TypeVar)
+
+T = TypeVar('T')
 
 
 class DataSource(enum.Enum):
-    JIANYANYUAN = 0
-    XIAOMI = 1
+    NONE = 0
+    JIANYANYUAN = 1
+    XIAOMI = 2
+    ALL = 3
 
 
 class Location(TypedDict):
@@ -46,31 +55,48 @@ class Device(TypedDict):
 
 LazySpotRecord = Callable[[], Optional[Generator[Device, None, None]]]
 
+"""
+RecordGen:      Generator contains data from one request.
+RecordThunk:    Unevaled record data.
+RecordThunkGen: Generator of multiple RecordThunk s.
+"""
+RecordGen = Generator[Optional[SpotRecord], None, None]
+RecordThunk = Callable[[], Optional[RecordGen]]
+RecordThunkIter = Iterator[RecordThunk]
+
+
+def unwrap_thunk(thunk: Callable[[], T]) -> T:
+    return thunk()
+
 
 class WrongDidException(Exception):
     pass
 
 
-def did_check(did: str, data_source: DataSource) -> str:
-    """Description
-
-    @param param:  Description
-    @type  param:  Type
-
-    @return:  Description
-    @rtype :  Type
-
+def device_check(dname: str, data_source: DataSource) -> str:
+    """
     @raise e:  WrongDidException
     """
     if data_source is DataSource.JIANYANYUAN:
-        if len(did) == 20 and did.isdigit():
-            return did
+        if len(dname) == 20 and dname.isdigit():
+            return dname
 
     elif data_source is DataSource.XIAOMI:
-        if did.startswith('lumi') and len(did) == 19:
-            return did
+        if dname.startswith('lumi') and len(dname) == 19:
+            return dname
 
     raise WrongDidException
+
+
+def device_source(dname: str) -> DataSource:
+    for source in DataSource:
+        try:
+            d = device_check(dname, source)
+            if isinstance(d, str):
+                return source
+        except WrongDidException:
+            continue
+    return DataSource.NONE
 
 
 class SpotData(ABC):
@@ -80,6 +106,12 @@ class SpotData(ABC):
     """
     token_fetch_error_msg: str = 'Token fetch Error: Token Error'
     datetime_time_eror_msg: str = 'Datetime error: Incorrect datetime'
+
+    @abstractmethod
+    def make_device_list(self) -> List:
+        """
+        Generate new device list.
+        """
 
     @abstractmethod
     def spot(self) -> Optional[Generator]:
@@ -102,3 +134,13 @@ class SpotData(ABC):
         Get device information
         value returned will be used to fill `device` table in database schema.
         """
+
+    @property  # type ignore
+    @abstractmethod
+    def normed_device_list(self) -> List:
+        """ normalized device list """
+
+    @property  # type: ignore
+    @abstractmethod
+    def app(self) -> Flask:
+        """ app instance """

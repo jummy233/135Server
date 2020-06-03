@@ -15,25 +15,14 @@ from .. import authConfig
 from ..apis import xiaomiGetter as xGetter
 from ..apis.xiaomiGetter import ResourceParam, DeviceData, ResourceData
 from ..dateSequence import DateSequence, date_sequence
-from timeutils.time import back7daytuple_generator, datetime_to_str, str_to_datetime, timestamp_setdigits
+from timeutils.time import date_range_iter, datetime_to_str, str_to_datetime, timestamp_setdigits
 from .tokenManager import TokenManager
 from .dataType import (Device, Location, Spot, SpotData,
                        SpotRecord, LazySpotRecord, WrongDidException,
-                       did_check, DataSource)
+                       device_check, DataSource, RecordGen, RecordThunkIter)
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
-
-logger.addHandler
-
-"""
-RecordGen:      Generator contains data from one request.
-RecordThunk:    Unevaled record data.
-RecordThunkGen: Generator of multiple RecordThunk s.
-"""
-RecordGen = Generator[Optional[SpotRecord], None, None]
-RecordThunk = Callable[[], Optional[RecordGen]]
-RecordThunkGen = Generator[RecordThunk, None, None]
 
 
 """
@@ -61,7 +50,7 @@ class XiaoMiData(SpotData):
 
     def __init__(self, app: Flask):
         # get authcode and token
-        self.app = app
+        self._app = app
         self.device_list: List = []
         self.auth: xGetter.AuthData = authConfig.xauth
         self.tokenManager = TokenManager(
@@ -69,9 +58,9 @@ class XiaoMiData(SpotData):
             XiaoMiData.expires_in)
 
         self.refresh: Optional[str] = None
-        self._init_device_list()
+        self.make_device_list()
 
-    def _init_device_list(self):
+    def make_device_list(self):
         def query_device_amount() -> int:
             param: xGetter.DeviceParam = {
                 'pageNum': 1,
@@ -92,6 +81,17 @@ class XiaoMiData(SpotData):
             device_list = response_result
         self.device_amount, self.device_list = device_amount, device_list
 
+    def __del__(self):
+        self.tokenManager.close()
+
+    @property
+    def normed_device_list(self) -> List:
+        return list(map(MakeDict.make_device, self.device_list))
+
+    @property
+    def app(self):
+        return self._app
+
     @property
     def token(self):
         return self.tokenManager.token
@@ -100,10 +100,9 @@ class XiaoMiData(SpotData):
         raise NotImplementedError
 
     def spot_record(
-        self,
-        did: Optional[int] = None,
-        daterange: Optional[Tuple[dt, dt]] = None) \
-            -> Iterator[LazySpotRecord]:
+            self,
+            did: Optional[int] = None,
+            daterange: Optional[Tuple[dt, dt]] = None) -> RecordThunkIter:
         """ get spot record based on device list """
         if not self.device_list:
             return iter([])
@@ -155,7 +154,7 @@ class XiaoMiData(SpotData):
                     from app.models import Device as MD
                     device = (MD.query.
                               filter(MD.device_id == did).first())
-                dn = did_check(device.device_name, DataSource.XIAOMI)
+                dn = device_check(device.device_name, DataSource.XIAOMI)
             except AttributeError:
                 logger.warning('[XiaomiData] fetch spot_record failed, '
                                + 'device not in database')
@@ -179,9 +178,9 @@ class XiaoMiData(SpotData):
             param_list = list(resource_params)
             return self._gen(param_list)
 
-        def _gen(self, resource_params: List[ResourceParam]) -> RecordThunkGen:
+        def _gen(self, res_params: List[ResourceParam]) -> RecordThunkIter:
             """ top level generator """
-            def entrance(resources, params_list) -> RecordThunkGen:
+            def entrance(resources, params_list) -> RecordThunkIter:
                 while True:
                     try:
                         # unlike jianyanyuan, only need resource iter here.
@@ -191,8 +190,8 @@ class XiaoMiData(SpotData):
                         break
 
             # resource here.
-            resources = map(self._resource, resource_params)
-            return entrance(resources, resource_params)
+            resources = map(self._resource, res_params)
+            return entrance(resources, res_params)
 
         def __mk_resource_parameter_iter(self):
             """ generate request parameter iter """
@@ -204,11 +203,20 @@ class XiaoMiData(SpotData):
                 """
                 param generator based on time sequence
                 each Xiaopi api history query only support 300 item.
+                Xiaomi records record per minute, so 300 items translate
+                to 50 minutes.
+                Each request advance by 50 minutes until it reach resigerTime
+                of the device.
                 """
                 for d in self.device_list:
-                    # TODO time sequence
-                    # todo yield parameter based on time sequence.
-                    ...
+                    back50mins = date_range_iter(
+                        str_to_datetime(d.get("registerTime")))
+                    for date_tuple in back50mins:
+                        param = (XiaoMiData
+                                 ._SpotRecord
+                                 ._make_resource_parameter(d, date_tuple))
+                        if param is not None:
+                            yield param
 
             resouce_param_iter = chain.from_iterable(param_gen())
             if not any(resouce_param_iter):
@@ -223,9 +231,8 @@ class XiaoMiData(SpotData):
 
         @staticmethod
         def _make_resource_parameter(
-            device_result: Optional[xGetter.DeviceData],
-            time_range: Tuple[dt, dt]) \
-                -> Optional[ResourceParam]:
+                device_result: Optional[xGetter.DeviceData],
+                time_range: Tuple[dt, dt]) -> Optional[ResourceParam]:
             """ Make resource parameter for given time range.
             @param device_result:  the list of device
             @param time_range:     For xiaomi the time range is necessary.
@@ -276,11 +283,13 @@ class MakeDict:
 
     @staticmethod
     def make_device(device_result: xGetter.DeviceData) -> Device:
-        """ """
         def convert_time(time: Optional[str]):
             result = None
             if time is not None:
-                result = dt.fromtimestamp(float(time))
+                # note the time is in millisecond accuracy,
+                # needs to convert to second to be compatible with
+                # python datetime.
+                result = dt.fromtimestamp(float(time) / 1000.0)
             return result
         create_time = convert_time(device_result.get('registerTime'))
         return Device(location_info=None,

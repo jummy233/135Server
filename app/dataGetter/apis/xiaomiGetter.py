@@ -281,7 +281,8 @@ def get_token(auth: AuthData,
             response.content, response.request)
 
     if response.status_code != 200:
-        logger.error('error response %s', response)
+        logger.error('error response %s', response.content,
+                     response.request.body)
         return None
     return response.json()
 
@@ -353,6 +354,7 @@ def get_pos(auth: AuthData,
     try:
         response: requests.Response = requests.get(
             url, params=cast(Dict, params), headers=headers)
+        logger.debug("[xiaomi get pos] %s", response.content)
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
                      response.content, response.request)
@@ -396,6 +398,7 @@ def get_device(auth: AuthData,
     try:
         response: requests.Response = requests.get(
             url, params=cast(Dict, params), headers=headers)
+        logger.debug("[xiaomi get device] %s", response)
 
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
@@ -423,7 +426,7 @@ def get_device(auth: AuthData,
 
 def get_resource(auth: AuthData,
                  token: Optional[TokenResult],
-                 params: ResourceParam) -> Optional[ResourceResult]:
+                 params: ResourceParam) -> Optional[ResourceData]:
     """ Notice this function use /open/resource/history/query """
 
     api_query_base_url, api_query_resrouce_url = \
@@ -441,7 +444,7 @@ def get_resource(auth: AuthData,
     try:
         response: requests.Response = requests.post(
             url, json=cast(Dict, params), headers=headers)
-        __import__('pdb').set_trace()
+        logger.debug("[xiaomi get resource] %s", response.content)
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
                      response.content, response.request)
@@ -451,7 +454,7 @@ def get_resource(auth: AuthData,
                      response.content, response.request)
         return None
     except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s',
+        logger.error('[requests] ChunkedEncodingError %s %s',
                      response.content, response.request)
         return None
     except BaseException:

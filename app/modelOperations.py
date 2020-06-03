@@ -267,7 +267,7 @@ class ModelOperations(ModelInterfaces):
             return _add_project()
 
         @staticmethod
-        def add_spot(spot_data: PostData, core_db_operatoin: bool = False):
+        def add_spot(spot_data: PostData):
 
             @global_cache.global_cacheall
             def _add_spot(cache: Optional[GlobalCache] = None) \
@@ -390,8 +390,8 @@ class ModelOperations(ModelInterfaces):
                         normalize_time(5)))
 
                 # query with device id or device name
-                device: Union[Device, str, None] = \
-                    spot_record_data.get('device')
+                device: Union[Device, str,
+                              None] = spot_record_data.get('device')
 
                 if not isinstance(device, Device):
 
@@ -609,6 +609,12 @@ class ModelOperations(ModelInterfaces):
     # pass the foreign key rather than query or create for a new one.
 
     class Update(ModelInterfaces.Update):
+        """
+        Update only if the value of the field in argument dictionary is
+        differnt from that in database and is not None.
+
+        If the new value is None, keep the value in database.
+        """
 
         @staticmethod
         def update_project(project_data: PostData) -> Optional[Project]:
@@ -1028,23 +1034,18 @@ class ModelOperations(ModelInterfaces):
 
         @global_cache.global_cacheall
         def _make(cache: Optional[GlobalCache] = None):
-
             if not isinstance(device_data, PostData):
                 return None
-
             spot: Optional[Union[Spot, int, str]] = device_data.get('spot')
 
-            # get spot_id
+            # get spot_id. skip if there is no spot.
             if spot is None:
                 ...
-
             elif (isinstance(spot, str) or isinstance(spot, int))  \
                     and id_exist_in_db(Spot.spot_id, int(spot)):
                 spot = int(spot)
-
             elif isinstance(spot, Spot):
                 spot = spot.spot_id
-
             else:
                 logger.error('add_device error, spot type is incorrect.')
                 return None
@@ -1066,7 +1067,6 @@ class ModelOperations(ModelInterfaces):
 
             if not isinstance(device_data.get('online'), bool):
                 json_convert(device_data, 'online', json_to_bool)
-
             try:
                 device = Device(device_name=device_data.get("device_name"),
                                 device_type=device_data.get("device_type"),
@@ -1087,38 +1087,30 @@ class ModelOperations(ModelInterfaces):
         def _make(cache: Optional[GlobalCache] = None):
             if not isinstance(spot_record_data, PostData):
                 return None
-
             # time can either be dt or string.
             spot_record_time: Union[dt, str, None] = (
-                str_dt_normalizer(
-                    spot_record_data.get('spot_record_time'),
-                    normalize_time(5)))
-
+                str_dt_normalizer(spot_record_data.get('spot_record_time'),
+                                  normalize_time(5)))
             # query with device id or device name
             device: Optional[Union[Device, str, int]] = (
                 spot_record_data.get('device'))
             if device is None:
                 ...
-
             elif (isinstance(device, str) or isinstance(device, int)) and \
                     id_exist_in_db(Device.device_id, int(device)):
                 device = int(device)
-
             elif isinstance(device, Device):
                 device = device.device_id
-
             else:
                 logger.error(
                     'make_spot_record error, device type is incorrect.')
                 return None
-
             json_convert(spot_record_data, 'window_opened', json_to_bool)
             json_convert(spot_record_data, 'temperature', float)
             json_convert(spot_record_data, 'humidity', float)
             json_convert(spot_record_data, 'ac_power', float)
             json_convert(spot_record_data, 'pm25', float)
             json_convert(spot_record_data, 'co2', float)
-
             try:
                 spot_record = SpotRecord(
                     spot_record_time=spot_record_time,
@@ -1129,7 +1121,6 @@ class ModelOperations(ModelInterfaces):
                     ac_power=spot_record_data.get("ac_power"),
                     pm25=spot_record_data.get("pm25"),
                     co2=spot_record_data.get("co2"))
-
             except IntegrityError as e:
                 logger.error(f"integirty error {e}")
 
@@ -1148,7 +1139,6 @@ class ModelOperations(ModelInterfaces):
                 .first())
         except Exception:
             raise
-
         try:
             location = Location(
                 climate_area=climate_area,
@@ -1170,7 +1160,6 @@ class ModelOperations(ModelInterfaces):
             -> Optional[OutdoorSpot]:
         if not isinstance(outdoor_spot_data, PostData):
             return None
-
         return OutdoorSpot(
             outdoor_spot_id=outdoor_spot_data.get("outdoor_spot_id"),
             outdoor_spot_name=outdoor_spot_data.get("outdoor_spot_name"))
@@ -1199,27 +1188,20 @@ def commit_db_operation(
     try:
         res = op(post_data)
         commit()
-
         if isinstance(res, db.Model) and hasattr(res, 'to_json'):
             response_object['data'] = res.to_json()
-
     except IndexError as e:
         response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"Failed to add {name} : {e}"
-
     except ValueError as e:
         response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"Unmatched value type: {e}"
-
     except IntegrityError as e:
         response_object["status"] = ReturnCode.NO_DATA.value
         response_object["message"] = f"IntegrityError: {e}"
-
     except Exception as e:
         response_object["status"] = ReturnCode.BAD_REQUEST.value
         response_object["message"] = f"Error: {e}"
-
     finally:
         return response_object
-
     return response_object

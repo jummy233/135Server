@@ -9,6 +9,7 @@ from app.models import Permission, User
 from app.models import OutdoorSpot, OutdoorRecord, ClimateArea, Location
 from app.models import Project, ProjectDetail, Company
 from app.models import Spot, SpotRecord, Device
+from app import scheduler
 from app.models import gen_fake_db
 
 
@@ -50,7 +51,8 @@ def make_shell_context():
         Spot=Spot,
         SpotRecord=SpotRecord,
         gen_fake_db=gen_fake_db,
-        global_cache=global_cache)
+        global_cache=global_cache,
+        scheduler=scheduler)
 
 
 @app.cli.command()

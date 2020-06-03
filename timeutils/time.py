@@ -3,6 +3,41 @@ import time
 from datetime import timedelta
 from math import floor
 from typing import Generator, Optional, Tuple, List, Union
+from threading import Thread, Condition, Event
+
+
+class PeriodicTimer:
+    def __init__(self, interval: float, daemon: bool = True):
+        self._flag = 0x0
+        self._invertal = interval
+        self._cv = Condition()
+        self._daemon = daemon
+        self._quit = Event()
+
+    def __del__(self):
+        self.close()
+
+    def start(self):
+        self.t = Thread(target=self.run)
+        self.t.daemon = self._daemon
+        self.t.start()
+
+    def run(self):
+        while not self._quit.is_set():
+            self._quit.wait(self._invertal)
+            with self._cv:
+                self._flag ^= 0x1
+                self._cv.notify_all()
+
+    def close(self):
+        if not self._daemon:
+            self._quit.set()
+
+    def wait_for_tick(self):
+        with self._cv:
+            last_flag = self._flag
+            while last_flag == self._flag:
+                self._cv.wait()
 
 
 def timestamp_setdigits(ts: Union[float, int], digit: int) -> int:
@@ -32,7 +67,6 @@ def datetime_format_resolver(datetime_str: str, formats: List[str]
         res = datetime_format_resolver(datetime_str, formats)
     except Exception:  # programmer error. should not return None here.
         raise
-
     return res
 
 
@@ -44,15 +78,12 @@ def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
         '%Y-%m-%d:%H-%M-%S',
         '%Y-%m-%d:%H-%M',
         '%Y-%m-%d:%H',
-
         '%Y-%m-%dT%H:%M:%S',
         '%Y-%m-%dT%H:%M',
         '%Y-%m-%dT%H',
-
         '%Y-%m-%d',
         '%Y-%m',
         '%Y',
-
         '%Y/%m/%d',
         '%Y/%m',
         '%Y',
@@ -74,33 +105,21 @@ def datetime_to_str(datetime: Optional[dt]) -> str:
         datetime.second)
 
 
-def coutback7day_tuple(prev_tuple: Tuple[dt, dt]) -> Tuple[dt, dt]:
-    """
-    count back 7 days
-    if input (2019-11-10, 2019-11-17) return (2019-11-03, 2019-11-10)
-    """
-    delta_seven = timedelta(days=7)
-    start, _ = prev_tuple
-    return start - delta_seven, start
-
-
-def back7daytuple_generator(create_time: Optional[dt]) \
+def date_range_iter(create_time: dt, countback: timedelta) \
         -> Generator[Tuple[dt, dt], None, None]:
-    """ 7 day tuple generator. stop when back to create time"""
-    delta_seven = timedelta(days=7)
+    """ date range tuple generator. stop when hit the device create time"""
     now = dt.utcnow()
-
-    if create_time is None:  # if no create time default go back for a month.
-        create_time = now - 30 * delta_seven
-    date_tuple = (now - delta_seven, now)
-
-    if date_tuple[0] < create_time:
-        yield (create_time, now)
-
+    date_tuple = (now - countback, now)
     while date_tuple[0] > create_time:
         yield date_tuple
-        date_tuple = coutback7day_tuple(date_tuple)
+        # advance the datetuple.
+        # ((2020, 1, 3), (2020, 1 2)) -> ((2020, 1, 2), (202, 1, 1))
+        start, _ = date_tuple
+        date_tuple = (start - countback, start)
         d1, d2 = date_tuple
+
         # if less than create time construct from create time.
         if d1 < create_time:
             yield (create_time, d2)
+    yield (create_time, now)  # finish iteration.
+    return

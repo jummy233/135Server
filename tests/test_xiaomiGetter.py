@@ -39,16 +39,15 @@ class XiaomiGetterTest(unittest.TestCase):
         self.assertTrue(dev is not None)
 
     def test_get_resource(self):
-        ...
-        # params: x.ResourceParam = {  # wrong type. but its fine.
-        #     'data': [
-        #         {
-        #             'did': 'lumi.158d0002374da1',
-        #             'attrs': ['3', 'humidity_value']
-        #         }
-        #     ]
-        # }
-        # res: Optional[x.ResourceResult] = x.get_resource(
-        #     xauth, self.token, params)
-        # __import__('pdb').set_trace()
-        # self.assertTrue(res is not None and res != '')
+        params: x.ResourceParam = {
+            'did': 'lumi.158d0002374da1',
+            'attrs': ['3', 'humidity_value'],
+            'startTime':  1576181520000,
+            'endTime': 1576181700000,
+            'pageNum': 1,
+            'pageSize': 300  # maxium 300
+        }
+        res: Optional[x.ResourceResult] = x.get_resource(
+            xauth, self.token, params)
+        __import__('pdb').set_trace()
+        self.assertTrue(res is not None and res != '')

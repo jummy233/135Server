@@ -118,7 +118,6 @@ def get_token(auth: AuthData, timestamp: Optional[int] = None) \
 
     try:
         response: requests.Response = requests.post(url, json=request_data)
-        logger.info('[J get_token] response: ', response.json())
 
         if response.status_code != 200:
             logger.error('error response %s', response)
@@ -178,6 +177,7 @@ def get_device_list(auth: AuthData,
         response = requests.post(url, data=params_json, headers=headers)
 
         rj: Dict = response.json()
+        logger.debug("[jianyanyuan get device list] %s", response)
 
         if response.status_code != 200:
             logger.error('error response %s', response)
@@ -245,6 +245,7 @@ def get_device_attrs(
             logger.error('error response %s', response)
             return None
 
+        logger.debug("[jianyanyuan get attrs] %s", response.content)
         rj: Dict = response.json()
         if rj['code'] != 0:
             logger.error('error return code: ', rj)
@@ -298,11 +299,10 @@ def get_data_points(
     }
 
     try:
-        with threading.RLock():
-            response: requests.Response = \
-                requests.post(url, data=param_json, headers=headers)
+        response: requests.Response = \
+            requests.post(url, data=param_json, headers=headers)
 
-        logger.debug('datapoint response {} '.format(response))
+        logger.debug("[jianyanyuan get datapoints] %s", response)
 
         if response.status_code != 200:
             logger.error('error response %s %s',

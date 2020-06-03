@@ -1,4 +1,6 @@
 """
+NOTE Deprecated! Use Scheduler instead.
+
 app level interface
 provides app context.
 """

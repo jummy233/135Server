@@ -448,7 +448,6 @@ class JianyanyuanLoadFull:
         # read json files
         with open('app/dataGetter/static/j_project_device_table.json', 'r') as f:
             json_data: Dict = json.loads(f.read())
-
             json_spot_list = [
                 (Project
                  .query
@@ -530,9 +529,7 @@ class JianyanyuanLoadFull:
             if spot_record_generator is None:
                 logger.warning('empty device{}'.format(spot_record_generator))
                 return
-
             # exthaust map without create a list.
-
             try:
                 while True:
                     sr = next(spot_record_generator)
