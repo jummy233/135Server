@@ -15,7 +15,7 @@ from logging import DEBUG
 from operator import itemgetter
 from queue import Queue
 from typing import (Any, Callable, Dict, Generator, Generic, Iterator, List,
-                    NewType, Optional, Tuple, Type, TypeVar, Union)
+                    NewType, Optional, Tuple, Type, TypeVar, Union, cast)
 
 from fuzzywuzzy import fuzz
 from sqlalchemy.exc import IntegrityError
@@ -330,17 +330,12 @@ class JianyanyuanLoadFull:
         load_by_fuzzy_match()
         logger.info('finished loading spot')
 
-    def load_devices(self):
+    def load_devices(self, raw=False):
         """
         Like Spot devices has two sources to determine its Spot.
         method 1: deduce from j_project_device_table.json file.
         method 2: to determine from the location_info from Device TypedDict
         """
-        # Jianyanyuan devices.
-        devices: Optional[Generator] = self.j.device()
-        if not devices:
-            logger.warning('empty device from JianyanyuanData')
-            return
 
         def handle_location_info(location_info) -> Optional[Spot]:
             """
@@ -445,24 +440,39 @@ class JianyanyuanLoadFull:
 
             ModelOperations.Add.add_device(device_post_data)
 
-        # read json files
-        with open('app/dataGetter/static/j_project_device_table.json', 'r') as f:
-            json_data: Dict = json.loads(f.read())
-            json_spot_list = [
-                (Project
-                 .query
-                 .filter_by(project_name=pn)).first().spot.first()
-                for pn in json_data.keys()]
+        # Jianyanyuan devices.
+        devices: Optional[Generator] = self.j.device()
+        if not devices:
+            logger.warning('empty device from JianyanyuanData')
+            return
 
-        for d in devices:  # consumer
+        # NOTE: THis is for debug only
+        # when raw is true, load device without any extra project
+        # information.
+        if raw:
+            for device in devices:  # dataType.Device
+                ModelOperations.Add.add_device(cast(Dict, device))
+            commit()
 
-            # second operation will overwrite the first one.
-            # table lookup has higher accuracy so has higher priority
-            # than fuzzy match.
-            load_by_table_lookup(d, json_data, json_spot_list)
-            load_by_location_info(d)
+        else:
+            # read json files
+            with open('app/dataGetter/static/j_project_device_table.json', 'r') as f:
+                json_data: Dict = json.loads(f.read())
+                json_spot_list = [
+                    (Project
+                     .query
+                     .filter_by(project_name=pn)).first().spot.first()
+                    for pn in json_data.keys()]
 
-        logger.info('finished loading device')
+            for d in devices:  # consumer
+
+                # second operation will overwrite the first one.
+                # table lookup has higher accuracy so has higher priority
+                # than fuzzy match.
+                load_by_table_lookup(d, json_data, json_spot_list)
+                load_by_location_info(d)
+
+            logger.info('finished loading device')
 
     def load_spot_records(self):
         """

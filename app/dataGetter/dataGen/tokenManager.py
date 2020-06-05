@@ -1,7 +1,8 @@
 from typing import Callable, Generic, TypeVar, Optional
-from threading import Thread, Lock
+from threading import Thread, Lock, Condition
 from timeutils.time import PeriodicTimer
 import logging
+from contextlib import contextmanager
 
 
 T = TypeVar('T')
@@ -16,6 +17,8 @@ class TokenManager(Generic[T]):
         self._init_token(gettoken)
         self._expires_in = expires_in
         self._init_timer()
+        self._refreshed = Condition()
+        self._is_refresing = False
         self._quit = False
 
     def _init_token(self, gettoken: TokenGetter[T]):
@@ -33,6 +36,19 @@ class TokenManager(Generic[T]):
     def token(self):
         return self._token
 
+    @contextmanager
+    def valid_token_ctx(self):
+        """
+        Ensure a valid token even it's between refreshing
+        """
+        with self._refreshed:
+            if self._is_refresing:
+                self._refreshed.wait()
+        try:
+            yield self.token
+        finally:
+            ...
+
     def start(self):
         self.t = Thread(target=self.run)
         self.timer.start()
@@ -40,10 +56,15 @@ class TokenManager(Generic[T]):
 
     def run(self):
         while True:
+            # print(self.token)  # NOTE DEBUG
             if self._quit:
                 break
             self.timer.wait_for_tick()
-            self._refresh()
+            self._is_refresing = True
+            with self._refreshed:
+                self._refreshed.notify_all()
+                self._refresh()
+            self._is_refresing = False
 
     def __del__(self):
         self.close()

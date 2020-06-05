@@ -13,7 +13,9 @@ def gen_fake():
     from app import models as m
     import db_init
 
-    db_init.load_climate_area()
+    db_init.db_init()
+    full = db_init.JianyanyuanLoadFull()
+    full.load_devices(raw=True)
     location = {
         "province": "Province",
         "city": "City",

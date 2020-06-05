@@ -5,14 +5,15 @@ import time
 from datetime import datetime
 from tests.fake_db import gen_fake
 import threading
+from app.dataGetter.dataGen.dataType import map_thunk_iter
 
 
 class SpotDataTest(unittest.TestCase):
     def setUp(self):
-        self.app = create_app('testing', with_scheduler=False)
+        self.app = create_app('testing')
         with self.app.app_context():
             db.drop_all()
-            self.j = DG.JianYanYuanData(self.app)
+            self.j = scheduler.update_actor.jianyanyuan_actor.datagen
             db.create_all()
             gen_fake()
 
@@ -40,8 +41,15 @@ class SpotDataTest(unittest.TestCase):
         self.assertTrue(dname.isdigit())
 
     def test_sport_record(self):
-        time_range = (datetime(2020, 3, 2, 10), datetime(2020, 3, 3, 15))
-        records = self.j.spot_record(2, time_range)
+        time_range = (datetime(2019, 9, 23, 00), datetime(2019, 9, 24, 00))
+        print(self.j.token)
+        records = self.j.spot_record(5, time_range)
+
+        def worker(record):
+            print(record)
+
+        map_thunk_iter(records, worker, 5)
 
     def tearDown(self):
         self.j.close()
+        del self.j

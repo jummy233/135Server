@@ -35,7 +35,7 @@ class JianYanYuanData(SpotData):
     Jianyanyuan data getter implementation
     """
     source: str = '<jianyanyuan>'
-    expires_in: int = 20  # token is valid in 20 seconds.
+    expires_in: int = 20 - 5  # valid in 20 seconds, refresh each 18 secs.
     indoor_data_collector_pid: str = '001'
     monitor_pid: str = '003'
 
@@ -54,7 +54,7 @@ class JianYanYuanData(SpotData):
         self._app = app
         self.auth = authConfig.jauth
         self.tokenManager = TokenManager(
-            lambda: jGetter.get_token(self.auth, currentTimestamp(digit=13)),
+            lambda: jGetter.get_token(self.auth, currentTimestamp(13)),
             JianYanYuanData.expires_in)
         self.tokenManager.start()
 
@@ -164,7 +164,6 @@ class JianYanYuanData(SpotData):
             """
             generator for one device
             """
-            __import__('pdb').set_trace()
             try:
                 with self.data.app.app_context():
                     from app.models import Device as MD
@@ -206,26 +205,66 @@ class JianYanYuanData(SpotData):
             * Main generator entrance.
             Both self.one() and self.all() will use this generator to obtain
             """
+
             def entrance(datapoints, params_list) -> RecordThunkIter:
                 """
+                *** SIDE EFFECTFUL
                 Return a generator iter througth an effectful generator
-                effectful_pair is the inner most layer of the generator.
-                It comprise a iterator of a datapoint-parameter pair.
-
+                iter through data will cause a network connection.
                 """
+                size = len(params_list)
                 effectful = zip(datapoints, params_list)
-
-                while True:  # send unevalued slice of iterator.
-                    try:
-                        yield (lambda: type(self)._records_factory(
-                            islice(effectful, 1)))
-                    except Exception:
-                        break
+                for _ in range(size):
+                    def g():
+                        # TODO: now data arrives normally,
+                        # just turn refresh time shorter to allow a window
+                        # time
+                        # Now I need to assess the thunk iter functions
+                        # in dataType.py
+                        # to see if it unwrap the spot_record structure
+                        # properly.
+                        # if that works out, next step should be
+                        # evaluate each thunk concurrenly
+                        # and then Jianyanyuan data backend should be done
+                        # next step is to make sure xiaomi api can fetch
+                        # the correct data.
+                        # then is to make sure scheduler works as expect
+                        # in general
+                        # then is the front end stuffs.
+                        # better realtime api.
+                        # local cache.
+                        # fix graph
+                        # add filter
+                        # add a interace for adding picture
+                        # ...
+                        data, param = next(effectful)
+                        return ((MakeDict.make_spot_record(record, param)
+                                 for record in data)
+                                if data is not None
+                                else iter([]))
+                    yield g()
 
             datapoints = map(self._datapoint, datapoint_params)
-            # print(datapoint_params[:2])
-            # print(list(datapoints)[:2])
             return entrance(datapoints, datapoint_params)
+
+        def _datapoint(self,
+                       datapoint_param: JdatapointParam) \
+                -> Optional[List[JdatapointResult]]:
+            """
+            *** EFFECTFUL
+            datapoint of one device.
+            query for datapoint based on the parameter passed in.
+            @param datapoint_param:
+            @return: list of query result.
+            """
+            logger.debug('getting datapoint {}'.format(datapoint_param))
+            # block until token refreshed. Make sure it is a valid token
+            with self.data.tokenManager.valid_token_ctx() as token:
+                print("valid", token)
+                print("self, ", self.token)
+                res = jGetter.get_data_points(self.auth, token,
+                                              datapoint_param)
+            return res
 
         def _mk_datapoint_param_iter(self) \
                 -> Optional[Iterator[JdatapointParam]]:
@@ -262,34 +301,7 @@ class JianYanYuanData(SpotData):
                 return None
             return datapoint_param_iter
 
-        def _datapoint(self,
-                       datapoint_param: JdatapointParam) \
-                -> Optional[List[JdatapointResult]]:
-            """
-            *** EFFECTFUL
-            datapoint of one device.
-            query for datapoint based on the parameter passed in.
-
-            @param datapoint_param:
-            @return: list of query result.
-            """
-            logger.debug('getting datapoint {}'.format(datapoint_param))
-            return jGetter.get_data_points(self.auth,
-                                           self.token, datapoint_param)
-
-        @staticmethod
-        def _records_factory(
-                arg: Iterator[Tuple[Optional[List[JdatapointResult]],
-                                    JdatapointParam]]) -> Optional[RecordGen]:
-            """
-            * generate database compatible record data type.
-            """
-            data, param = next(arg)
-            if data is None:
-                return None
-            return (MakeDict.make_spot_record(sr, param) for sr in data)
-
-        @staticmethod
+        @ staticmethod
         def _make_datapoint_param(
             device_result: JdevResult,
             time_range: Optional[Tuple[dt, dt]] = None) \
@@ -344,7 +356,7 @@ class JianYanYuanData(SpotData):
 class MakeDict:
     """ Convert json response from server into TypedDict """
 
-    @staticmethod
+    @ staticmethod
     def make_location(device_result: JdevResult) -> Location:
         """
         return location in standard format
@@ -361,17 +373,13 @@ class MakeDict:
             MakeDict._filter_location_attrs,
             location_attrs=location_attrs)
 
-        # attrses: Iterator = map(make_attrs, self.device_list)
-
-        # make_spot = JianYanYuanData.make_spot
-        # return (make_spot(attrs) for attrs in attrses)
         location = make_attrs(device_result)
         return Location(province=location.get('provinceLoginName'),
                         city=location.get('cityLoginName'),
                         address=location.get('address'),
                         extra=location.get('nickname'))
 
-    @staticmethod
+    @ staticmethod
     def make_spot_record(datapoint: Optional[JdatapointResult],
                          datapoint_param: Optional[JdatapointParam]
                          ) -> Optional[SpotRecord]:
@@ -424,7 +432,7 @@ class MakeDict:
 
         return spot_record
 
-    @staticmethod
+    @ staticmethod
     def make_spot(loc_attrs: Location) -> Optional[Spot]:
         """
         Spot for jianyanyuan is based on project.
@@ -443,7 +451,7 @@ class MakeDict:
                     spot_name=None,
                     spot_type=None)
 
-    @staticmethod
+    @ staticmethod
     def make_device(device_result: JdevResult) -> Device:
         return Device(location_info=MakeDict.make_location(device_result),
                       device_name=device_result.get('deviceId'),
@@ -452,7 +460,7 @@ class MakeDict:
                       create_time=device_result.get('createTime'),
                       modify_time=device_result.get('modifyTime'))
 
-    @staticmethod
+    @ staticmethod
     def _filter_location_attrs(device_result: JdevResult,
                                location_attrs: Dict) -> Dict:
         """

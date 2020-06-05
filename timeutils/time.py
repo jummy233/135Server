@@ -7,6 +7,7 @@ from threading import Thread, Condition, Event
 
 
 class PeriodicTimer:
+    """ interval is in second. """
     def __init__(self, interval: float, daemon: bool = True):
         self._flag = 0x0
         self._invertal = interval

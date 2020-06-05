@@ -270,9 +270,8 @@ def get_device_attrs(
 def get_data_points(
         auth: AuthData,
         authtoken: Optional[AuthToken],
-        params: DataPointParam) \
-        -> Optional[List[DataPointResult]]:
-    """ return data """
+        params: DataPointParam) -> Optional[List[DataPointResult]]:
+
     method: str = 'POST'
     timestamp: int = currentTimestamp(13)
     param_json = json.dumps(params)
@@ -291,16 +290,15 @@ def get_data_points(
          + param_json
          + str(timestamp)
          + token).encode('ascii')).hexdigest()
-    headers: Dict = {
-        'Content-Type': 'application/json;charset=UTF-8',
-        'ts': str(timestamp),
-        'uid': uid,
-        'sign': sign
-    }
+    headers: Dict = {'Content-Type': 'application/json;charset=UTF-8',
+                     'ts': str(timestamp),
+                     'uid': uid,
+                     'sign': sign}
 
     try:
-        response: requests.Response = \
-            requests.post(url, data=param_json, headers=headers)
+        print('getter token', token)  # NOTE DEBUG
+        response: requests.Response = requests.post(
+            url, data=param_json, headers=headers)
 
         logger.debug("[jianyanyuan get datapoints] %s", response)
 
@@ -322,10 +320,6 @@ def get_data_points(
                 rj['code'],
                 response.request.body)
             return None
-
-        logger.debug('correct authtoken %s', str(authtoken))
-        return rj['data']['asData']
-
     except urllib3.response.ProtocolError as e:
         logger.error('[urllib3] Protocal error %s ', e)
         return None
@@ -339,4 +333,5 @@ def get_data_points(
         logger.error(
             'some Exception happed when send and receiving data. %s ', e)
 
-    return None
+    logger.debug('correct authtoken %s', str(authtoken))
+    return rj['data']['asData']

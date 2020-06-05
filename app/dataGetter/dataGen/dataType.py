@@ -7,7 +7,8 @@ from abc import ABC, abstractmethod
 import enum
 from datetime import datetime as dt
 from typing import (List, Callable, Dict, Generator, Iterator, List, NewType,
-                    Optional, Tuple, TypedDict, Union, cast, TypeVar)
+                    Optional, Tuple, TypedDict, Union, cast, TypeVar, Any)
+from concurrent.futures import ThreadPoolExecutor
 
 T = TypeVar('T')
 
@@ -67,6 +68,24 @@ RecordThunkIter = Iterator[RecordThunk]
 
 def unwrap_thunk(thunk: Callable[[], T]) -> T:
     return thunk()
+
+
+def map_thunk_iter(iterator: RecordThunkIter,
+                   fn: Callable[[SpotRecord], Any],
+                   max_workers: int):
+    """
+    It destruct the RecordThunkIter and execute RecordGen
+    with threadpool.
+    It only use the side effect of callback so nothing return.
+    (Side effect namely record into database)
+    """
+    pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_workers)
+    # with pool:
+    for thunk in iterator:
+        gen = unwrap_thunk(thunk)
+        if gen is not None:
+            print(gen)
+            next(gen)
 
 
 class WrongDidException(Exception):

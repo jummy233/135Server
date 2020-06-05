@@ -9,12 +9,14 @@ jauth = authConfig.jauth
 
 class JianyanyuanGetterTest(unittest.TestCase):
     def setUp(self):
-        self.token = j._get_token(jauth)
+        self.token = j.get_token(jauth)
 
+    @unittest.skip('.')
     def test_get_token(self):
-        token = j._get_token(jauth)
+        token = j.get_token(jauth)
         self.assertTrue(isinstance(token, tuple) and len(token) == 2)
 
+    @unittest.skip('.')
     def test_get_device_list(self):
         params: j.DeviceParam = (
             {'companyId': 'HKZ',
@@ -22,11 +24,12 @@ class JianyanyuanGetterTest(unittest.TestCase):
              'size': 10,
              'pageNo': 1,
              'pageSize': '10'})
-        data = j._get_device_list(jauth, self.token, params)
+        data = j.get_device_list(jauth, self.token, params)
         # print(data['devs'][0]['deviceId'])
         # print(data)
         self.assertTrue(isinstance(data, list))
 
+    @unittest.skip('.')
     def test_get_device_attrs(self):
 
         data = [
@@ -75,13 +78,18 @@ class JianyanyuanGetterTest(unittest.TestCase):
                         all(map(len, (d['data'] for d in data))))
 
     def test_get_datapoint(self):
-        params: j.DataPointParam = (
-            {'gid': 'uarlid',
-             'did': '20205754003878404097',
-             'aid': "3,4",
-             'startTime': '2019-07-23T00:00:00',
-             'endTime': '2019-07-24T00:00:00'})
-        data = j._get_data_points(jauth, self.token, params)
+        params: j.DataPointParam = {
+            'gid': 'uarlid',
+            'did': '20205754003878404097',
+            'aid': "3,4",
+            'startTime': '2019-09-23T00:00:00',
+            'endTime': '2019-09-24T00:00:00'}
+
+        data = j.get_data_points(jauth, self.token, params)
         self.assertTrue(data[0]['as']['4'] == 46.0)
 
-
+#   d = {'gid': 'uarlid',
+#      'did': '20205754003878404097',
+#      'aid': "3,4",
+#      'startTime': '2019-09-23T00:00:00',
+#      'endTime': '2019-09-24T00:00:00'}
