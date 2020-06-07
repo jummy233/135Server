@@ -83,7 +83,6 @@ class XiaomiSpotDataTest(unittest.TestCase):
             # db.drop_all()
             self.x = scheduler.update_actor.xiaomi_actor.datagen
             db.create_all()
-            gen_fake()
 
     @unittest.skip('.')
     def test_device(self):
