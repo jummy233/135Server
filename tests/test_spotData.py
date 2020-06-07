@@ -5,17 +5,19 @@ import time
 from datetime import datetime
 from tests.fake_db import gen_fake
 import threading
-from app.dataGetter.dataGen.dataType import map_thunk_iter
+from app.dataGetter.dataGen.dataType import (
+    map_thunk_iter, device_check, DataSource, WrongDidException)
 
 
-class SpotDataTest(unittest.TestCase):
+@unittest.skip('.')
+class JianyanyuanSpotDataTest(unittest.TestCase):
     def setUp(self):
         self.app = create_app('testing')
         with self.app.app_context():
-            db.drop_all()
-            self.j = scheduler.update_actor.jianyanyuan_actor.datagen
+            # db.drop_all()
             db.create_all()
-            gen_fake()
+            scheduler.update_device()
+            self.j = scheduler.update_actor.jianyanyuan_actor.datagen
 
         self.location_attrs = (
             'cityIdLogin',
@@ -39,12 +41,29 @@ class SpotDataTest(unittest.TestCase):
         self.assertTrue(len(devices) > 100)
         dname: str = devices[-1].get("device_name")
         self.assertTrue(dname.isdigit())
+        try:
+            device_check(dname, DataSource.XIAOMI)
+        except WrongDidException:
+            self.fail("device name format is incorrect")
 
+    @unittest.skip('.')
     def test_sport_record(self):
-        time_range = (datetime(2019, 9, 23, 00), datetime(2019, 9, 24, 00))
-        print(self.j.token)
-        records = self.j.spot_record(5, time_range)
+        """
+        use the device 20205754003878404097
+        """
+        with self.app.app_context():
+            from app.models import Device
+            did: int = (
+                Device
+                .query
+                .filter(Device.device_name == "20205754003878404097")
+            ).first().device_id
+            print(did)
 
+        time_range = (datetime(2019, 9, 23, 00), datetime(2019, 9, 24, 00))
+        records = self.j.spot_record(did, time_range)
+
+        # NEED a property test all the way to database commit.
         def worker(record):
             print(record)
 
@@ -53,3 +72,49 @@ class SpotDataTest(unittest.TestCase):
     def tearDown(self):
         self.j.close()
         del self.j
+
+
+class XiaomiSpotDataTest(unittest.TestCase):
+    """ xiaomi doesn't need location data """
+
+    def setUp(self):
+        self.app = create_app('testing')
+        with self.app.app_context():
+            # db.drop_all()
+            self.x = scheduler.update_actor.xiaomi_actor.datagen
+            db.create_all()
+            gen_fake()
+
+    @unittest.skip('.')
+    def test_device(self):
+        devices = list(self.x.device())
+        self.assertTrue(len(devices) > 100)
+        dname: str = devices[-1].get("device_name")
+        try:
+            device_check(dname, DataSource.XIAOMI)
+        except WrongDidException:
+            self.fail("device name format is incorrect")
+
+    # @unittest.skip('.')
+    def test_sport_record(self):
+        with self.app.app_context():
+            from app.models import Device
+            did: int = (
+                Device
+                .query
+                .filter(Device.device_name == "lumi.158d0001fd5c50")
+            ).first().device_id
+            print(did)
+
+        time_range = (datetime(2020, 6, 5, 16), datetime(2020, 6, 6, 18))
+        records = self.x.spot_record(did, time_range)
+
+        # NEED a property test all the way to database commit.
+        def worker(record):
+            print(record)
+
+        map_thunk_iter(records, worker, 5)
+
+    def tearDown(self):
+        self.x.close()
+        del self.x

@@ -133,6 +133,7 @@ class Location(db.Model):
                                 or self.climate_area_id)
         self.province = update_location.province or self.province
         self.city = update_location.city or self.city
+        db.session.commit()
 
     def to_json(self):
         if self.climate_area is not None:
@@ -270,6 +271,7 @@ class Project(db.Model):
         self.record_started_from = update_project.record_started_from \
             or self.record_started_from
         self.description = update_project.description or self.description
+        db.session.commit()
 
     @classmethod
     def gen_fake(cls, count=38):
@@ -377,6 +379,7 @@ class ProjectDetail(db.Model):
 
         self.image_description = update_project_detail.image_description \
             or self.image_description
+        db.session.commit()
 
     @classmethod
     def gen_fake(cls, count=10):
@@ -411,7 +414,7 @@ class OutdoorSpot(db.Model):
                               lazy="dynamic")
 
     def update(self, update_outdoor_spot: OutdoorSpot) -> None:
-
+        db.session.commit()
         ...
 
     @classmethod
@@ -459,6 +462,7 @@ class OutdoorRecord(db.Model):
                 normalize_time(5)(self.outdoor_record_time)
 
     def update(self, update_outdoor_record: OutdoorRecord) -> None:
+        db.session.commit()
         ...
 
     @classmethod
@@ -515,6 +519,7 @@ class ClimateArea(db.Model):
                                lazy="dynamic")
 
     def update(self, update_climate_area: ClimateArea) -> None:
+        db.session.commit()
         ...
 
     @classmethod
@@ -544,6 +549,7 @@ class Company(db.Model):
     company_name = db.Column(db.String(40))
 
     def update(self, update_company: Company) -> None:
+        db.session.commit()
         ...
 
     @classmethod
@@ -582,6 +588,7 @@ class Spot(db.Model):
 
         if update_spot.image:  # large object.
             self.image = update_spot.image
+        db.session.commit()
 
     @classmethod
     def gen_fake(cls, count=20):
@@ -637,6 +644,7 @@ class Device(db.Model):
         self.modify_time = update_device.modify_time or self.modify_time
         self.device_name = update_device.device_name or self.device_name
         self.device_type = update_device.device_type or self.device_type
+        db.session.commit()
 
     def to_json(self):
         create_time = (
@@ -698,6 +706,7 @@ class SpotRecord(db.Model):
         self.ac_power = update_spot_record.ac_power or self.ac_power
         self.pm25 = update_spot_record.pm25 or self.pm25
         self.co2 = update_spot_record.co2 or self.co2
+        db.session.commit()
 
     @classmethod
     def gen_fake(cls, count=5000):

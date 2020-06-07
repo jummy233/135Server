@@ -54,7 +54,8 @@ AuthData = (
             'api_query_base_url': str,
             'api_query_pos_url': str,
             'api_query_dev_url': str,
-            'api_query_resrouce_url': str
+            'api_query_resource_url': str,
+            'api_query_resource_history_url': str
         }, total=False))
 
 """ json request for querying position  """
@@ -125,6 +126,14 @@ class DeviceResult(TypedDict):
 """
 json request for querying resource by give device id
 """
+
+ResourceParam_light = TypedDict(
+    'ResourceParam_light',
+    {
+        'did': str,
+        'attrs': List[str],
+    }
+)
 
 ResourceParam = TypedDict(
     'ResourceParam',
@@ -299,14 +308,17 @@ def _gen_sign(auth: AuthData, token: Optional[TokenResult]) -> Optional[str]:
     appId, appKey = itemgetter('appId', 'appKey')(auth)
 
     # read Aqara doc about how to construct sign.
-    sign_dict: Dict = {
-        'accesstoken': access_token,
-        'appid': appId,
-        'time': str(currentTimestamp(13))
-    }
+    sign_seq: Tuple = (
+        ('accesstoken', access_token),
+        ('appid', appId),
+        ('time', str(currentTimestamp(13)))
+    )
 
-    sign: str = md5((urllib.parse.urlencode(sign_dict).lower() +
-                     '&' + appKey).encode('ascii')).hexdigest()
+    sign: str = md5(
+        (urllib.parse.urlencode(sign_seq).lower()
+         + '&'
+         + appKey)
+        .encode('ascii')).hexdigest()
     return sign
 
 
@@ -345,10 +357,7 @@ def get_pos(auth: AuthData,
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(
-        auth, token, sign
-        if sign is not None
-        else None)
+    headers: Optional[Dict] = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
     try:
@@ -391,8 +400,7 @@ def get_device(auth: AuthData,
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(
-        auth, token, sign if sign is not None else None)
+    headers: Optional[Dict] = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_dev_url)
     try:
@@ -424,27 +432,72 @@ def get_device(auth: AuthData,
         return response.json()['result']
 
 
-def get_resource(auth: AuthData,
-                 token: Optional[TokenResult],
-                 params: ResourceParam) -> Optional[ResourceData]:
+def get_hist_resource(auth: AuthData,
+                      token: Optional[TokenResult],
+                      params: ResourceParam) -> Optional[ResourceData]:
     """ Notice this function use /open/resource/history/query """
 
-    api_query_base_url, api_query_resrouce_url = \
+    api_query_base_url, api_query_resource_url = \
         itemgetter('api_query_base_url',
-                   'api_query_resrouce_url')(auth)
+                   'api_query_resource_history_url')(auth)
     if not token:
         logger.error('token is None')
         return None
 
     sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(
-        auth, token, sign if sign is not None else None)
+    headers: Optional[Dict] = _gen_header(auth, token, sign)
 
-    url: str = urllib.parse.urljoin(api_query_base_url, api_query_resrouce_url)
+    url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
     try:
         response: requests.Response = requests.post(
             url, json=cast(Dict, params), headers=headers)
-        logger.debug("[xiaomi get resource] %s", response.content)
+        logger.debug("[xiaomi get resource] %s", response)
+        print(response.content)
+    except urllib3.response.ProtocolError:
+        logger.error('[urllib3] Protocal error %s %s',
+                     response.content, response.request)
+        return None
+    except http.client.IncompleteRead:
+        logger.error('[http] IncompleteRead error %s %s',
+                     response.content, response.request)
+        return None
+    except requests.models.ChunkedEncodingError:
+        logger.error('[requests] ChunkedEncodingError %s %s',
+                     response.content, response.request)
+        return None
+    except BaseException:
+        logger.error(
+            'some Exception happed when send and receiving data. %s %s',
+            response.content, response.request)
+    finally:
+        if response.status_code != 200:
+            logger.error('error response %s', response)
+            return None
+        return response.json()['result']
+
+
+def get_resource(auth: AuthData,
+                 token: Optional[TokenResult],
+                 params: List[ResourceParam_light]) -> Optional[ResourceData]:
+    """ Notice this function use /open/resource/history/query """
+
+    api_query_base_url, api_query_resource_url = \
+        itemgetter('api_query_base_url',
+                   'api_query_resource_url')(auth)
+    if not token:
+        logger.error('token is None')
+        return None
+
+    sign: Optional[str] = _gen_sign(auth, token)
+    headers: Optional[Dict] = _gen_header(auth, token, sign)
+
+    url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
+    try:
+        print(params)
+        response: requests.Response = requests.post(
+            url, json=cast(Dict, params), headers=headers)
+        logger.debug("[xiaomi get resource] %s", response)
+        print(response.content)
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
                      response.content, response.request)

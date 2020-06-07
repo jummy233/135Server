@@ -20,7 +20,7 @@ from flask import Flask
 import multiprocessing
 from abc import ABC, abstractmethod
 from typing import (Generic, TypeVar, Tuple, List, Generator, Optional,
-                    Dict, cast)
+                    Dict, cast, NamedTuple)
 from datetime import datetime as dt
 from datetime import timedelta
 from app.dataGetter.dataGen import JianYanYuanData
@@ -240,6 +240,27 @@ class UpdateActor(Actor):
         """ update all data """
 
 
+class ScheduleTable(NamedTuple):
+    """
+    config the duration of each event
+    A None field indicates cancel the corresponding schedule.
+    """
+    overall: int                   # overall update
+    realtime: int                  # update online devices.
+    device: Optional[int]          # update device list.
+    backup: Optional[int]          # backup database
+    healthcheck: Optional[int]     # check the health of database.
+
+    @staticmethod
+    def default() -> 'ScheduleTable':
+        return ScheduleTable(
+            overall=59 * 60 * 24,
+            realtime=60*5,
+            device=None,
+            backup=None,
+            healthcheck=None)
+
+
 class UpdateScheduler:
     """
     Update scheduler.
@@ -253,11 +274,31 @@ class UpdateScheduler:
     device timer update device each day.
     """
 
-    def __init__(self):
-        self.overall_timer = PeriodicTimer(60 * 60 * 24)
-        self.realtime_timer = PeriodicTimer(60 * 5)
+    def __init__(self, config: Optional[ScheduleTable] = None):
+        """ plan schedules based on the config tuple passed in. """
+        if config is None:
+            # the basic default schedule
+            self._config = ScheduleTable.default()
+        else:
+            self._config = config
+
+        self._setup_timer()
+
+    def _setup_timer(self):
+        """ setup timer based on schedule table """
+        config = self._config
+        self.overall_timer = PeriodicTimer(config.overall)
+        self.realtime_timer = PeriodicTimer(config.realtime)
+
+        if config.device:
+            self.device_update_timer = PeriodicTimer(config.device)
+        if config.backup:
+            self.backup_timer = PeriodicTimer(config.backup)
+        if config.healthcheck:
+            self.healthcheck_timer = PeriodicTimer(config.healthcheck)
 
     def init_app(self, app: Flask):
+        """ get flask app context."""
         self.update_actor = UpdateActor(app)
         self.app = app
 
@@ -275,7 +316,7 @@ class UpdateScheduler:
     @property
     def online_device_list(self) -> List[UpdateMsg]:
         """
-        This will be called in each realtime update.
+        This will be called every realtime update.
         There're not many online device so the performance is pretty ok.
         It might be a problem when there're arount thounds of online devices
         Which is pretty impossible in the near feature.

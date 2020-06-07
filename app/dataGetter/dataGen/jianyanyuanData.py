@@ -126,8 +126,6 @@ class JianYanYuanData(SpotData):
         else:
             generator = sr.one(did, dr)
 
-        if not any(generator):
-            return iter([])
         return generator
 
     def device(self) -> Optional[Generator]:
@@ -204,45 +202,31 @@ class JianYanYuanData(SpotData):
             """
             * Main generator entrance.
             Both self.one() and self.all() will use this generator to obtain
+
+            RecordThunkIter is a convoluted datatype. The easiest way to
+            access it is to use map_thunk_iter() function in dataType.py
+            which map a callback to the result of all thunks. thunks are
+            evaluated asyncronously, which means good performance.
             """
 
             def entrance(datapoints, params_list) -> RecordThunkIter:
                 """
-                *** SIDE EFFECTFUL
                 Return a generator iter througth an effectful generator
                 iter through data will cause a network connection.
                 """
                 size = len(params_list)
                 effectful = zip(datapoints, params_list)
+
+                def g():
+                    """ SIDE EFFECTFUL """
+                    data, param = next(effectful)
+                    return ((MakeDict.make_spot_record(record, param)
+                             for record in data)
+                            if data is not None
+                            else iter([]))
+
                 for _ in range(size):
-                    def g():
-                        # TODO: now data arrives normally,
-                        # just turn refresh time shorter to allow a window
-                        # time
-                        # Now I need to assess the thunk iter functions
-                        # in dataType.py
-                        # to see if it unwrap the spot_record structure
-                        # properly.
-                        # if that works out, next step should be
-                        # evaluate each thunk concurrenly
-                        # and then Jianyanyuan data backend should be done
-                        # next step is to make sure xiaomi api can fetch
-                        # the correct data.
-                        # then is to make sure scheduler works as expect
-                        # in general
-                        # then is the front end stuffs.
-                        # better realtime api.
-                        # local cache.
-                        # fix graph
-                        # add filter
-                        # add a interace for adding picture
-                        # ...
-                        data, param = next(effectful)
-                        return ((MakeDict.make_spot_record(record, param)
-                                 for record in data)
-                                if data is not None
-                                else iter([]))
-                    yield g()
+                    yield g
 
             datapoints = map(self._datapoint, datapoint_params)
             return entrance(datapoints, datapoint_params)

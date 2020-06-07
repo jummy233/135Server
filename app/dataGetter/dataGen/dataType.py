@@ -8,7 +8,11 @@ import enum
 from datetime import datetime as dt
 from typing import (List, Callable, Dict, Generator, Iterator, List, NewType,
                     Optional, Tuple, TypedDict, Union, cast, TypeVar, Any)
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future, as_completed
+from logger import make_logger
+
+logger = make_logger('dataMidware', 'dataGetter_log')
+logger.propagate = False
 
 T = TypeVar('T')
 
@@ -79,13 +83,26 @@ def map_thunk_iter(iterator: RecordThunkIter,
     It only use the side effect of callback so nothing return.
     (Side effect namely record into database)
     """
+
     pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_workers)
-    # with pool:
-    for thunk in iterator:
-        gen = unwrap_thunk(thunk)
-        if gen is not None:
-            print(gen)
-            next(gen)
+    with pool:
+        geniter_futures: Iterator[Future[Optional[RecordGen]]] = (
+            pool.submit(unwrap_thunk, thunk)
+            for thunk in iterator)
+
+        for future in as_completed(geniter_futures):
+            try:
+                gen: Optional[RecordGen] = future.result()
+                if gen is not None:
+
+                    # TODO debug.
+                    # maybe chain all geneartors into a single iter
+                    # and pass into a process pool to consume them.
+                    for n in gen:
+                        if n is not None:
+                            fn(n)
+            except Exception as exc:
+                logger.warning("future failed, ", exc)
 
 
 class WrongDidException(Exception):

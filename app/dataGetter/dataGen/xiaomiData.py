@@ -46,7 +46,7 @@ class XiaoMiData(SpotData):
     device and spot records.
     """
     source: str = '<xiaomi>'
-    expires_in: int = 5000  # token is valid in 20 seconds.
+    expires_in: int = 5000 - 5  # token is valid for 30 min.
 
     def __init__(self, app: Flask):
         # get authcode and token
@@ -56,6 +56,7 @@ class XiaoMiData(SpotData):
         self.tokenManager = TokenManager(
             lambda: xGetter.get_token(self.auth),
             XiaoMiData.expires_in)
+        self.tokenManager.start()
 
         self.refresh: Optional[str] = None
         self.make_device_list()
@@ -96,6 +97,11 @@ class XiaoMiData(SpotData):
     def token(self):
         return self.tokenManager.token
 
+    def close(self):
+        """ tear down """
+        self.tokenManager.close()
+        del self
+
     def spot_location(self) -> Optional[Generator]:
         raise NotImplementedError
 
@@ -115,8 +121,6 @@ class XiaoMiData(SpotData):
         else:
             generator = sr.one(did, dr)
 
-        if not any(generator):
-            return iter([])
         return generator
 
     def device(self) -> Optional[Generator]:
@@ -179,19 +183,37 @@ class XiaoMiData(SpotData):
             return self._gen(param_list)
 
         def _gen(self, res_params: List[ResourceParam]) -> RecordThunkIter:
-            """ top level generator """
-            def entrance(resources, params_list) -> RecordThunkIter:
-                while True:
-                    try:
-                        # unlike jianyanyuan, only need resource iter here.
-                        yield (lambda: type(self)._records_factory(
-                            islice(resources, 1)))
-                    except Exception:
-                        break
+            """
+            use map_thunk_iter() in dataType to access the return value.
+            """
 
-            # resource here.
+            def entrance(resources, params_list) -> RecordThunkIter:
+                """ *** SIDE EFFECT """
+
+                size = len(params_list)
+                effectful = zip(resources, params_list)
+
+                def g():
+                    """ SIDE EFFECTFUL """
+                    data, param = next(effectful)
+                    return ((MakeDict.make_spot_record(record, param)
+                             for record in data)
+                            if data is not None
+                            else iter([]))
+
+                for _ in range(size):
+                    yield g
+
             resources = map(self._resource, res_params)
             return entrance(resources, res_params)
+
+        def _resource(self, resource_params: ResourceParam):
+            logger.debug('getting resource {}'.format(resource_params))
+
+            with self.data.tokenManager.valid_token_ctx() as token:
+                res = xGetter.get_hist_resource(
+                    self.auth, token, resource_params)
+            return res
 
         def __mk_resource_parameter_iter(self):
             """ generate request parameter iter """
@@ -225,10 +247,6 @@ class XiaoMiData(SpotData):
                 return None
             return resouce_param_iter
 
-        def _resource(self, resource_params: ResourceParam):
-            logger.debug('getting resource {}'.format(resource_params))
-            return xGetter.get_resource(self.auth, self.token, resource_params)
-
         @staticmethod
         def _make_resource_parameter(
                 device_result: Optional[xGetter.DeviceData],
@@ -261,19 +279,6 @@ class XiaoMiData(SpotData):
                 'pageSize': 300  # maxium 300
             }
 
-        @staticmethod
-        def _records_factory(
-                arg: Iterator[
-                    Optional[List[ResourceData]]]) -> Optional[RecordGen]:
-            """
-            * generate database compatible record data type.
-            only need the resource data queried from server for Xiaomi.
-            """
-            data = next(arg)
-            if data is None:
-                return None
-            return (MakeDict.make_spot_record(sr) for sr in data)
-
 
 class MakeDict:
     @staticmethod
@@ -305,5 +310,13 @@ class MakeDict:
         raise NotImplementedError
 
     @staticmethod
-    def make_spot_record(data: xGetter.ResourceData) -> SpotRecord:
+    def make_spot_record(data: Optional[xGetter.ResourceData],
+                         parms: Optional[xGetter.ResourceParam]) -> SpotRecord:
+        """
+        format:
+            { 'did': 'lumi.158d0001fd5c50',
+                'attr': 'humidity_value',
+                'value': '8354',
+                'timeStamp': '1591393050203' }
+        """
         ...

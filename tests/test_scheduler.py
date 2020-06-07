@@ -19,14 +19,13 @@ class TestFetchActor(TestCase):
     def setUp(self):
         self.app = app.create_app('testing')
         with self.app.app_context():
-            db.drop_all()
+            # db.drop_all()
             db.create_all()
             scheduler.update_device()
             scheduler.close()  # don't use the scheduler.
             self.actor = S.FetchActor(app, JianYanYuanData(app))
             self.actor.start()
 
-    @skip("works")
     def test_update_device(self):
         """ should show total 332 devices """
         with self.app.app_context():
@@ -48,7 +47,8 @@ class TestFetchActor(TestCase):
     #     ...
 
     def tearDown(self):
-        with self.app.app_context():
-            db.session.remove()
-            db.drop_all()
+        # with self.app.app_context():
+        #     db.session.remove()
+        #     db.drop_all()
         self.actor.close()
+        del self.actor
