@@ -13,7 +13,7 @@ from logger import make_logger
 
 from .. import authConfig
 from ..apis import xiaomiGetter as xGetter
-from ..apis.xiaomiGetter import ResourceParam, DeviceData, ResourceData
+from ..apis.xiaomiGetter import ResourceParam, DeviceData, ResourceData, ResourceDataTrimed, ResourceResponse
 from ..dateSequence import DateSequence, date_sequence
 from timeutils.time import date_range_iter, datetime_to_str, str_to_datetime, timestamp_setdigits
 from .tokenManager import TokenManager
@@ -56,6 +56,7 @@ class XiaoMiData(SpotData):
         self.tokenManager = TokenManager(
             lambda: xGetter.get_token(self.auth),
             XiaoMiData.expires_in)
+
         self.tokenManager.start()
 
         self.refresh: Optional[str] = None
@@ -67,8 +68,8 @@ class XiaoMiData(SpotData):
                 'pageNum': 1,
                 'pageSize': 1
             }
-            response: Optional[xGetter.DeviceResult] = xGetter.get_device(
-                self.auth, self.token, param)
+            response: Optional[xGetter.DeviceResult]
+            response = xGetter.get_device(self.auth, self.token, param)
             device_amount: int = response['totalCount'] if response else 0
             return device_amount
         device_amount = query_device_amount()
@@ -113,7 +114,8 @@ class XiaoMiData(SpotData):
         if not self.device_list:
             return iter([])
         sr = self._SpotRecord(self)
-        dr: Tuple[dt, dt] = (dt.now() - timedelta(days=1), dt.now()) \
+        dr: Tuple[dt, dt]
+        dr = (dt.now() - timedelta(days=1), dt.now()) \
             if not daterange else daterange
 
         if did is None:
@@ -197,7 +199,7 @@ class XiaoMiData(SpotData):
                     """ SIDE EFFECTFUL """
                     data, param = next(effectful)
                     return ((MakeDict.make_spot_record(record, param)
-                             for record in data)
+                             for record in trim_resource_data(data, param))
                             if data is not None
                             else iter([]))
 
@@ -207,13 +209,13 @@ class XiaoMiData(SpotData):
             resources = map(self._resource, res_params)
             return entrance(resources, res_params)
 
-        def _resource(self, resource_params: ResourceParam):
+        def _resource(self, resource_params) -> Optional[List[ResourceData]]:
             logger.debug('getting resource {}'.format(resource_params))
 
             with self.data.tokenManager.valid_token_ctx() as token:
-                res = xGetter.get_hist_resource(
+                res: Optional[ResourceResponse] = xGetter.get_hist_resource(
                     self.auth, token, resource_params)
-            return res
+            return res['data'] if res is not None and 'data' in res else None
 
         def __mk_resource_parameter_iter(self):
             """ generate request parameter iter """
@@ -287,7 +289,7 @@ class MakeDict:
         raise NotImplementedError
 
     @staticmethod
-    def make_device(device_result: xGetter.DeviceData) -> Device:
+    def make_device(device_result: xGetter.DeviceData) -> Optional[Device]:
         def convert_time(time: Optional[str]):
             result = None
             if time is not None:
@@ -297,8 +299,11 @@ class MakeDict:
                 result = dt.fromtimestamp(float(time) / 1000.0)
             return result
         create_time = convert_time(device_result.get('registerTime'))
+        did = device_result.get('did')
+        if did is None:
+            return None
         return Device(location_info=None,
-                      device_name=device_result.get('did'),
+                      device_name=did,
                       online=device_result.get('state'),
                       device_type=device_result.get('model'),
                       create_time=create_time,
@@ -310,13 +315,112 @@ class MakeDict:
         raise NotImplementedError
 
     @staticmethod
-    def make_spot_record(data: Optional[xGetter.ResourceData],
-                         parms: Optional[xGetter.ResourceParam]) -> SpotRecord:
+    def make_spot_record(
+        data: Optional[xGetter.ResourceDataTrimed],
+            parms: Optional[xGetter.ResourceParam]) -> Optional[SpotRecord]:
         """
         format:
             { 'did': 'lumi.158d0001fd5c50',
-                'attr': 'humidity_value',
-                'value': '8354',
-                'timeStamp': '1591393050203' }
+               'attr': 'humidity_value',
+               'value': '8354',
+               'timeStamp': '1591393050203' }
+        xiaomi record is based on value change. if change is smaller than a
+        threshold there will be no data recorded, leave a time gap.
+
+        The gap will be filled in later database clean phase.
         """
-        ...
+        if data is None:
+            return None
+        time_stamp = data.get('time_stamp')
+        did = data.get('did')
+        if time_stamp is None or did is None:
+            return None
+
+        time = dt.fromtimestamp(time_stamp / 1000.0)
+
+        return SpotRecord(
+            spot_record_time=time,
+            device_name=did,
+            pm25=None,
+            co2=None,
+            temperature=_XUnit.tempreture(data.get('temperature_value')),
+            humidity=_XUnit.humidity(data.get('humidity_value')),
+            ac_power=_XUnit.energy(data.get('cost_energy')),
+            window_opened=_XUnit.winmag(data.get('magnet_status')))
+
+
+class _XUnit:
+    """
+    Unit conversion utility. conform the database unit.
+    """
+    @staticmethod
+    def to_int(val: Union[str, int, None]) -> Optional[int]:
+        if isinstance(val, str):
+            return int(val)
+        return val
+
+    @staticmethod
+    def tempreture(tem_: Union[str, int, None]):
+        """ C """
+        tem = _XUnit.to_int(tem_)
+        return tem / 10 if tem is not None else None
+
+    @staticmethod
+    def humidity(hum_: Union[str, int, None]):
+        """ g/kg """
+        hum = _XUnit.to_int(hum_)
+        return hum / 10 if hum is not None else None
+
+    @staticmethod
+    def energy(en_: Union[str, int, None]):
+        """ kwh """
+        en = _XUnit.to_int(en_)
+        return en * 1000 if en is not None else None
+
+    @staticmethod
+    def online(on_: Union[str, int, None]):
+        """ bool """
+        on = _XUnit.to_int(on_)
+        return bool(on) if on is not None else None
+
+    @staticmethod
+    def winmag(mag_: Union[str, int, None]):
+        """ bool """
+        mag = _XUnit.to_int(mag_)
+        return bool(mag) if mag is not None else None
+
+
+def trim_resource_data(data: List[ResourceData], param: ResourceParam):
+    """
+    Note: each argument corresponds to one device,
+    so did is the same across the entire list.
+
+    turn a list of
+        { 'did': 'lumi.158d0001fd5c50',
+           'attr': 'humidity_value',
+           'value': '8354',
+           'timeStamp': 1591393050203 }
+    to a list of
+        {'time_stamp': 1591393050203,
+         'temperature_value': 2739,
+         'humidity_value': 8354,
+         'cost_energy': None,
+         'magnet_status': None }
+    which each dictionary corresponds to one record from a device.
+    """
+    did = param.get('did')
+
+    time_stamps = [
+        t for d in data
+        if (t := d.get('timeStamp'))
+    ]
+
+    time_dict: Dict[int, Dict] = {
+        t:
+        {d.get('attr'): d.get('value')
+            for d in data if d.get('timeStamp') == t}
+        for t in time_stamps if t is not None
+    }
+
+    return [{**v, 'time_stamp': int(k), 'did': did}
+            for k, v in time_dict.items()]

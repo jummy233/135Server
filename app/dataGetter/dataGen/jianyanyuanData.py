@@ -118,7 +118,8 @@ class JianYanYuanData(SpotData):
         if not self.device_list:
             return iter([])
         sr = self._SpotRecord(self)
-        dr: Tuple[dt, dt] = (dt.now() - timedelta(days=1), dt.now()) \
+        dr: Tuple[dt, dt]
+        dr = (dt.now() - timedelta(days=1), dt.now()) \
             if not daterange else daterange
 
         if did is None:
@@ -313,9 +314,9 @@ class JianYanYuanData(SpotData):
 
             if not time_range:
                 startTime: Optional[dt] = createTime
-                endTime: Optional[dt] = (
-                    modifyTime if modifyTime  # 1 hour gap avoid bug.
-                    else dt.utcnow() - timedelta(hours=1))
+                endTime: Optional[dt]
+                endTime = (modifyTime if modifyTime  # 1 hour gap avoid bug.
+                           else dt.utcnow() - timedelta(hours=1))
             # check if datetimes are valid
             else:
                 startTime, endTime = time_range

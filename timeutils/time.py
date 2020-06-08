@@ -1,3 +1,7 @@
+"""
+Utilities for dealing with time.
+"""
+
 from datetime import datetime as dt
 import time
 from datetime import timedelta
@@ -7,7 +11,12 @@ from threading import Thread, Condition, Event
 
 
 class PeriodicTimer:
-    """ interval is in second. """
+    """
+    interval is in second.
+    it can be choosen to be a daemon thread or not.
+    when it runs as daemon, a call to close() will
+    do nothing.
+    """
     def __init__(self, interval: float, daemon: bool = True):
         self._flag = 0x0
         self._invertal = interval
@@ -35,6 +44,10 @@ class PeriodicTimer:
             self._quit.set()
 
     def wait_for_tick(self):
+        """
+        block the caller until the condition
+        is triggerd.
+        """
         with self._cv:
             last_flag = self._flag
             while last_flag == self._flag:
@@ -54,11 +67,19 @@ def currentTimestamp(digit: int) -> int:
 
 def datetime_format_resolver(datetime_str: str, formats: List[str]
                              ) -> Optional[dt]:
+    """
+    This abomination shouldn't exist, but it is here anyway.
+    there is plan to move time verification to the frontend
+    so this will soon be deprecated.
+    if this comment is not modified it means it is still
+    currently in use.
+    It basically use exception as a flow control to handle
+    failure case ...
+    """
     if len(formats) > 20:
         raise RecursionError("too many datetime formats")
     if len(formats) == 0:  # no match.
         return None
-
     res: Optional[dt] = None
 
     try:
@@ -72,7 +93,6 @@ def datetime_format_resolver(datetime_str: str, formats: List[str]
 
 
 def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
-    # accept multiple formats
     if not sdate:
         return None
     formats: List[str] = [
@@ -95,6 +115,9 @@ def str_to_datetime(sdate: Optional[str]) -> Optional[dt]:
 
 
 def datetime_to_str(datetime: Optional[dt]) -> str:
+    """
+    It will generate jianyanyuan compatible datetime string.
+    """
     if not datetime:
         return ''
     return '{}-{:02}-{:02}T{:02}:{:02}:{:02}'.format(
@@ -108,7 +131,20 @@ def datetime_to_str(datetime: Optional[dt]) -> str:
 
 def date_range_iter(create_time: dt, countback: timedelta) \
         -> Generator[Tuple[dt, dt], None, None]:
-    """ date range tuple generator. stop when hit the device create time"""
+    """
+    date range tuple generator. stop when hit the device create time
+    scheduler can use this to control which segment of data to
+    query.
+    countback argument needs to be altered based on specific
+    situation and specific data source.
+
+    For instance xiaomi allows 300 entries per request maximum,
+    and it record generally every 1 minute (in practice is smaller
+    because it check value every 1 minute, and only report if the difference
+    from it and previous value is larger than certain threshold).
+    so countback can be set to (300 * 60) seconds. This way we don't miss
+    out any data.
+    """
     now = dt.utcnow()
     date_tuple = (now - countback, now)
     while date_tuple[0] > create_time:

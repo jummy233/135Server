@@ -9,6 +9,9 @@ import logging
 
 
 class CacheInstance:
+    """
+    Flask compatible cache extension.
+    """
 
     # expensive !
     def __init__(self):
@@ -53,5 +56,3 @@ class CacheInstance:
             self.global_cache.keys() if self.global_cache else None,
             self.global_cacheall)
         return s
-
-

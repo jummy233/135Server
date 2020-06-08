@@ -123,20 +123,19 @@ def cache_spot(f):
 
 def cache_spot_record(f):
     logging.info('caching...')
+
     @wraps(f)
     def cache_it(cache: Cache, *args, **kwargs):
         maxsize: int = 50000
 
-        cache[ModelDataEnum._SpotRecord] = cast(_LRUDictionary[dt, Device],
-                                                _LRUDictionary(maxsize=maxsize))
+        cache[ModelDataEnum._SpotRecord] = cast(
+            _LRUDictionary[dt, Device],
+            _LRUDictionary(maxsize=maxsize))
 
         for v in SpotRecord.query.limit(maxsize).all():
             (
                 cache[ModelDataEnum._SpotRecord]
-                [
-                    (v.spot_record_time, v.device)
-                ]
-
+                [(v.spot_record_time, v.device)]
             ) = v
 
         return f(cache, *args, **kwargs)
@@ -145,6 +144,7 @@ def cache_spot_record(f):
 
 def make_cacheall(cache: Cache) -> Callable:
     """
+    return a specialize cache decorator for database types.
     allow pass external cache
     by doing this wrapped operation can modify cache state.
 

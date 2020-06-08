@@ -12,7 +12,7 @@ it as it is.
 
 import requests
 from hashlib import md5, sha1
-from typing import NewType, Dict, Optional, Tuple, TypedDict, List, Callable, cast, TypeVar
+from typing import Dict, Optional, Tuple, TypedDict, List, cast
 from operator import itemgetter
 import urllib3
 import http
@@ -127,6 +127,7 @@ class DeviceResult(TypedDict):
 json request for querying resource by give device id
 """
 
+# for query/resource
 ResourceParam_light = TypedDict(
     'ResourceParam_light',
     {
@@ -135,6 +136,7 @@ ResourceParam_light = TypedDict(
     }
 )
 
+# for query/history/resource
 ResourceParam = TypedDict(
     'ResourceParam',
     {
@@ -156,9 +158,35 @@ ResourceData = TypedDict('ResourceData', {
     'did': str,
     'attr': str,
     'value': str,
-    'time': int
+    'timeStamp': int
 })
 ResourceDataList = List[ResourceData]
+
+"""
+put all related data at the same timestamp together.
+This data type will be used in the make_spot_record function.
+"""
+ResourceDataTrimed = TypedDict('ResourceDataTrimed', {
+    'did': Optional[str],
+    'time_stamp': Optional[int],
+    'cost_energy': Optional[int],
+    'humidity_value': Optional[int],
+    'temperature_value': Optional[int],
+    'magnet_status': Optional[int],
+})
+
+"""
+different from query/recouce, which return ResourceData right away,
+query/history/resource return a { 'data', 'count' } wrapped inside
+'result' attribute.
+
+This type reflect the structure.
+"""
+
+ResourceResponse = TypedDict('ResourceResponse', {
+    'data': List[ResourceData],
+    'count': int,
+})
 
 ###############################################
 
@@ -197,7 +225,8 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     postparam: Dict = {'account': account, 'password': password}
 
     try:
-        response: requests.Response = requests.post(login_url, data=postparam)
+        response: requests.Response
+        response = requests.post(login_url, data=postparam)
 
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
@@ -356,13 +385,14 @@ def get_pos(auth: AuthData,
         logger.error('token is None')
         return None
 
-    sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(auth, token, sign)
+    sign = _gen_sign(auth, token)
+    headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
     try:
-        response: requests.Response = requests.get(
-            url, params=cast(Dict, params), headers=headers)
+        response: requests.Response
+        response = requests.get(url, params=cast(Dict, params),
+                                headers=headers)
         logger.debug("[xiaomi get pos] %s", response.content)
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
@@ -434,7 +464,7 @@ def get_device(auth: AuthData,
 
 def get_hist_resource(auth: AuthData,
                       token: Optional[TokenResult],
-                      params: ResourceParam) -> Optional[ResourceData]:
+                      params: ResourceParam) -> Optional[ResourceResponse]:
     """ Notice this function use /open/resource/history/query """
 
     api_query_base_url, api_query_resource_url = \
@@ -444,15 +474,14 @@ def get_hist_resource(auth: AuthData,
         logger.error('token is None')
         return None
 
-    sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(auth, token, sign)
+    sign = _gen_sign(auth, token)
+    headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
     try:
         response: requests.Response = requests.post(
             url, json=cast(Dict, params), headers=headers)
         logger.debug("[xiaomi get resource] %s", response)
-        print(response.content)
     except urllib3.response.ProtocolError:
         logger.error('[urllib3] Protocal error %s %s',
                      response.content, response.request)
@@ -488,14 +517,14 @@ def get_resource(auth: AuthData,
         logger.error('token is None')
         return None
 
-    sign: Optional[str] = _gen_sign(auth, token)
-    headers: Optional[Dict] = _gen_header(auth, token, sign)
+    sign = _gen_sign(auth, token)
+    headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
     try:
         print(params)
-        response: requests.Response = requests.post(
-            url, json=cast(Dict, params), headers=headers)
+        response: requests.Response
+        response = requests.post(url, json=cast(Dict, params), headers=headers)
         logger.debug("[xiaomi get resource] %s", response)
         print(response.content)
     except urllib3.response.ProtocolError:

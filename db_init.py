@@ -1,8 +1,25 @@
 """
 Script to init database.
 
-TODO: Some funtions are deprecated, need to clean sometome
+It is deprecated, and only works for JianYanYuanData.
+All functionalites can be relaced by the new scheduler, which is a
+daemon threads manage some actors, and send message to inform data
+query asyncronously.
+Scheduler is far more superior than this scripting approach, since
+you can dynamically control the behavior of it.
+Also you can config the scheduler easily, assign specific tasks
+to be executed at specific time.
 
+db_init is still keep here is because it works reliably and can be
+served as a test script.
+
+db_init supports spot fuzzy loading, but it can't work accurately because
+api data generally doesn't provide good data to parse.
+especially data from jianyanyuan, which could have multiple fileds in their
+apis with random characters like cc, xiaoxingxing...
+
+Now Project, device, and records device are managed in database, and
+all spot data will be mannully entered from the front end.
 """
 
 import json
@@ -45,6 +62,9 @@ Job = Callable[[], Optional[Generator[T, None, None]]]
 
 
 def create_db(name='development.sqlite', force=True) -> None:
+    """
+    entrance
+    """
 
     logger.debug('- creating db')
     db_path = os.path.join(current_dir, name)
@@ -103,13 +123,9 @@ def threaded_collector(
 
                 # work wrapped by lazy iterator with only 1 element.
                 s: LazyBox[Job] = next(job_buffer)
-
                 t = threading.Thread(target=queue_worder, args=(s,))
-
                 t.setDaemon(True)  # avoid race in queue
-
                 threads.append(t)
-
                 t.start()
 
             for idx, t in enumerate(threads):

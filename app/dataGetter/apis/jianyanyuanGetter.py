@@ -103,13 +103,13 @@ def get_token(auth: AuthData, timestamp: Optional[int] = None) \
         'account', 'password', 'base_url', 'auth_url')(auth)
 
     # construct request
-    url: str = urllib.parse.urljoin(base_url, auth_url)
+    url = urllib.parse.urljoin(base_url, auth_url)
     timestamp = cast(int, timestamp or currentTimestamp(digit=13))
 
-    md5pw: str = md5(password.encode('ascii')).hexdigest()
-    sign: str = md5((md5pw + str(timestamp)).encode('ascii')).hexdigest()
+    md5pw = md5(password.encode('ascii')).hexdigest()
+    sign = md5((md5pw + str(timestamp)).encode('ascii')).hexdigest()
 
-    request_data: Dict = {
+    request_data = {
         'account': account,
         'sign': sign,
         'ts': timestamp,
@@ -117,7 +117,8 @@ def get_token(auth: AuthData, timestamp: Optional[int] = None) \
     }
 
     try:
-        response: requests.Response = requests.post(url, json=request_data)
+        response: requests.Response
+        response = requests.post(url, json=request_data)
 
         if response.status_code != 200:
             logger.error('error response %s', response)
@@ -148,9 +149,9 @@ def get_device_list(auth: AuthData,
     only return the Array with data.
     """
 
-    method: str = 'POST'
+    method = 'POST'
     timestamp: int = currentTimestamp(13)
-    params_json: str = json.dumps(params)
+    params_json = json.dumps(params)
     if not authtoken:
         logger.error('token is None')
         return None
@@ -160,20 +161,20 @@ def get_device_list(auth: AuthData,
     base_url, device_url = itemgetter('base_url', 'device_url')(auth)
     url = urllib.parse.urljoin(base_url, device_url)
 
-    sign: str = sha1(
-        (method
-         + device_url
-         + params_json
-         + str(timestamp)
-         + token).encode('ascii')).hexdigest()
+    sign = sha1((method
+                 + device_url
+                 + params_json
+                 + str(timestamp)
+                 + token).encode('ascii')).hexdigest()
 
-    headers: Dict = {
+    headers = {
         'Content-Type': 'application/json;charset=UTF-8',
         'ts': str(timestamp),
         'uid': uid,
         'sign': sign
     }
     try:
+        response: requests.Response
         response = requests.post(url, data=params_json, headers=headers)
 
         rj: Dict = response.json()
@@ -213,7 +214,7 @@ def get_device_attrs(
     only return the Array with data.
     """
 
-    method: str = 'GET'
+    method = 'GET'
     timestamp: int = currentTimestamp(13)
 
     if not authtoken:
@@ -224,22 +225,23 @@ def get_device_attrs(
     # construct request.
     base_url, attr_url = itemgetter('base_url', 'attr_url')(auth)
     attr_url_gid: str = urllib.parse.urljoin(attr_url, gid)
-    url: str = urllib.parse.urljoin(base_url, attr_url_gid)
+    url = urllib.parse.urljoin(base_url, attr_url_gid)
 
-    sign: str = sha1(
+    sign = sha1(
         (method
          + attr_url_gid
          + str(timestamp)
          + token).encode('ascii')).hexdigest()
 
-    headers: Dict = {
+    headers = {
         'Content-Type': 'application/json;charset=UTF-8',
         'ts': str(timestamp),
         'uid': uid,
         'sign': sign}
 
     try:
-        response: requests.Response = requests.get(url, headers=headers)
+        response: requests.Response
+        response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
             logger.error('error response %s', response)
@@ -272,7 +274,7 @@ def get_data_points(
         authtoken: Optional[AuthToken],
         params: DataPointParam) -> Optional[List[DataPointResult]]:
 
-    method: str = 'POST'
+    method = 'POST'
     timestamp: int = currentTimestamp(13)
     param_json = json.dumps(params)
     if not authtoken:
@@ -282,23 +284,24 @@ def get_data_points(
 
     # construct request.
     base_url, datapoint_url = itemgetter('base_url', 'datapoint_url')(auth)
-    url: str = urllib.parse.urljoin(base_url, datapoint_url)
+    url = urllib.parse.urljoin(base_url, datapoint_url)
 
-    sign: str = sha1(
-        (method
-         + datapoint_url
-         + param_json
-         + str(timestamp)
-         + token).encode('ascii')).hexdigest()
-    headers: Dict = {'Content-Type': 'application/json;charset=UTF-8',
-                     'ts': str(timestamp),
-                     'uid': uid,
-                     'sign': sign}
+    sign = sha1((method
+                 + datapoint_url
+                 + param_json
+                 + str(timestamp)
+                 + token).encode('ascii')).hexdigest()
+
+    headers = {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'ts': str(timestamp),
+        'uid': uid,
+        'sign': sign}
 
     try:
         print('getter token', token)  # NOTE DEBUG
-        response: requests.Response = requests.post(
-            url, data=param_json, headers=headers)
+        response: requests.Response
+        response = requests.post(url, data=param_json, headers=headers)
 
         logger.debug("[jianyanyuan get datapoints] %s", response)
 

@@ -1,3 +1,6 @@
+"""
+Logging system.
+"""
 import logging
 import os.path
 

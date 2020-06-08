@@ -1,8 +1,11 @@
 """
 Separate elements in generator into sub iterators.
 Better for concurrent eval.
-"""
 
+This is largely unused and can be replaced by a lambda wrapper thunk
+in general.  There ar plenty of ways to do lazy eval in python without
+make any extra husle.
+"""
 from itertools import islice
 from copy import copy
 from typing import (

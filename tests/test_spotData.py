@@ -1,3 +1,7 @@
+"""
+NOTE: The  test assume scheduler.update_device() is executed.
+"""
+
 import unittest
 import app.dataGetter.dataGen as DG
 from app import create_app, db, scheduler
@@ -9,7 +13,6 @@ from app.dataGetter.dataGen.dataType import (
     map_thunk_iter, device_check, DataSource, WrongDidException)
 
 
-@unittest.skip('.')
 class JianyanyuanSpotDataTest(unittest.TestCase):
     def setUp(self):
         self.app = create_app('testing')
@@ -46,7 +49,6 @@ class JianyanyuanSpotDataTest(unittest.TestCase):
         except WrongDidException:
             self.fail("device name format is incorrect")
 
-    @unittest.skip('.')
     def test_sport_record(self):
         """
         use the device 20205754003878404097
@@ -58,16 +60,19 @@ class JianyanyuanSpotDataTest(unittest.TestCase):
                 .query
                 .filter(Device.device_name == "20205754003878404097")
             ).first().device_id
-            print(did)
 
         time_range = (datetime(2019, 9, 23, 00), datetime(2019, 9, 24, 00))
         records = self.j.spot_record(did, time_range)
 
         # NEED a property test all the way to database commit.
-        def worker(record):
-            print(record)
+        with self.app.app_context():
+            from app.modelOperations import ModelOperations, commit
 
-        map_thunk_iter(records, worker, 5)
+            def worker(record):
+                ModelOperations.Add.add_spot_record(record)
+
+            map_thunk_iter(records, worker, 5)
+            commit()
 
     def tearDown(self):
         self.j.close()
@@ -109,10 +114,14 @@ class XiaomiSpotDataTest(unittest.TestCase):
         records = self.x.spot_record(did, time_range)
 
         # NEED a property test all the way to database commit.
-        def worker(record):
-            print(record)
+        with self.app.app_context():
+            from app.modelOperations import ModelOperations, commit
 
-        map_thunk_iter(records, worker, 5)
+            def worker(record):
+                ModelOperations.Add.add_spot_record(record)
+
+            map_thunk_iter(records, worker, 5)
+            commit()
 
     def tearDown(self):
         self.x.close()

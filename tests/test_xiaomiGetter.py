@@ -25,7 +25,6 @@ class XiaomiGetterTest(unittest.TestCase):
     def test_get_token_refresh(self):
         oldtoken = dict(**self.token)
         self.token = x.get_token(xauth, refresh=self.token)
-
         self.assertTrue(oldtoken['access_token'] != self.token['access_token'])
 
     @unittest.skip('.')
@@ -47,6 +46,7 @@ class XiaomiGetterTest(unittest.TestCase):
         print("----> ", dev)
         self.assertTrue(dev.get('data') is not None)
 
+    @unittest.skip('.')
     def test_get_hist_resource(self):
         params: x.ResourceParam = {
             "did": "lumi.158d0001fd5c50",
@@ -56,14 +56,21 @@ class XiaomiGetterTest(unittest.TestCase):
             "pageNum": 1,
             "pageSize": 100
         }
-        # {
-        #     'did':       'lumi.158d00020267ec',
-        #     'attrs':     ['humidity_value', 'temperature_value'],
-        #     'startTime': 1591319880000,
-        #     'endTime':   1591339880000,
-        #     'pageNum':   1,
-        #     'pageSize':  100  # maxium 300
-        # }
+
+        res: Optional[x.ResourceResult] = x.get_hist_resource(
+            xauth, self.token, params)
+        print("----> ", res)
+        self.assertTrue(res is not None and res != '')
+
+    def test_get_hist_resource_energy(self):
+        params: x.ResourceParam = {
+            "did": "lumi.158d000354c38f",
+            'attrs': ["plug_status", "cost_energy"],
+            "startTime": 1591340400000,
+            "endTime": 1591491708869,
+            "pageNum": 1,
+            "pageSize": 100
+        }
 
         res: Optional[x.ResourceResult] = x.get_hist_resource(
             xauth, self.token, params)

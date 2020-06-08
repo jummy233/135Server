@@ -2,8 +2,7 @@
 (require typed/racket
          (only-in gregor datetime datetime->iso8601)
          data/maybe
-         json
-         racket/trace)
+         json)
 
 (define data-folder-path "../../../doc/shisanwu_txt/")
 (define spliter "«")
@@ -49,9 +48,25 @@
     #:finished-time [finished-time ""]
     #:record-started_from [record-started-from ""]
     #:description [description ""])
-  (Project project-name outdoor-spot location construction-company tech_support-company
-           project-company floor latitude longitude district area demo-area building-type
-           building-height started-time finished-time record-started-from description))
+  (Project
+    project-name
+    outdoor-spot
+    location
+    construction-company
+    tech_support-company
+    project-company
+    floor
+    latitude
+    longitude
+    district
+    area
+    demo-area
+    building-type
+    building-height
+    started-time
+    finished-time
+    record-started-from
+    description))
 
 (define (docs-data->list str) (regexp-split "\n\n" str))
 (define (insert-line str key)
@@ -75,7 +90,7 @@
          "竣工时间"
          "开始监测时间")]
      [splited (letrec
-                ([rec (λ (str keys)
+                ([rec (lambda (str keys)
                         (if (null? keys)
                           str (rec (insert-line str (car keys)) (cdr keys))))])
                 (rec str special-case-list))]

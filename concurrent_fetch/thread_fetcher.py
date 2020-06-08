@@ -1,3 +1,10 @@
+"""
+This is only used in db_init and db_init now is largely
+deprecated.
+
+This garbage really shows what will happen if you try to do
+concurrency without some study unfront.
+"""
 from threading import Thread, Lock
 from queue import Queue
 from typing import TypeVar, Iterable, Callable, List, cast
