@@ -4,7 +4,7 @@ from typing import NewType, Optional, TypedDict
 from flask import json as FlaskJson
 from flask import jsonify, request
 
-from app.api.api_types import ApiRequest, ApiResponse, ReturnCode, is_ApiRequest
+from app.api_types import ApiRequest, ApiResponse, ReturnCode, is_ApiRequest
 from app.models import User
 from . import api
 

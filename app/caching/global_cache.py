@@ -1,5 +1,11 @@
-
-from typing import Optional, Callable, Tuple, NewType, Union, cast, Any, overload
+from typing import Optional
+from typing import Callable
+from typing import Tuple
+from typing import NewType
+from typing import Union
+from typing import cast
+from typing import Any
+from typing import overload
 from .caching import is_cache_empty, pass_cache, empty_cache
 from .caching import Cache, _LRUDictionary
 from .cache_instance import CacheInstance
@@ -8,10 +14,18 @@ from enum import Enum
 import logging
 from copy import copy
 from datetime import datetime as dt
-from ..models import User, Location, Project, ProjectDetail
-from ..models import ClimateArea, Company, Permission
-from ..models import OutdoorSpot, OutdoorRecord
-from ..models import Spot, SpotRecord, Device
+from ..models import User
+from ..models import Location
+from ..models import Project
+from ..models import ProjectDetail
+from ..models import ClimateArea
+from ..models import Company
+from ..models import Permission
+from ..models import OutdoorSpot
+from ..models import OutdoorRecord
+from ..models import Spot
+from ..models import SpotRecord
+from ..models import Device
 from ..models import Data
 
 
@@ -135,7 +149,7 @@ def cache_spot_record(f):
         for v in SpotRecord.query.limit(maxsize).all():
             (
                 cache[ModelDataEnum._SpotRecord]
-                [(v.spot_record_time, v.device)]
+                [(v.spot_record_id)]  # cache by id as integer
             ) = v
 
         return f(cache, *args, **kwargs)

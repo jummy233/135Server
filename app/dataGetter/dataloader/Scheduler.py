@@ -14,26 +14,39 @@ raw apis        the basic wrapper for calling server.
 Server          data source.
 """
 
+from flask import Flask
 from queue import Queue
 import threading
-from flask import Flask
 import multiprocessing
 from abc import ABC, abstractmethod
-from typing import (Generic, TypeVar, Tuple, List, Generator, Optional,
-                    Dict, cast, NamedTuple)
+from typing import Generic
+from typing import TypeVar
+from typing import Tuple
+from typing import List
+from typing import Generator
+from typing import Optional
+from typing import Dict
+from typing import cast
+from typing import NamedTuple
+from typing import Iterator
 from datetime import datetime as dt
 from datetime import timedelta
 from app.dataGetter.dataGen import JianYanYuanData
 from app.dataGetter.dataGen import XiaoMiData
-from app.dataGetter.dataGen.dataType import (
-    LazySpotRecord, RecordThunkIter, RecordGen, RecordThunk, unwrap_thunk,
-    SpotData, SpotRecord, Device, DataSource, device_source)
+from app.dataGetter.dataGen.dataType import RecordThunkIter, RecordGen
+from app.dataGetter.dataGen.dataType import thunk_iter
+from app.dataGetter.dataGen.dataType import DataSource
+from app.dataGetter.dataGen.dataType import device_source
+from app.dataGetter.dataGen.dataType import SpotData, SpotRecord, Device
 from concurrent.futures import ThreadPoolExecutor
-from logger import make_logger
 from itertools import chain
 from timeutils.time import PeriodicTimer
+from app.modelcoro import record_send, device_send
+from multiprocessing import Pool
+import logging
 
-logger = make_logger('actors', 'actors_log')
+logger = logging.getLogger(__name__)
+
 
 T = TypeVar('T')
 
@@ -113,8 +126,6 @@ class FetchActor(Actor):
     def __init__(self, app: Flask, datagen: SpotData):
         super().__init__()
         self._datagen = datagen
-        self._record: Generator = self.record(self._datagen.app)
-        self._device: Generator = self.device(self._datagen.app)
         self._pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=5)
 
     @property
@@ -123,75 +134,27 @@ class FetchActor(Actor):
 
     def run(self):
         """ periodically fetch new data """
-        def worker(thunk: RecordThunk):
-            print("worker")  # DEBUG
-            record_gen: Optional[RecordGen] = unwrap_thunk(thunk)
-            if record_gen is None:
-                logger.info("worker skipped")
-                return
-            logger.info("worker running")
-            self._record.send(next(record_gen))
 
         while True:
             msg: FetchMsg = self.recv()
             did, time_range = msg
-            jobs: RecordThunkIter = self.datagen.spot_record(
-                did, time_range)
+
+            jobs: RecordThunkIter
+            jobs = self.datagen.spot_record(did, time_range)
             print("jobs: ", list(jobs))
-            with self._pool as pool:
-                pool.map(worker, jobs, chunksize=1)
+
+            generator_chain: Iterator[SpotRecord] = thunk_iter(jobs)
+
+            with self.datagen.app.app_context():
+                with Pool(5) as pool:
+                    for n in pool.imap_unordered(record_send, generator_chain):
+                        pass
+
             print(threading.enumerate())
-
-    @staticmethod
-    def record(app: Flask) -> Generator[None, SpotRecord, None]:
-        """
-        a coroutine receives databse compatible dictionary
-        and record them into database
-        """
-        with app.app_context():
-            from app.modelOperations import ModelOperations, commit
-            while True:
-                data: SpotRecord = yield
-                try:
-                    # NOTE:
-                    # data here is an intermediate representation of
-                    # Record which is a subset of the device dictionary
-                    # that been used by ModelOperations.
-                    # cast is fine. if a field doesn't exist models will
-                    # just ignore it.
-                    __import__('pdb').set_trace()
-                    print(data)  # DEBUG
-                    ModelOperations.Add.add_spot_record(cast(Dict, data))
-                    commit()
-                except Exception:
-                    logger.error("Fetch Actor failed in commit record")
-                    break
-
-    @staticmethod
-    def device(app: Flask) -> Generator[None, Device, None]:
-        """
-        a croutine record device into database.
-        """
-        with app.app_context():
-            from app.modelOperations import ModelOperations, commit
-            while True:
-                data: Device = yield
-                try:
-                    # NOTE:
-                    # data here is an intermediate representation of
-                    # Device which is a subset of the device dictionary
-                    # that been used by ModelOperations.
-                    # cast is fine. if a field doesn't exist models will
-                    # just ignore it.
-                    ModelOperations.Add.add_device(cast(Dict, data))
-                    commit()
-                except Exception:
-                    logger.error("Fetch Actor failed in commit device")
-                    break
 
 
 class UpdateMsg:
-    def __init__(self, tag: DataSource, payload: Tuple):
+    def __init__(self, tag: DataSource, payload: FetchMsg):
         self._tag: DataSource = tag
         self._payload = payload
 
@@ -227,6 +190,7 @@ class UpdateActor(Actor):
             if msg.tag is DataSource.ALL:
                 self.overall_update()
             elif msg.tag is DataSource.JIANYANYUAN:
+                __import__('pdb').set_trace()
                 self.jianyanyuan_actor.send(msg.payload)
             elif msg.tag is DataSource.XIAOMI:
                 self.xiaomi_actor.send(msg.payload)
@@ -311,25 +275,7 @@ class UpdateScheduler:
         self.update_actor.close()
 
     def force_overall_update(self):
-        self.update_actor.send(UpdateMsg("all", ()))
-
-    @property
-    def online_device_list(self) -> List[UpdateMsg]:
-        """
-        This will be called every realtime update.
-        There're not many online device so the performance is pretty ok.
-        It might be a problem when there're arount thounds of online devices
-        Which is pretty impossible in the near feature.
-
-        @returntype: list of device id in database.
-        """
-        with self.app.app_context():
-            from app.models import Device as MD
-            device = MD.query.filter(MD.online).all()
-
-        return [UpdateMsg(device_source(d.device_name),
-                          (dt.now() - timedelta(minutes=5), dt.now()))
-                for d in device]
+        self.update_actor.send(UpdateMsg(DataSource.ALL, ()))
 
     def update_device(self):
         """
@@ -353,10 +299,24 @@ class UpdateScheduler:
                     ModelOperations.Add.add_device(cast(Dict, device))
                     commit()
 
-    def realtime_update(self):
+    def update_realtime(self):
         """
         Update the newest records from online devices.
+
+        A list of UpdateMsg will be constructed for every update.
+        There're not many online device so the performance is pretty ok.
+        It might be a problem when there're arount thounds of online devices
+        Which is pretty impossible in the near feature.
         """
-        onlines = self.online_device_list()
+        with self.app.app_context():
+            from app.models import Device as MD
+            devices = MD.query.filter(MD.online).all()
+
+        onlines = [
+            UpdateMsg(device_source(d.device_name),
+                      (d.device_id,
+                       (dt.now() - timedelta(minutes=5), dt.now())))
+            for d in devices]
+
         for online in onlines:
             self.update_actor.send(online)

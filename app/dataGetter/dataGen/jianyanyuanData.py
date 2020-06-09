@@ -8,22 +8,37 @@ from flask import Flask
 from datetime import datetime as dt
 from datetime import timedelta
 from functools import partial
-from itertools import chain, islice
-from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
-                    Optional, Tuple, TypedDict, Union, cast)
+from itertools import chain
+from typing import Callable
+from typing import Generator
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Iterator
+from typing import Tuple
+from typing import cast
 
 from logger import make_logger
-from timeutils.time import (date_range_iter, datetime_to_str,
-                            str_to_datetime)
+from timeutils.time import date_range_iter
+from timeutils.time import datetime_to_str
+from timeutils.time import str_to_datetime
 
 from timeutils.time import currentTimestamp
 from app.dataGetter import authConfig
 from app.dataGetter.apis import jianyanyuanGetter as jGetter
-from app.dataGetter.apis.jianyanyuanGetter import DataPointParam as JdatapointParam
-from app.dataGetter.apis.jianyanyuanGetter import DataPointResult as JdatapointResult
+from app.dataGetter.apis.jianyanyuanGetter import DataPointParam
+from app.dataGetter.apis.jianyanyuanGetter import DataPointResult
 from app.dataGetter.apis.jianyanyuanGetter import DeviceParam as JdevParam
 from app.dataGetter.apis.jianyanyuanGetter import DeviceResult as JdevResult
-from app.dataGetter.dataGen.dataType import Device, Location, Spot, SpotData, SpotRecord, LazySpotRecord, WrongDidException, device_check, DataSource, RecordGen, RecordThunkIter
+from app.dataGetter.dataGen.dataType import Device
+from app.dataGetter.dataGen.dataType import Location
+from app.dataGetter.dataGen.dataType import Spot
+from app.dataGetter.dataGen.dataType import SpotData
+from app.dataGetter.dataGen.dataType import SpotRecord
+from app.dataGetter.dataGen.dataType import WrongDidException
+from app.dataGetter.dataGen.dataType import device_check
+from app.dataGetter.dataGen.dataType import DataSource
+from app.dataGetter.dataGen.dataType import RecordThunkIter
 from .tokenManager import TokenManager
 
 logger = make_logger('dataMidware', 'dataGetter_log')
@@ -233,8 +248,8 @@ class JianYanYuanData(SpotData):
             return entrance(datapoints, datapoint_params)
 
         def _datapoint(self,
-                       datapoint_param: JdatapointParam) \
-                -> Optional[List[JdatapointResult]]:
+                       datapoint_param: DataPointParam) \
+                -> Optional[List[DataPointResult]]:
             """
             *** EFFECTFUL
             datapoint of one device.
@@ -252,7 +267,7 @@ class JianYanYuanData(SpotData):
             return res
 
         def _mk_datapoint_param_iter(self) \
-                -> Optional[Iterator[JdatapointParam]]:
+                -> Optional[Iterator[DataPointParam]]:
             """
             ***
             Datapoint paramter generator. One parameter match to one datapoint.
@@ -290,7 +305,7 @@ class JianYanYuanData(SpotData):
         def _make_datapoint_param(
             device_result: JdevResult,
             time_range: Optional[Tuple[dt, dt]] = None) \
-                -> Optional[JdatapointParam]:
+                -> Optional[DataPointParam]:
             """
             make query parameter datapoint query.
             DataPoint query parameter format:
@@ -328,8 +343,8 @@ class JianYanYuanData(SpotData):
                     endTime = (modifyTime if modifyTime
                                else dt.utcnow() - timedelta(hours=1))
 
-            datapoint_params: JdatapointParam = (
-                JdatapointParam(
+            datapoint_params: DataPointParam = (
+                DataPointParam(
                     gid=gid,
                     did=did,
                     aid=get_aid(),
@@ -365,21 +380,18 @@ class MakeDict:
                         extra=location.get('nickname'))
 
     @ staticmethod
-    def make_spot_record(datapoint: Optional[JdatapointResult],
-                         datapoint_param: Optional[JdatapointParam]
+    def make_spot_record(datapoint: Optional[DataPointResult],
+                         datapoint_param: Optional[DataPointParam]
                          ) -> Optional[SpotRecord]:
         """ construct `SpotRecord` from given datapoint_params """
 
         if datapoint is None:
             logger.error('datapoint is empty')
             return None
-
         aS: Optional[Dict] = datapoint.get('as')
-
         if aS is None:
             logger.error('datapoint `as` record is empty')
             return None
-
         key: Optional[str] = datapoint.get('key')
         if key is None:
             logger.error('datapoint `key` record is empty')

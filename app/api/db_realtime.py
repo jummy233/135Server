@@ -7,7 +7,7 @@ from typing import Callable, Generator, List, NewType, Union
 from flask import Response, jsonify, request
 
 from app.api import api
-from app.api.api_types import ApiResponse, ReturnCode
+from app.api_types import ApiResponse, ReturnCode
 from app.models import Device, SpotRecord
 from app.modelOperations import ModelOperations
 

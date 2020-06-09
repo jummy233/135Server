@@ -9,33 +9,49 @@ Not for sqlalchemy null is represented as None.
 
 import importlib
 from abc import ABC, abstractmethod
-from copy import copy
+from functools import wraps
 from datetime import datetime as dt
 from logging import DEBUG
-from typing import (ByteString, Callable, Dict, List, Optional, Union)
+from typing import ByteString
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import TypeVar
+from typing import Union
+from typing import Optional
+from typing import cast
 
 from sqlalchemy import and_, exists
 from sqlalchemy.exc import IntegrityError
 
-from app.api.api_types import ApiRequest, ApiResponse, ReturnCode
+from app.api_types import ApiResponse
+from app.api_types import ReturnCode
 from app.utils import normalize_time
 from logger import make_logger
 from timeutils.time import str_to_datetime
 from utils import spread
 
 from . import db
-from .caching.caching import Cache, get_cache
-from .caching.global_cache import GlobalCache, GlobalCacheKey, ModelDataEnum
-from .models import (ClimateArea, Company, Data, Device, Location,
-                     OutdoorRecord, OutdoorSpot, Permission, Project,
-                     ProjectDetail, Spot, SpotRecord, User)
+from .caching.caching import get_cache
+from .caching.global_cache import GlobalCache
+from .caching.global_cache import ModelDataEnum
+from .models import ClimateArea
+from .models import Company
+from .models import Device
+from .models import Location
+from .models import OutdoorRecord
+from .models import OutdoorSpot
+from .models import Project
+from .models import ProjectDetail
+from .models import Spot
+from .models import SpotRecord
+from .models import User
 
 logger = make_logger('modelOperation', 'modelOperation_log', DEBUG)
 logger.propagate = False
 
-
+T = TypeVar('T')
 # from app import global_cache
-
 app = importlib.import_module('app')
 global_cache = app.global_cache
 
@@ -61,6 +77,11 @@ def convert(val: str, typ) -> Union[None, int, float]:
     if not val or val == '':
         return None
     return typ(val)
+
+
+def can_be_int(val) -> bool:
+    return (isinstance(val, int)
+            or isinstance(val, str))
 
 
 def json_convert(jsondata, key, typ) -> None:
@@ -107,6 +128,27 @@ def id_exist_in_db(id_entry, identifier: int):
         exists().where(id_entry == identifier)).scalar()
 
 
+def db_exception(name: str):
+    def _db_exception(f):
+        @wraps(f)
+        def call(*args, **kwargs) -> Optional[T]:
+            result = None
+            try:
+                result = f(*args, **kwargs)
+            except IndexError as e:
+                logger.error(f"Error! {name} failed {e}")
+                raise
+            except ValueError as e:
+                logger.error(f"Error! {name} with unmatched value {e}")
+                raise
+            except IntegrityError as e:
+                logger.error(f"Error! {name}:  {e}")
+                raise
+            return result
+        return call
+    return _db_exception
+
+
 class ModelInterfaces(ABC):
     """
     parameters are all PostData. The reason they are not properly
@@ -121,8 +163,8 @@ class ModelInterfaces(ABC):
 
     class BatchAdd(ABC):
         """ add stuffs in batch with core sql operation """
-        @staticmethod
-        @abstractmethod
+        @ staticmethod
+        @ abstractmethod
         def add_spot_record_batch(project_data: PostData) -> bool:
             """
             add spot_record in batch
@@ -131,77 +173,85 @@ class ModelInterfaces(ABC):
 
     class Add(ABC):
         """ add data """
-        @staticmethod
-        @abstractmethod
+        @ staticmethod
+        @ abstractmethod
         def add_project(project_data: PostData) -> Optional[Project]:
             """ add project """
 
-        @staticmethod
-        @abstractmethod
+        @ staticmethod
+        @ abstractmethod
         def add_device(device_data: PostData) -> Optional[Device]:
             """ add device"""
 
-        @staticmethod
-        @abstractmethod
+        @ staticmethod
+        @ abstractmethod
         def add_spot(spot_data: PostData) -> Optional[Spot]:
             """ add spot """
 
-        @staticmethod
-        @abstractmethod
-        def add_spot_record(spot_record_data: PostData) \
-                -> Optional[SpotRecord]:
+        @ staticmethod
+        @ abstractmethod
+        def add_spot_record(spot_record_data: PostData
+                            ) -> Optional[SpotRecord]:
             """ add spot_record """
 
-        @staticmethod
-        @abstractmethod
-        def add_outdoor_spot(outdoor_spot_data: PostData) \
-                -> Optional[OutdoorSpot]:
+        @ staticmethod
+        @ abstractmethod
+        def add_outdoor_spot(outdoor_spot_data: PostData
+                             ) -> Optional[OutdoorSpot]:
             """ add outdoor_spot """
 
     class Update(ABC):
         """ update data """
-        @staticmethod
-        @abstractmethod
+        @ staticmethod
+        @ abstractmethod
         def update_project(project_data: PostData) -> Optional[Project]:
             """ update project """
-        @staticmethod
-        @abstractmethod
+
+        @ staticmethod
+        @ abstractmethod
         def update_device(device_data: PostData) -> Optional[Device]:
             """ update device"""
-        @staticmethod
-        @abstractmethod
+
+        @ staticmethod
+        @ abstractmethod
         def update_spot(spot_data: PostData) -> Optional[Spot]:
             """ update spot """
-        @staticmethod
-        @abstractmethod
-        def update_spot_record(spot_record_data: PostData) \
-                -> Optional[SpotRecord]:
+
+        @ staticmethod
+        @ abstractmethod
+        def update_spot_record(spot_record_data: PostData
+                               ) -> Optional[SpotRecord]:
             """ update spot_record """
-        @staticmethod
-        @abstractmethod
-        def update_outdoor_spot(outdoor_spot_data: PostData) -> \
-                Optional[OutdoorSpot]:
+
+        @ staticmethod
+        @ abstractmethod
+        def update_outdoor_spot(outdoor_spot_data: PostData
+                                ) -> Optional[OutdoorSpot]:
             """ update outdoor_spot """
 
     class Delete(ABC):
-        @staticmethod
-        @abstractmethod
+        @ staticmethod
+        @ abstractmethod
         def delete_project(pid: int) -> None:
             """ delete project """
-        @staticmethod
-        @abstractmethod
+
+        @ staticmethod
+        @ abstractmethod
         def delete_device(did: int) -> None:
             """ delete device"""
-        @staticmethod
-        @abstractmethod
+
+        @ staticmethod
+        @ abstractmethod
         def delete_spot(sid: int) -> None:
             """ delete spot """
-        @staticmethod
-        @abstractmethod
+
+        @ staticmethod
+        @ abstractmethod
         def delete_spot_record(rid: int) -> None:
             """ delete spot_record """
-        @staticmethod
-        @abstractmethod
+
+        @ staticmethod
+        @ abstractmethod
         def delete_outdoor_spot(oid: int) -> None:
             """ delete outdoor_spot """
 
@@ -214,10 +264,10 @@ class ModelOperations(ModelInterfaces):
 
     class BatchAdd():
         """ Add list of spot records """
-        @staticmethod
+        @ staticmethod
         def add_spot_record_batch(spot_record_data_list: List[PostData]):
 
-            @global_cache.global_cacheall
+            @ global_cache.global_cacheall
             def _add_spot_record_batch(cache: Optional[GlobalCache] = None) \
                     -> bool:
                 return True
@@ -225,12 +275,13 @@ class ModelOperations(ModelInterfaces):
 
     class Add(ModelInterfaces.Add):
 
-        @staticmethod
+        @ staticmethod
         def add_project(project_data: PostData):
 
-            @global_cache.global_cacheall
+            @ global_cache.global_cacheall
             def _add_project(cache: Optional[GlobalCache] = None) \
                     -> Optional[Project]:
+
                 """
                 add project via project generic view
 
@@ -243,18 +294,21 @@ class ModelOperations(ModelInterfaces):
                 sqlalchemy object. If it is the later case, directly
                 use the object.
                 """
+
                 if not isinstance(project_data, PostData):
                     return None
 
                 project = Project.query.filter_by(
                     project_name=project_data.get('project_name')).first()
+
                 if project:
                     logger.debug('project exists')
                     project = ModelOperations.Update.update_project(
                         project_data)
                     return project
 
-                try:
+                @db_exception('add_project')
+                def new() -> Optional[Project]:
                     new_project: Optional[Project] = (
                         ModelOperations._make_project(
                             project_data))
@@ -264,27 +318,17 @@ class ModelOperations(ModelInterfaces):
                         _enum = ModelDataEnum._Project
                         cache[_enum][new_project.project_name] = new_project
                         cache[_enum][new_project.project_id] = new_project
+                    return new_project
 
-                except IndexError as e:
-                    logger.error("Error! add_project failed {}".format(e))
-                    raise
-                except ValueError as e:
-                    logger.error(
-                        "Error! add_project with unmatched value {}".format(e))
-                    raise
-                except IntegrityError as e:
-                    logger.error("Error! add_project :  {}".format(e))
-                    raise
-
-                return new_project
+                return new()
             return _add_project()
 
-        @staticmethod
+        @ staticmethod
         def add_spot(spot_data: PostData):
 
-            @global_cache.global_cacheall
-            def _add_spot(cache: Optional[GlobalCache] = None) \
-                    -> Optional[Spot]:
+            @ global_cache.global_cacheall
+            def _add_spot(cache: Optional[GlobalCache] = None
+                          ) -> Optional[Spot]:
 
                 if not isinstance(spot_data, PostData):
                     return None
@@ -303,36 +347,25 @@ class ModelOperations(ModelInterfaces):
                     logger.debug('spot exists')
                     return spot
 
-                new_spot = None
-
-                try:
+                @db_exception('add_spot')
+                def new() -> Optional[Spot]:
                     new_spot = ModelOperations._make_spot(spot_data)
                     db.session.add(new_spot)
 
                     if cache is not None and new_spot is not None:
                         _enum = ModelDataEnum._Spot
                         cache[_enum][new_spot.spot_name] = new_spot
+                    return new_spot
+                return new()
 
-                except IndexError as e:
-                    logger.error(
-                        "Error! add_generic_view failed: {}".format(e))
-                    raise
-                except ValueError as e:
-                    msg = f"Error! add_generic_view with unmatched value: {e}"
-                    logger.error(msg)
-                    raise
-                except IntegrityError as e:
-                    logger.error("Error! add_generic_view: : {}".format(e))
-                    raise
-                return new_spot
             return _add_spot()
 
-        @staticmethod
+        @ staticmethod
         def add_device(device_data: PostData):
 
-            @global_cache.global_cacheall
-            def _add_device(cache: Optional[GlobalCache] = None) \
-                    -> Optional[Device]:
+            @ global_cache.global_cacheall
+            def _add_device(cache: Optional[GlobalCache] = None
+                            ) -> Optional[Device]:
                 """ if no such location fond, create a new location """
 
                 # TODO 2020-01-04
@@ -356,9 +389,8 @@ class ModelOperations(ModelInterfaces):
                     logger.debug('device exists')
                     return device
 
-                new_device = None
-
-                try:
+                @db_exception('add_device')
+                def new() -> Optional[Device]:
                     new_device = ModelOperations._make_device(device_data)
                     db.session.add(new_device)
 
@@ -367,26 +399,12 @@ class ModelOperations(ModelInterfaces):
                         _enum = ModelDataEnum._Device
                         cache[_enum][new_device.device_name] = new_device
                         cache[_enum][new_device.device_id] = new_device
-
-                except IndexError as e:
-                    logger.error("Error! add_location failed: {}".format(e))
-                    raise
-                except ValueError as e:
-                    msg = f"Error! add_location with unmatched value: {e}"
-                    logger.error(msg)
-                    raise
-                except IntegrityError as e:
-                    logger.error("Error! add_generic_view: {}".format(e))
-                    raise
-
-                except Exception:
-                    raise
-
-                return new_device
+                    return new_device
+                return new()
 
             return _add_device()
 
-        @staticmethod
+        @ staticmethod
         def add_spot_record(spot_record_data: PostData):
             """
             device can come in as either `device` or `device_name`
@@ -394,13 +412,13 @@ class ModelOperations(ModelInterfaces):
             exists.
             """
 
-            @global_cache.global_cacheall
+            @ global_cache.global_cacheall
             def _add_spot_record(cache: Optional[GlobalCache] = None) \
                     -> Optional[SpotRecord]:
                 if not isinstance(spot_record_data, PostData):
                     return None
                 spot_record_time_: Union[str, dt, None]
-                device_: Union[str, Device, None]
+                device_: Union[str, int, Device, None]
                 device_name_: Optional[str]
 
                 device: Optional[Device]
@@ -425,16 +443,19 @@ class ModelOperations(ModelInterfaces):
                     if isinstance(device_, Device):
                         device = device_
 
-                    elif isinstance(device_, str):
+                    # device id as str for query cache.
+                    elif can_be_int(device_):
                         if cache is not None:
                             device = get_cache(
                                 cache,
                                 ModelDataEnum._Device,
-                                device_)
+                                int(cast(Union[int, str], device_)))
                         else:
                             logger.debug('using database')
-                            device = (Device.query
-                                      .filter_by(device_id=device_)
+                            device = (
+                                Device.query
+                                .filter_by(device_id=int(cast(Union[int, str],
+                                                              device_)))
                                       .first())
                     else:
                         # there must be a device for spot record.
@@ -482,9 +503,8 @@ class ModelOperations(ModelInterfaces):
                     logger.debug('record already exists.')
                     return spot_record
 
-                new_spot_record = None
-
-                try:
+                @db_exception('add_spot_record')
+                def new() -> Optional[SpotRecord]:
                     new_spot_record = ModelOperations._make_spot_reocrd(
                         spot_record_data)
                     db.session.add(new_spot_record)
@@ -495,21 +515,9 @@ class ModelOperations(ModelInterfaces):
                             and cache is not None):
                         _enum = ModelDataEnum._SpotRecord
                         cache[_enum][cache_key] = new_spot_record
+                    return new_spot_record
+                return new()
 
-                except IndexError as e:
-                    logger.error("Error! add_spot_record failed: {}".format(e))
-                    raise
-                except ValueError as e:
-                    msg = f"Error! add_spot_record with unmatched value: {e}"
-                    logger.error(msg)
-                    raise
-                except IntegrityError as e:
-                    logger.error("Error! add_spot_record failed: {}".format(e))
-                    raise
-                except Exception:
-                    raise
-
-                return new_spot_record
             return _add_spot_record()
 
         @staticmethod
@@ -538,10 +546,8 @@ class ModelOperations(ModelInterfaces):
                 if (od_spot):
                     return od_spot
 
-                new_od_spot = None
-
-                # create a new weather spot when it doesn't exsit
-                try:
+                @db_exception('add_outdoor_spot')
+                def new() -> Optional[OutdoorSpot]:
                     new_od_spot = ModelOperations._make_outdoor_spot(
                         od_spot_data)
                     db.session.add(new_od_spot)
@@ -549,21 +555,9 @@ class ModelOperations(ModelInterfaces):
                     if cache is not None and new_od_spot is not None:
                         # deal with it later.
                         NotImplementedError
+                    return new_od_spot
+                return new()
 
-                except IndexError as e:
-                    logger.error(
-                        "Error! add_outdoor_spot failed: {}".format(e))
-                    raise
-                except ValueError as e:
-                    msg = f"Error! add_outdoor_spot with unmatched value: {e}"
-                    logger.error(msg)
-                    raise
-                except IntegrityError as e:
-                    logger.error(
-                        "Error! add_outdoor_spot failed : {}".format(e))
-                    raise
-
-                return new_od_spot
             return _add_outdoor_spot()
 
         @staticmethod
@@ -576,30 +570,17 @@ class ModelOperations(ModelInterfaces):
                    .filter_by(province=location_data.get("province"))
                    .filter_by(city=location_data.get("city"))
                    .first())
-
-            new_loc = None
             if (loc):
                 return loc
 
-            try:
+            @db_exception('add_location')
+            def new() -> Optional[Location]:
                 # location must have a climate area.
                 new_loc = ModelOperations._make_location(location_data)
                 db.session.add(new_loc)
-            except IndexError as e:
-                logger.error("Error! add_location failed: {}".format(e))
-                raise
-            except ValueError as e:
-                logger.error(
-                    "Error! add_location with unmatched value: {}".format(e))
-                raise
-            except IntegrityError as e:
-                logger.error("Error! add location failed: {}".format(e))
-                raise
+                return new_loc
 
-            except Exception:
-                raise
-
-            return new_loc
+            return new()
 
         @staticmethod
         def add_company(company_data: PostData) -> Optional[Company]:
@@ -615,25 +596,15 @@ class ModelOperations(ModelInterfaces):
                        .first())
             if company:
                 return company
-            new_company = None
 
-            try:
+            @db_exception('add_company')
+            def new() -> Optional[Location]:
                 new_company = Company(
                     company_name=company_data.get("company_name"))
 
                 db.session.add(new_company)
-            except IndexError as e:
-                logger.error("Error! add_company failed: {}".format(e))
-                raise
-            except ValueError as e:
-                logger.error(
-                    "Error! add_company with unmatched value: {}".format(e))
-                raise
-            except IntegrityError as e:
-                logger.error("Error! add_company failed: {}".format(e))
-                raise
-
-            return new_company
+                return new_company
+            return new()
         # END Add
 
     ###################
@@ -713,7 +684,7 @@ class ModelOperations(ModelInterfaces):
                 if not isinstance(spot_record_data, PostData):
                     return None
                 spot_record_time_: Union[dt, str, None]
-                device_: Union[Device, str, None]
+                device_: Union[Device, str, int, None]
                 device_name_: Optional[str]
 
                 spot_record_time_, device_, device_name_ = spread(
@@ -726,37 +697,62 @@ class ModelOperations(ModelInterfaces):
                                                       normalize_time(5)))
 
                 # query with device id or device name
+                # when have multiple record that refers to device
+                # `device_name_` is prefered since it compatible with
+                # the scheduler.
                 device: Optional[Device]
                 if device_name_ is None:
                     # query with device id or device name
-                    if not isinstance(device_, Device):
+                    if isinstance(device_, Device):
+                        device = device_
+
+                    # device id as str for query cache.
+                    elif can_be_int(device_):
                         if cache is not None:
                             device = get_cache(
                                 cache,
                                 ModelDataEnum._Device,
-                                device_)
+                                int(cast(Union[int, str], device_)))
                         else:
                             logger.debug('using database')
-                            device = (Device.query
-                                      .filter_by(device_id=device_)
+                            device = (
+                                Device.query
+                                .filter_by(device_id=int(cast(Union[int, str],
+                                                              device_)))
                                       .first())
                     else:
-                        device = device_
+                        # there must be a device for spot record.
+                        logger.error(
+                            'spot_record must have a device')
+                        return None
+
                 else:
                     device = (Device.query
                               .filter_by(device_name=device_name_)
                               .first())
 
-                # spot_record_time is primary key and can not be modified.
-                spot_record = (SpotRecord
-                               .query
-                               .filter_by(spot_record_time=spot_record_time)
-                               .filter(
-                                   and_(
-                                       SpotRecord.spot_record_time
-                                       == spot_record_time,
-                                       SpotRecord.device == device))
-                               .first())
+                cache_key = ((spot_record_time, device)
+                             if (spot_record_time is not None
+                                 and device is not None)
+                             else None)
+
+                # search in cache.
+                if cache is not None and cache_key is not None:
+                    spot_record = (get_cache(
+                        cache,
+                        ModelDataEnum._SpotRecord,
+                        cache_key))
+                else:
+                    spot_record = (
+                        SpotRecord
+                        .query
+                        .filter_by(spot_record_time=spot_record_time)
+                        .filter(
+                            and_(
+                                SpotRecord.spot_record_time
+                                == spot_record_time,
+                                SpotRecord.device == device))
+                        .first())
 
                 new_spot_record = ModelOperations._make_spot_reocrd(
                     spot_record_data)
@@ -770,10 +766,10 @@ class ModelOperations(ModelInterfaces):
 
             return _update_spot_record()
 
-        @staticmethod
+        @ staticmethod
         def update_spot(spot_data: PostData) -> Optional[Spot]:
 
-            @global_cache.global_cacheall
+            @ global_cache.global_cacheall
             def _update_spot(cache: Optional[GlobalCache] = None):
                 if not isinstance(spot_data, PostData):
                     return None
@@ -802,11 +798,11 @@ class ModelOperations(ModelInterfaces):
 
             return _update_spot()
 
-        @staticmethod
+        @ staticmethod
         def update_outdoor_spot(outdoor_spot_data: PostData) \
                 -> Optional[OutdoorSpot]:
 
-            @global_cache.global_cacheall
+            @ global_cache.global_cacheall
             def _update_outdoor_spot(cache: Optional[GlobalCache] = None):
                 if not isinstance(outdoor_spot_data, OutdoorSpot):
                     return None
@@ -830,7 +826,7 @@ class ModelOperations(ModelInterfaces):
             return _update_outdoor_spot()
 
     class Delete(ModelInterfaces.Delete):
-        @staticmethod
+        @ staticmethod
         def delete_project(pid: int) -> None:
             project = Project.query.filter_by(project_id=pid).first()
             project_details = (ProjectDetail
@@ -866,7 +862,7 @@ class ModelOperations(ModelInterfaces):
                 logger.error(msg)
                 raise
 
-        @staticmethod
+        @ staticmethod
         def delete_spot(sid: int) -> None:
             spot = Spot.query.filter_by(spot_id=sid).first()
 
@@ -883,12 +879,12 @@ class ModelOperations(ModelInterfaces):
                 raise
         # END Delete
 
-        @staticmethod
+        @ staticmethod
         def delete_spot_record(rid: int) -> None:
             spot_record = (SpotRecord
                            .query
-                           .filter_by(
-                               spot_record_id=rid).first())
+                           .filter_by(spot_record_id=rid)
+                           .first())
             try:
                 if spot_record:
                     db.session.delete(spot_record)
@@ -900,7 +896,7 @@ class ModelOperations(ModelInterfaces):
                     'Error delete by delete_spot_record: {}'.format(e))
                 raise
 
-        @staticmethod
+        @ staticmethod
         def delete_device(did: int) -> None:
             device = Device.query.filter_by(device_id=did).first()
 
@@ -914,7 +910,7 @@ class ModelOperations(ModelInterfaces):
                 logger.error('Error delete by delete_device: {}'.format(e))
                 raise
 
-        @staticmethod
+        @ staticmethod
         def delete_outdoor_spot(oid: int) -> None:
             outdoor_spot = Device.query.filter_by(outdoor_spot_id=oid).first()
 
@@ -935,10 +931,10 @@ class ModelOperations(ModelInterfaces):
     #  local methods to create db object.#
     ######################################
 
-    @staticmethod
+    @ staticmethod
     def _make_project(project_data: PostData) -> Optional[Project]:
 
-        @global_cache.global_cacheall
+        @ global_cache.global_cacheall
         def _make(cache: Optional[GlobalCache] = None):
             project = None
 
@@ -1055,10 +1051,10 @@ class ModelOperations(ModelInterfaces):
             return project
         return _make()
 
-    @staticmethod
+    @ staticmethod
     def _make_spot(spot_data: PostData) -> Optional[Spot]:
 
-        @global_cache.global_cacheall
+        @ global_cache.global_cacheall
         def _make(cache: Optional[GlobalCache] = None):
             if not isinstance(spot_data, PostData):
                 return None
@@ -1098,10 +1094,10 @@ class ModelOperations(ModelInterfaces):
             return spot
         return _make()
 
-    @staticmethod
+    @ staticmethod
     def _make_device(device_data: PostData) -> Optional[Device]:
 
-        @global_cache.global_cacheall
+        @ global_cache.global_cacheall
         def _make(cache: Optional[GlobalCache] = None):
             if not isinstance(device_data, PostData):
                 return None
@@ -1155,10 +1151,10 @@ class ModelOperations(ModelInterfaces):
             return device
         return _make()
 
-    @staticmethod
+    @ staticmethod
     def _make_spot_reocrd(spot_record_data: PostData) -> Optional[SpotRecord]:
 
-        @global_cache.global_cacheall
+        @ global_cache.global_cacheall
         def _make(cache: Optional[GlobalCache] = None):
             if not isinstance(spot_record_data, PostData):
                 return None
@@ -1179,29 +1175,36 @@ class ModelOperations(ModelInterfaces):
             # query with device id or device name
             # get device first, then fetch device id
             device_ = spot_record_data.get('device')
+
+            # query with device id or device name
+            # when have multiple record that refers to device
+            # `device_name_` is prefered since it compatible with
+            # the scheduler.
             device: Optional[Device]
             if device_name_ is None:
                 # query with device id or device name
                 if isinstance(device_, Device):
                     device = device_
 
-                elif (isinstance(device_, str) or isinstance(device_, int)
-                        and id_exist_in_db(Device.device_id, int(device_))):
+                # device id as str for query cache.
+                elif can_be_int(device_):
                     if cache is not None:
                         device = get_cache(
                             cache,
                             ModelDataEnum._Device,
-                            str(device_))
+                            int(cast(Union[int, str], device_)))
                     else:
                         logger.debug('using database')
-                        device = (Device.query
-                                  .filter_by(device_id=device_)
+                        device = (
+                            Device.query
+                            .filter_by(device_id=int(cast(Union[int, str],
+                                                          device_)))
                                   .first())
+
                 else:
                     # there must be a device for spot record.
                     logger.error(
-                        'make_spot_record error, '
-                        + ' spot_record must have device.')
+                        'spot_record must have a device')
                     return None
             else:
                 device = (Device.query
@@ -1218,7 +1221,6 @@ class ModelOperations(ModelInterfaces):
             json_convert(spot_record_data, 'pm25', float)
             json_convert(spot_record_data, 'co2', float)
 
-            __import__('pdb').set_trace()
             try:
                 spot_record = SpotRecord(
                     spot_record_time=spot_record_time,

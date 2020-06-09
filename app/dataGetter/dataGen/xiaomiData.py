@@ -1,25 +1,34 @@
 from flask import Flask
-from multiprocessing import Process
-from queue import Queue
 from datetime import datetime as dt
 from datetime import timedelta
-from threading import RLock, Timer
-from functools import partial
-from itertools import chain, islice
-from typing import (Any, Callable, Dict, Generator, Iterator, List, NewType,
-                    Optional, Tuple, TypedDict, Union, cast)
+from itertools import chain
+from typing import Dict
+from typing import Generator
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 from logger import make_logger
 
 from .. import authConfig
 from ..apis import xiaomiGetter as xGetter
-from ..apis.xiaomiGetter import ResourceParam, DeviceData, ResourceData, ResourceDataTrimed, ResourceResponse
-from ..dateSequence import DateSequence, date_sequence
-from timeutils.time import date_range_iter, datetime_to_str, str_to_datetime, timestamp_setdigits
+from ..apis.xiaomiGetter import ResourceParam
+from ..apis.xiaomiGetter import ResourceData
+from ..apis.xiaomiGetter import ResourceResponse
+from timeutils.time import date_range_iter
+from timeutils.time import str_to_datetime
+from timeutils.time import timestamp_setdigits
 from .tokenManager import TokenManager
-from .dataType import (Device, Location, Spot, SpotData,
-                       SpotRecord, LazySpotRecord, WrongDidException,
-                       device_check, DataSource, RecordGen, RecordThunkIter)
+from .dataType import Device
+from .dataType import Location
+from .dataType import Spot
+from .dataType import SpotData
+from .dataType import SpotRecord
+from .dataType import WrongDidException
+from .dataType import device_check
+from .dataType import DataSource
+from .dataType import RecordThunkIter
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
@@ -363,13 +372,13 @@ class _XUnit:
     def tempreture(tem_: Union[str, int, None]):
         """ C """
         tem = _XUnit.to_int(tem_)
-        return tem / 10 if tem is not None else None
+        return tem / 100.0 if tem is not None else None
 
     @staticmethod
     def humidity(hum_: Union[str, int, None]):
         """ g/kg """
         hum = _XUnit.to_int(hum_)
-        return hum / 10 if hum is not None else None
+        return hum / 100.0 if hum is not None else None
 
     @staticmethod
     def energy(en_: Union[str, int, None]):

@@ -2,16 +2,28 @@
 from operator import itemgetter
 from typing import NewType, Optional, TypedDict
 
-from flask import json as FlaskJson
 from flask import jsonify, request
-from sqlalchemy.exc import IntegrityError
 
-from app.api.api_types import (ApiRequest, ApiResponse, ReturnCode,
-                               is_ApiRequest)
-from app.modelOperations import ModelOperations, commit, commit_db_operation
-from app.models import (ClimateArea, Company, Data, Device, Location,
-                        OutdoorRecord, OutdoorSpot, Permission, Project,
-                        ProjectDetail, Spot, SpotRecord, User)
+from app.api_types import ApiRequest
+from app.api_types import ApiResponse
+from app.api_types import ReturnCode
+from app.api_types import is_ApiRequest
+from app.modelOperations import ModelOperations
+from app.modelOperations import commit
+from app.modelOperations import commit_db_operation
+from app.models import ClimateArea
+from app.models import Company
+from app.models import Data
+from app.models import Device
+from app.models import Location
+from app.models import OutdoorRecord
+from app.models import OutdoorSpot
+from app.models import Permission
+from app.models import Project
+from app.models import ProjectDetail
+from app.models import Spot
+from app.models import SpotRecord
+from app.models import User
 from timeutils.time import str_to_datetime
 
 from . import api

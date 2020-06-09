@@ -1,6 +1,8 @@
-from typing import (
-    List, Dict, NewType, TypedDict, Callable,
-    Union, Optional)
+from typing import List
+from typing import Dict
+from typing import TypedDict
+from typing import Union
+from typing import Optional
 import enum
 
 

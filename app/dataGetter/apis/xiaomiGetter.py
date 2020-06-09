@@ -21,6 +21,7 @@ from datetime import datetime as dt
 from timeutils.time import currentTimestamp
 import json
 
+from .exceptions import connection_exception
 from logger import make_logger
 
 logger = make_logger('xiaomiGetter', 'dataGetter_log')
@@ -191,17 +192,12 @@ ResourceResponse = TypedDict('ResourceResponse', {
 ###############################################
 
 
+@connection_exception
 def _get_auth_code(auth: AuthData) -> Optional[str]:
     """ return auth code """
 
-    (client_id,
-     auth_base_url,
-     authorize_url,
-     redirect_uri,
-     state,
-     account,
-     password) = \
-        itemgetter(
+    (client_id, auth_base_url, authorize_url, redirect_uri, state,
+     account, password) = itemgetter(
         'appId',
         'auth_base_url',
         'authorize_url',
@@ -224,29 +220,8 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     # Second step is to login with account and password to get auth code.
     postparam: Dict = {'account': account, 'password': password}
 
-    try:
-        response: requests.Response
-        response = requests.post(login_url, data=postparam)
-
-    except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s',
-                     response.content, response.request)
-        return None
-
-    except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s',
-                     response.content, response.request)
-        return None
-
-    except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s',
-                     response.content, response.request)
-        return None
-
-    except BaseException:
-        logger.error(
-            'some Exception happed when send and receiving data.')
-
+    response: requests.Response
+    response = requests.post(login_url, data=postparam)
     response_url: str = response.url
 
     # get auth code from parameters in returned url.
@@ -260,6 +235,7 @@ def _get_auth_code(auth: AuthData) -> Optional[str]:
     return query['code']
 
 
+@connection_exception
 def get_token(auth: AuthData,
               refresh: Optional[TokenResult] = None) -> Optional[TokenResult]:
     """
@@ -280,8 +256,9 @@ def get_token(auth: AuthData,
      auth_base_url,
      token_url,
      grant_type,
-     state) = itemgetter('appId', 'appKey', 'redirect_uri', 'auth_base_url',
-                         'token_url', 'grant_type', 'state')(auth)
+     state) = itemgetter(
+        'appId', 'appKey', 'redirect_uri', 'auth_base_url',
+        'token_url', 'grant_type', 'state')(auth)
 
     authcode: Optional[str] = _get_auth_code(auth)
     if not authcode:
@@ -298,25 +275,7 @@ def get_token(auth: AuthData,
                     'state': state}
     if refresh is not None:
         params = _auth_refresh_token(params, refresh)
-
-    try:
         response: requests.Response = requests.post(url, data=params)
-    except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s',
-                     response.content, response.request)
-        return None
-    except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s',
-                     response.content, response.request)
-        return None
-    except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s',
-                     response.content, response.request)
-        return None
-    except BaseException:
-        logger.error(
-            'some Exception happed when send and receiving data. %s %s',
-            response.content, response.request)
 
     if response.status_code != 200:
         logger.error('error response %s', response.content,
@@ -374,6 +333,7 @@ def _gen_header(auth: AuthData, token: Optional[TokenResult],
 #####################
 
 
+@connection_exception
 def get_pos(auth: AuthData,
             token: Optional[TokenResult],
             params: PosParam = {}) -> Optional[PosResult]:
@@ -389,35 +349,19 @@ def get_pos(auth: AuthData,
     headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_pos_url)
-    try:
-        response: requests.Response
-        response = requests.get(url, params=cast(Dict, params),
-                                headers=headers)
-        logger.debug("[xiaomi get pos] %s", response.content)
-    except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s',
-                     response.content, response.request)
-        return None
-    except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s',
-                     response.content, response.request)
-        return None
-    except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s',
-                     response.content, response.request)
-        return None
-    except BaseException:
-        logger.error(
-            'some Exception happed when send and receiving data. %s %s',
-            response.content, response.request)
+    response: requests.Response
+    response = requests.get(url, params=cast(Dict, params),
+                            headers=headers)
 
-    finally:
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
-        return response.json()['result']
+    logger.debug("[xiaomi get pos] %s", response.content)
+
+    if response.status_code != 200:
+        logger.error('error response %s', response)
+        return None
+    return response.json()['result']
 
 
+@connection_exception
 def get_device(auth: AuthData,
                token: Optional[TokenResult],
                params: DeviceParam = {}) -> Optional[DeviceResult]:
@@ -433,35 +377,17 @@ def get_device(auth: AuthData,
     headers: Optional[Dict] = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_dev_url)
-    try:
-        response: requests.Response = requests.get(
-            url, params=cast(Dict, params), headers=headers)
-        logger.debug("[xiaomi get device] %s", response)
+    response: requests.Response = requests.get(
+        url, params=cast(Dict, params), headers=headers)
+    logger.debug("[xiaomi get device] %s", response)
 
-    except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s',
-                     response.content, response.request)
+    if response.status_code != 200:
+        logger.error('error response %s', response)
         return None
-    except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s',
-                     response.content, response.request)
-        return None
-    except requests.models.ChunkedEncodingError:
-        logger.error('[requests ]ChunkedEncodingError %s %s',
-                     response.content, response.request)
-        return None
-    except BaseException:
-        logger.error(
-            'some Exception happed when send and receiving data. %s %s',
-            response.content, response.request)
-
-    finally:
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
-        return response.json()['result']
+    return response.json()['result']
 
 
+@connection_exception
 def get_hist_resource(auth: AuthData,
                       token: Optional[TokenResult],
                       params: ResourceParam) -> Optional[ResourceResponse]:
@@ -478,33 +404,16 @@ def get_hist_resource(auth: AuthData,
     headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
-    try:
-        response: requests.Response = requests.post(
-            url, json=cast(Dict, params), headers=headers)
-        logger.debug("[xiaomi get resource] %s", response)
-    except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s',
-                     response.content, response.request)
+    response: requests.Response = requests.post(
+        url, json=cast(Dict, params), headers=headers)
+    logger.debug("[xiaomi get resource] %s", response)
+    if response.status_code != 200:
+        logger.error('error response %s', response)
         return None
-    except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s',
-                     response.content, response.request)
-        return None
-    except requests.models.ChunkedEncodingError:
-        logger.error('[requests] ChunkedEncodingError %s %s',
-                     response.content, response.request)
-        return None
-    except BaseException:
-        logger.error(
-            'some Exception happed when send and receiving data. %s %s',
-            response.content, response.request)
-    finally:
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
-        return response.json()['result']
+    return response.json()['result']
 
 
+@connection_exception
 def get_resource(auth: AuthData,
                  token: Optional[TokenResult],
                  params: List[ResourceParam_light]) -> Optional[ResourceData]:
@@ -521,30 +430,10 @@ def get_resource(auth: AuthData,
     headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
-    try:
-        print(params)
-        response: requests.Response
-        response = requests.post(url, json=cast(Dict, params), headers=headers)
-        logger.debug("[xiaomi get resource] %s", response)
-        print(response.content)
-    except urllib3.response.ProtocolError:
-        logger.error('[urllib3] Protocal error %s %s',
-                     response.content, response.request)
+    response: requests.Response
+    response = requests.post(url, json=cast(Dict, params), headers=headers)
+    logger.debug("[xiaomi get resource] %s", response)
+    if response.status_code != 200:
+        logger.error('error response %s', response)
         return None
-    except http.client.IncompleteRead:
-        logger.error('[http] IncompleteRead error %s %s',
-                     response.content, response.request)
-        return None
-    except requests.models.ChunkedEncodingError:
-        logger.error('[requests] ChunkedEncodingError %s %s',
-                     response.content, response.request)
-        return None
-    except BaseException:
-        logger.error(
-            'some Exception happed when send and receiving data. %s %s',
-            response.content, response.request)
-    finally:
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
-        return response.json()['result']
+    return response.json()['result']

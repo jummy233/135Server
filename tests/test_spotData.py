@@ -10,7 +10,7 @@ from datetime import datetime
 from tests.fake_db import gen_fake
 import threading
 from app.dataGetter.dataGen.dataType import (
-    map_thunk_iter, device_check, DataSource, WrongDidException)
+    thunk_iter, device_check, DataSource, WrongDidException)
 
 
 class JianyanyuanSpotDataTest(unittest.TestCase):
@@ -71,7 +71,9 @@ class JianyanyuanSpotDataTest(unittest.TestCase):
             def worker(record):
                 ModelOperations.Add.add_spot_record(record)
 
-            map_thunk_iter(records, worker, 5)
+            it = thunk_iter(records)
+            for i in it:
+                worker(i)
             commit()
 
     def tearDown(self):
@@ -120,7 +122,9 @@ class XiaomiSpotDataTest(unittest.TestCase):
             def worker(record):
                 ModelOperations.Add.add_spot_record(record)
 
-            map_thunk_iter(records, worker, 5)
+            it = thunk_iter(records)
+            for i in it:
+                worker(i)
             commit()
 
     def tearDown(self):

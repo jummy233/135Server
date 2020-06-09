@@ -10,9 +10,10 @@ from typing import (Dict, Iterator, List, NewType, Optional, Tuple, TypedDict,
 import requests
 import urllib3
 
+from .exceptions import connection_exception
 from logger import make_logger
-
 from timeutils.time import currentTimestamp
+
 
 logger = make_logger('JianYanYuanGetter', 'dataGetter_log')
 
@@ -94,6 +95,7 @@ attrs: Dict = {
 }
 
 
+@connection_exception
 def get_token(auth: AuthData, timestamp: Optional[int] = None) \
         -> Optional[AuthToken]:
     """
@@ -115,32 +117,17 @@ def get_token(auth: AuthData, timestamp: Optional[int] = None) \
         'ts': timestamp,
         'ukey': ''
     }
+    response: requests.Response
+    response = requests.post(url, json=request_data)
 
-    try:
-        response: requests.Response
-        response = requests.post(url, json=request_data)
-
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
-        rj = response.json()
-        return AuthToken((rj['token'], rj['uid']))
-
-    except urllib3.response.ProtocolError as e:
-        logger.error('[urllib3] Protocal error %s ', e)
+    if response.status_code != 200:
+        logger.error('error response %s', response)
         return None
-    except http.client.IncompleteRead as e:
-        logger.error('[http] IncompleteRead error %s ', e)
-        return None
-    except requests.models.ChunkedEncodingError as e:
-        logger.error('[requests ]ChunkedEncodingError %s ', e)
-        return None
-    except BaseException as e:
-        logger.error(
-            'some Exception happed when send and receiving data. %s ', e)
-    return None
+    rj = response.json()
+    return AuthToken((rj['token'], rj['uid']))
 
 
+@connection_exception
 def get_device_list(auth: AuthData,
                     authtoken: Optional[AuthToken],
                     params: Dict = {}) -> Optional[List[DeviceResult]]:
@@ -173,38 +160,24 @@ def get_device_list(auth: AuthData,
         'uid': uid,
         'sign': sign
     }
-    try:
-        response: requests.Response
-        response = requests.post(url, data=params_json, headers=headers)
 
-        rj: Dict = response.json()
-        logger.debug("[jianyanyuan get device list] %s", response)
+    response: requests.Response
+    response = requests.post(url, data=params_json, headers=headers)
 
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
+    rj: Dict = response.json()
+    logger.debug("[jianyanyuan get device list] %s", response)
 
-        if rj['code'] != 0:
-            logger.error('error return code: %s', rj)
-            return None
-        return rj['data']['devs']
-
-    except urllib3.response.ProtocolError as e:
-        logger.error('[urllib3] Protocal error %s ', e)
+    if response.status_code != 200:
+        logger.error('error response %s', response)
         return None
-    except http.client.IncompleteRead as e:
-        logger.error('[http] IncompleteRead error %s ', e)
+
+    if rj['code'] != 0:
+        logger.error('error return code: %s', rj)
         return None
-    except requests.models.ChunkedEncodingError as e:
-        logger.error('[requests ]ChunkedEncodingError %s ', e)
-        return None
-    except BaseException as e:
-        logger.error(
-            'some Exception happed when send and receiving data. %s ', e)
-
-    return None
+    return rj['data']['devs']
 
 
+@connection_exception
 def get_device_attrs(
         auth: AuthData,
         authtoken: Optional[AuthToken],
@@ -239,36 +212,22 @@ def get_device_attrs(
         'uid': uid,
         'sign': sign}
 
-    try:
-        response: requests.Response
-        response = requests.get(url, headers=headers)
+    response: requests.Response
+    response = requests.get(url, headers=headers)
 
-        if response.status_code != 200:
-            logger.error('error response %s', response)
-            return None
-
-        logger.debug("[jianyanyuan get attrs] %s", response.content)
-        rj: Dict = response.json()
-        if rj['code'] != 0:
-            logger.error('error return code: ', rj)
-            return None
-        return rj['data']['jsonArray']
-
-    except urllib3.response.ProtocolError as e:
-        logger.error('[urllib3] Protocal error %s ', e)
+    if response.status_code != 200:
+        logger.error('error response %s', response)
         return None
-    except http.client.IncompleteRead as e:
-        logger.error('[http] IncompleteRead error %s ', e)
+
+    logger.debug("[jianyanyuan get attrs] %s", response.content)
+    rj: Dict = response.json()
+    if rj['code'] != 0:
+        logger.error('error return code: ', rj)
         return None
-    except requests.models.ChunkedEncodingError as e:
-        logger.error('[requests ]ChunkedEncodingError %s ', e)
-        return None
-    except BaseException as e:
-        logger.error(
-            'some Exception happed when send and receiving data. %s ', e)
-    return None
+    return rj['data']['jsonArray']
 
 
+@connection_exception
 def get_data_points(
         auth: AuthData,
         authtoken: Optional[AuthToken],
@@ -298,43 +257,32 @@ def get_data_points(
         'uid': uid,
         'sign': sign}
 
-    try:
-        print('getter token', token)  # NOTE DEBUG
-        response: requests.Response
-        response = requests.post(url, data=param_json, headers=headers)
+    response: requests.Response
+    response = requests.post(url, data=param_json, headers=headers)
 
-        logger.debug("[jianyanyuan get datapoints] %s", response)
+    logger.debug("[jianyanyuan get datapoints] %s", response)
 
-        if response.status_code != 200:
-            logger.error('error response %s %s',
-                         response.content, response.request.body)
-            return None
-        rj = response.json()
-
-        if rj['code'] != 0:
-            logger.error('server error return code : %s %s, \ntoken: %s',
-                         rj, response.request.body, str(authtoken))
-            return None
-
-        # notice some apis are broken and return attrs
-        if 'asData' not in rj['data'].keys():
-            logger.warning(
-                'warning, broken api, no data in datapoint return keys: %s %s',
-                rj['code'],
-                response.request.body)
-            return None
-    except urllib3.response.ProtocolError as e:
-        logger.error('[urllib3] Protocal error %s ', e)
-        return None
-    except http.client.IncompleteRead as e:
-        logger.error('[http] IncompleteRead error %s ', e)
-        return None
-    except requests.models.ChunkedEncodingError as e:
-        logger.error('[requests ]ChunkedEncodingError %s ', e)
-        return None
-    except BaseException as e:
+    if response.status_code != 200:
         logger.error(
-            'some Exception happed when send and receiving data. %s ', e)
+            'error response %s %s', response.content,
+            response.request.body)
+        return None
+
+    rj = response.json()
+
+    if rj['code'] != 0:
+        logger.error(
+            'server error return code : %s %s, \ntoken: %s',
+            rj, response.request.body, str(authtoken))
+        return None
+
+    # notice some apis are broken and return attrs
+    if 'asData' not in rj['data'].keys():
+        logger.warning(
+            'warning, broken api, no data in datapoint return keys: %s %s',
+            rj['code'],
+            response.request.body)
+        return None
 
     logger.debug('correct authtoken %s', str(authtoken))
     return rj['data']['asData']

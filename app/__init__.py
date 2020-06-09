@@ -67,26 +67,30 @@ login functionalites. How to handle this apis is up to the frontend.
 """
 
 from flask import Flask
-from flask_moment import Moment
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
 from config import config
-from .caching import CacheInstance
-from .dataGetter import UpdateScheduler
 from logger import make_logger
-from logging import DEBUG
-logger = make_logger('app', 'app_log', DEBUG)
+import logging
 
-logger.warning('initializing app')
-
-global_cache = CacheInstance()  # create cache instance here.
+from flask_moment import Moment
 moment = Moment()
+
+from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
-scheduler = UpdateScheduler()
 
-
+from flask_login import LoginManager
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
+
+from .caching import CacheInstance
+global_cache = CacheInstance()  # create cache instance here.
+
+if db is not None:
+    # Scheduler depends on db.
+    from .dataGetter.dataloader.Scheduler import UpdateScheduler
+    scheduler = UpdateScheduler()
+
+logger = make_logger('app', 'app_log', logging.DEBUG)
+logger.warning('initializing app')
 
 
 def create_app(config_name: str, with_scheduler: bool = True) -> Flask:

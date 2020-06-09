@@ -1,6 +1,7 @@
 """
-Script to init database.
+(DEPRECATED!)
 
+Script to init database.
 It is deprecated, and only works for JianYanYuanData.
 All functionalites can be relaced by the new scheduler, which is a
 daemon threads manage some actors, and send message to inform data
@@ -31,8 +32,15 @@ from itertools import islice
 from logging import DEBUG
 from operator import itemgetter
 from queue import Queue
-from typing import (Any, Callable, Dict, Generator, Generic, Iterator, List,
-                    NewType, Optional, Tuple, Type, TypeVar, Union, cast)
+from typing import Callable
+from typing import Dict
+from typing import Generator
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TypeVar
+from typing import cast
 
 from fuzzywuzzy import fuzz
 from sqlalchemy.exc import IntegrityError
@@ -40,10 +48,14 @@ from flask import current_app
 
 from app import db
 from app.modelOperations import ModelOperations, commit
-from app.models import ClimateArea, Device, Location, Project, Spot, SpotRecord
+from app.models import ClimateArea
+from app.models import Device
+from app.models import Location
+from app.models import Project
+from app.models import Spot
+from app.models import SpotRecord
 from concurrent_fetch import thread_fetcher
 from app.dataGetter.dataGen import JianYanYuanData
-from app.dataGetter.dataGen import XiaoMiData
 from app.dataGetter.dataGen import dataType as DGType
 from lazybox import LazyBox, LazyGenerator
 from logger import make_logger

@@ -6,10 +6,19 @@ from flask import Flask
 from abc import ABC, abstractmethod
 import enum
 from datetime import datetime as dt
-from typing import (List, Callable, Dict, Generator, Iterator, List, NewType,
-                    Optional, Tuple, TypedDict, Union, cast, TypeVar, Any)
-from concurrent.futures import ThreadPoolExecutor, Future, as_completed
+from typing import List
+from typing import Callable
+from typing import Generator
+from typing import Iterator
+from typing import Optional
+from typing import TypedDict
+from typing import Union
+from typing import TypeVar
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future
+from concurrent.futures import as_completed
 from logger import make_logger
+from itertools import chain
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
@@ -58,8 +67,6 @@ class Device(TypedDict):
     modify_time: Optional[dt]
 
 
-LazySpotRecord = Callable[[], Optional[Generator[Device, None, None]]]
-
 """
 RecordGen:      Generator contains data from one request.
 RecordThunk:    Unevaled record data.
@@ -74,35 +81,31 @@ def unwrap_thunk(thunk: Callable[[], T]) -> T:
     return thunk()
 
 
-def map_thunk_iter(iterator: RecordThunkIter,
-                   fn: Callable[[SpotRecord], Any],
-                   max_workers: int):
+def thunk_iter(iterator: RecordThunkIter,
+               max_threads: int = 10) -> Iterator[SpotRecord]:
     """
     It destruct the RecordThunkIter and execute RecordGen
     with threadpool.
     It only use the side effect of callback so nothing return.
     (Side effect namely record into database)
     """
-
-    pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_workers)
+    generator_chain: Iterator = iter([])
+    pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_threads)
     with pool:
-        geniter_futures: Iterator[Future[Optional[RecordGen]]] = (
-            pool.submit(unwrap_thunk, thunk)
-            for thunk in iterator)
+        geniter_futures: Iterator[Future[Optional[RecordGen]]]
+        geniter_futures = (pool.submit(unwrap_thunk, thunk)
+                           for thunk in iterator)
 
         for future in as_completed(geniter_futures):
             try:
                 gen: Optional[RecordGen] = future.result()
                 if gen is not None:
-
-                    # TODO debug.
-                    # maybe chain all geneartors into a single iter
-                    # and pass into a process pool to consume them.
-                    for n in gen:
-                        if n is not None:
-                            fn(n)
+                    generator_chain = chain(
+                        generator_chain,
+                        filter(lambda n: n is not None, iter(gen)))
             except Exception as exc:
                 logger.warning("future failed, ", exc)
+    return generator_chain
 
 
 class WrongDidException(Exception):

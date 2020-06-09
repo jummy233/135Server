@@ -3,15 +3,21 @@ from typing import List, Dict, Union
 from datetime import datetime
 import hashlib
 from enum import Enum
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 import bleach
 from flask import current_app, request, url_for
-from flask_login import UserMixin, AnonymousUserMixin
+from flask_login import UserMixin
+from flask_login import AnonymousUserMixin
 from sqlalchemy.exc import IntegrityError
 from . import db, login_manager
-from .utils import is_nice_time, normalize_time, rand_date_in
-from random import choice, randrange, randint, uniform
+from .utils import is_nice_time
+from .utils import normalize_time
+from .utils import rand_date_in
+from random import choice
+from random import randint
+from random import uniform
 import base64
 
 
@@ -163,7 +169,7 @@ class Location(db.Model):
                 loc = cls(climate_area=choice(ClimateArea.query.all()),
                           province=randprovince,
                           city=choice(locs[randprovince]))
-                db.session.add(loc)
+              db.session.add(loc)
             except IndexError as e:
                 print("Error! Location.gen_fake: ", e)
 
@@ -210,8 +216,8 @@ class Project(db.Model):
 
     spot = db.relationship("Spot", backref="project",
                            cascade="all,delete", uselist=False)
-    project_detail = db.relationship("ProjectDetail", backref="project", cascade="all,delete",
-                                     uselist=False)
+    project_detail = db.relationship("ProjectDetail", backref="project",
+                                     cascade="all,delete", uselist=False)
 
     tech_support_company = db.relationship(
         "Company",

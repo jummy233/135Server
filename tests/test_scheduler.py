@@ -1,13 +1,14 @@
 from unittest import TestCase
 from unittest import skip
+from app import db, scheduler
 import app.dataGetter.dataloader.Scheduler as S
 from app.dataGetter.dataGen import JianYanYuanData
+from app.dataGetter.dataGen.dataType import DataSource
 from datetime import datetime as dt
 from datetime import timedelta
 import tempfile
 import os
 import app
-from app import db, scheduler
 from threading import enumerate
 
 
@@ -21,13 +22,11 @@ class TestFetchActor(TestCase):
         with self.app.app_context():
             # db.drop_all()
             db.create_all()
-            scheduler.update_device()
-            scheduler.close()  # don't use the scheduler.
-            self.actor = S.FetchActor(app, JianYanYuanData(app))
-            self.actor.start()
 
+    @skip('.')
     def test_update_device(self):
         """ should show total 332 devices """
+        scheduler.update_device()
         with self.app.app_context():
             from app.models import Device
             self.assertTrue(Device.query.filter(
@@ -36,19 +35,24 @@ class TestFetchActor(TestCase):
                 Device.device_name.like("%2009%")).count() > 0)
             self.assertTrue(Device.query.count() > 300)
 
-    # def test_send(self):
-    #     trange = (dt(2020, 3, 12, 12), dt(2002, 3, 12, 13))
-    #     self.actor.send((2, trange))
-    #     with self.app.app_context():
-    #         from app.models import SpotRecord
-    #         print("+++", SpotRecord.query.all())
+    def test_update_record(self):
+        """
+        send update message directly.
+        """
+        with self.app.app_context():
+            from app.models import Device
+            did: int = (
+                Device
+                .query
+                .filter(Device.device_name == "20205754003878404097")
+            ).first().device_id
 
-    # def test_nonblocking(self):
-    #     ...
+        jmsg = S.UpdateMsg(DataSource.JIANYANYUAN,
+                           (did, (dt(2019, 9, 23, 00), dt(2019, 9, 24, 00))))
+        scheduler.update_actor.send(jmsg)
 
     def tearDown(self):
         # with self.app.app_context():
         #     db.session.remove()
         #     db.drop_all()
-        self.actor.close()
-        del self.actor
+        scheduler.close()

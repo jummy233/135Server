@@ -7,7 +7,7 @@ from typing import Dict, List
 from datetime import timedelta, datetime
 from flask import jsonify
 from . import api
-from app.api.api_types import ApiResponse, ReturnCode
+from app.api_types import ApiResponse, ReturnCode
 from app.models import Project, ProjectDetail
 from app.models import ClimateArea, OutdoorRecord
 from app.models import Spot, SpotRecord, Device

@@ -2,20 +2,36 @@
 All apis here will modify the state of database.
 """
 
-from typing import Dict, Optional, List, Tuple, NewType, Callable, Any, cast
+from typing import Dict
+from typing import Optional
+from typing import List
+from typing import Tuple
+from typing import NewType
+from typing import Callable
+from typing import Any
+from typing import cast
 from flask import jsonify, request
 from flask import json as FlaskJson
 from sqlalchemy.exc import IntegrityError
 from . import api
-from app.api.api_types import ApiResponse, ReturnCode, ApiRequest
-from app.api.api_types import is_ApiRequest
+from app.api_types import ApiResponse
+from app.api_types import ReturnCode
+from app.api_types import ApiRequest
+from app.api_types import is_ApiRequest
 from app.modelOperations import ModelOperations
 from app.modelOperations import commit_db_operation
 from app.modelOperations import commit
-from app.models import User, Location, Project, ProjectDetail
-from app.models import ClimateArea, Company
-from app.models import OutdoorSpot, OutdoorRecord
-from app.models import Spot, SpotRecord, Device
+from app.models import User
+from app.models import Location
+from app.models import Project
+from app.models import ProjectDetail
+from app.models import ClimateArea
+from app.models import Company
+from app.models import OutdoorSpot
+from app.models import OutdoorRecord
+from app.models import Spot
+from app.models import SpotRecord
+from app.models import Device
 from app.models import Data
 
 Json = NewType('Json', str)
