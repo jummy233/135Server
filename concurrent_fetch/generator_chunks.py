@@ -1,7 +1,10 @@
 from itertools import islice, chain
-from typing import Iterable, Generator
+from typing import Iterator, Generator
 
 
-def chunks(it: Iterable, size=5) -> Generator:
-    for head in it:
-        yield chain([head], islice(it, size - 1))
+def chunks(it: Iterator, size=5) -> Generator:
+    while True:
+        try:
+            yield chain((next(it),), islice(it, size - 1))
+        except StopIteration:
+            return

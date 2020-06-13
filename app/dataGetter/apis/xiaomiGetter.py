@@ -243,7 +243,7 @@ def get_token(auth: AuthData,
     if refresh token is passed, it is then used to retreive new token.
     """
     # TODO refresh
-    def _auth_refresh_token(params: Dict, token: TokenResult) -> Dict:
+    def _auth_refresh_token_params(params: Dict, token: TokenResult) -> Dict:
         """ return auth data for refreshing token """
         newparams = dict(**params)
         newparams['refresh_token'] = token['refresh_token']
@@ -274,9 +274,9 @@ def get_token(auth: AuthData,
                     'code': authcode,
                     'state': state}
     if refresh is not None:
-        params = _auth_refresh_token(params, refresh)
-        response: requests.Response = requests.post(url, data=params)
+        params = _auth_refresh_token_params(params, refresh)
 
+    response: requests.Response = requests.post(url, data=params)
     if response.status_code != 200:
         logger.error('error response %s', response.content,
                      response.request.body)
@@ -404,8 +404,8 @@ def get_hist_resource(auth: AuthData,
     headers = _gen_header(auth, token, sign)
 
     url: str = urllib.parse.urljoin(api_query_base_url, api_query_resource_url)
-    response: requests.Response = requests.post(
-        url, json=cast(Dict, params), headers=headers)
+    response: requests.Response
+    response = requests.post(url, json=cast(Dict, params), headers=headers)
     logger.debug("[xiaomi get resource] %s", response)
     if response.status_code != 200:
         logger.error('error response %s', response)

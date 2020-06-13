@@ -82,14 +82,14 @@ class XiaoMiData(SpotData):
             device_amount: int = response['totalCount'] if response else 0
             return device_amount
         device_amount = query_device_amount()
-        if device_amount is not None and device_amount > 0:
-            param: xGetter.DeviceParam = {
+        param: xGetter.DeviceParam = {
                 'pageNum': 1,
                 'pageSize': device_amount
             }
-            response = xGetter.get_device(self.auth, self.token, param)
-            response_result = response.get('data') if response else []
-            device_list = response_result
+        # if device_amount is not None and device_amount > 0:
+        response = xGetter.get_device(self.auth, self.token, param)
+        response_result = response.get('data') if response else []
+        device_list = response_result
         self.device_amount, self.device_list = device_amount, device_list
 
     def __del__(self):
@@ -120,6 +120,7 @@ class XiaoMiData(SpotData):
             did: Optional[int] = None,
             daterange: Optional[Tuple[dt, dt]] = None) -> RecordThunkIter:
         """ get spot record based on device list """
+
         if not self.device_list:
             return iter([])
         sr = self._SpotRecord(self)
@@ -187,7 +188,7 @@ class XiaoMiData(SpotData):
 
         def all(self):
             """ for all devlce on device list """
-            resource_params = self._mk_resource_parameter_iter()
+            resource_params = self._make_resource_parameter_iter()
             if self.device_list is None:
                 return iter([])
             param_list = list(resource_params)
@@ -226,7 +227,7 @@ class XiaoMiData(SpotData):
                     self.auth, token, resource_params)
             return res['data'] if res is not None and 'data' in res else None
 
-        def __mk_resource_parameter_iter(self):
+        def _make_resource_parameter_iter(self):
             """ generate request parameter iter """
             if self.device_list is None:
                 return None
@@ -242,8 +243,12 @@ class XiaoMiData(SpotData):
                 of the device.
                 """
                 for d in self.device_list:
+                    regtime = d.get('registerTime')
+                    if regtime is None:
+                        continue
                     back50mins = date_range_iter(
-                        str_to_datetime(d.get("registerTime")))
+                        dt.fromtimestamp(int(regtime) / 1000.0),
+                        timedelta(days=7))
                     for date_tuple in back50mins:
                         param = (XiaoMiData
                                  ._SpotRecord
@@ -251,7 +256,7 @@ class XiaoMiData(SpotData):
                         if param is not None:
                             yield param
 
-            resouce_param_iter = chain.from_iterable(param_gen())
+            resouce_param_iter = param_gen()
             if not any(resouce_param_iter):
                 logger.warning(XiaoMiData.source +
                                'No datapoint parameter.')
@@ -363,9 +368,9 @@ class _XUnit:
     Unit conversion utility. conform the database unit.
     """
     @staticmethod
-    def to_int(val: Union[str, int, None]) -> Optional[int]:
-        if isinstance(val, str):
-            return int(val)
+    def to_int(val: Union[str, int, float, None]) -> Optional[int]:
+        if isinstance(val, str) or isinstance(val, float):
+            return int(float(val))
         return val
 
     @staticmethod
@@ -384,7 +389,7 @@ class _XUnit:
     def energy(en_: Union[str, int, None]):
         """ kwh """
         en = _XUnit.to_int(en_)
-        return en * 1000 if en is not None else None
+        return en / 1000.0 if en is not None else None
 
     @staticmethod
     def online(on_: Union[str, int, None]):

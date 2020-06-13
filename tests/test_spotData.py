@@ -4,13 +4,16 @@ NOTE: The  test assume scheduler.update_device() is executed.
 
 import unittest
 import app.dataGetter.dataGen as DG
+from itertools import islice
 from app import create_app, db, scheduler
 import time
 from datetime import datetime
 from tests.fake_db import gen_fake
 import threading
+from multiprocessing import Pool
 from app.dataGetter.dataGen.dataType import (
     thunk_iter, device_check, DataSource, WrongDidException)
+from app.modelcoro import record_send
 
 
 class JianyanyuanSpotDataTest(unittest.TestCase):
@@ -49,6 +52,7 @@ class JianyanyuanSpotDataTest(unittest.TestCase):
         except WrongDidException:
             self.fail("device name format is incorrect")
 
+    @unittest.skip('.')
     def test_sport_record(self):
         """
         use the device 20205754003878404097
@@ -71,9 +75,29 @@ class JianyanyuanSpotDataTest(unittest.TestCase):
             def worker(record):
                 ModelOperations.Add.add_spot_record(record)
 
-            it = thunk_iter(records)
-            for i in it:
+            for i in thunk_iter(records):
+                print(i)
                 worker(i)
+            commit()
+
+    def test_moco(self):
+        from app.modelOperations import commit
+        with self.app.app_context():
+            from app.models import Device
+            did: int = (
+                Device
+                .query
+                .filter(Device.device_name == "20205754003878404097")
+            ).first().device_id
+
+        time_range = (datetime(2019, 9, 23, 00), datetime(2019, 9, 24, 00))
+        records = self.j.spot_record(did, time_range)
+
+        with self.app.app_context():
+
+            for i in thunk_iter(records):
+                print(i)
+                record_send(i)
             commit()
 
     def tearDown(self):
@@ -81,6 +105,7 @@ class JianyanyuanSpotDataTest(unittest.TestCase):
         del self.j
 
 
+@unittest.skip('.')
 class XiaomiSpotDataTest(unittest.TestCase):
     """ xiaomi doesn't need location data """
 
@@ -101,7 +126,7 @@ class XiaomiSpotDataTest(unittest.TestCase):
         except WrongDidException:
             self.fail("device name format is incorrect")
 
-    # @unittest.skip('.')
+    @unittest.skip('.')
     def test_sport_record(self):
         with self.app.app_context():
             from app.models import Device

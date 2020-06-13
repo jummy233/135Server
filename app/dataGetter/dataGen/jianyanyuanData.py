@@ -208,7 +208,7 @@ class JianYanYuanData(SpotData):
             for all devlce on device list
             Note: Not necessary since the job will be done by actors.
             """
-            datapoint_params = self._mk_datapoint_param_iter()
+            datapoint_params = self._make_datapooint_param_iter()
             if datapoint_params is None:
                 return iter([])
             params_list = list(datapoint_params)  # construct param list
@@ -260,13 +260,11 @@ class JianYanYuanData(SpotData):
             logger.debug('getting datapoint {}'.format(datapoint_param))
             # block until token refreshed. Make sure it is a valid token
             with self.data.tokenManager.valid_token_ctx() as token:
-                print("valid", token)
-                print("self, ", self.token)
                 res = jGetter.get_data_points(self.auth, token,
                                               datapoint_param)
             return res
 
-        def _mk_datapoint_param_iter(self) \
+        def _make_datapooint_param_iter(self) \
                 -> Optional[Iterator[DataPointParam]]:
             """
             ***
@@ -284,8 +282,13 @@ class JianYanYuanData(SpotData):
             def param_gen():
                 """ param generator based on time sequence """
                 for d in self.device_list:
+                    create_time = d.get('createTime')
+                    # print(d)
+                    # print(create_time)
+                    if create_time is None:
+                        continue
                     back7days = date_range_iter(
-                        str_to_datetime(d.get('createTime')),
+                        str_to_datetime(create_time),
                         timedelta(days=7))
                     for date_tuple in back7days:
                         param = (JianYanYuanData
@@ -294,10 +297,10 @@ class JianYanYuanData(SpotData):
                         if param is not None:
                             yield param
 
-            datapoint_param_iter = chain.from_iterable(param_gen())
-            if not any(datapoint_param_iter):
-                logger.warning(JianYanYuanData.source +
-                               'No datapoint parameter.')
+            datapoint_param_iter = param_gen()
+            if not any(param_gen()):
+                logger.warning(JianYanYuanData.source
+                               + 'No datapoint parameter.')
                 return None
             return datapoint_param_iter
 

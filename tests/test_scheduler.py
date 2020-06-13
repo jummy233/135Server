@@ -9,6 +9,7 @@ from datetime import timedelta
 import tempfile
 import os
 import app
+from time import sleep
 from threading import enumerate
 
 
@@ -35,6 +36,7 @@ class TestFetchActor(TestCase):
                 Device.device_name.like("%2009%")).count() > 0)
             self.assertTrue(Device.query.count() > 300)
 
+    @skip('.')
     def test_update_record(self):
         """
         send update message directly.
@@ -50,9 +52,16 @@ class TestFetchActor(TestCase):
         jmsg = S.UpdateMsg(DataSource.JIANYANYUAN,
                            (did, (dt(2019, 9, 23, 00), dt(2019, 9, 24, 00))))
         scheduler.update_actor.send(jmsg)
+        # avoid immediate teardown.
+        sleep(20)
+
+    def test_update_all(self):
+        scheduler.force_overall_update()
+        __import__('pdb').set_trace()
 
     def tearDown(self):
         # with self.app.app_context():
         #     db.session.remove()
         #     db.drop_all()
+        print("test: closing")
         scheduler.close()

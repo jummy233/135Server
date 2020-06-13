@@ -20,7 +20,6 @@ from random import randint
 from random import uniform
 import base64
 
-
 rand_date = rand_date_in(datetime(2019, 1, 1), datetime(2019, 12, 31))
 TIMEFORMAT = "%Y-%m-%dT%H:%M"
 
@@ -169,7 +168,7 @@ class Location(db.Model):
                 loc = cls(climate_area=choice(ClimateArea.query.all()),
                           province=randprovince,
                           city=choice(locs[randprovince]))
-              db.session.add(loc)
+                db.session.add(loc)
             except IndexError as e:
                 print("Error! Location.gen_fake: ", e)
 

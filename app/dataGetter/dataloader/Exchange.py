@@ -4,6 +4,8 @@ from contextlib import contextmanager
 
 
 class Exchange:
+    """
+    """
 
     def __init__(self):
         self._subscriber: Set = set()
@@ -27,14 +29,4 @@ class Exchange:
     def send(self, msg):
         for subsriber in self._subscriber:
             subsriber.send(msg)
-
-
-class UpdateExchange(Exchange):
-    pass
-
-
-class ProbeExchange(Exchange):
-    pass
-
-
 

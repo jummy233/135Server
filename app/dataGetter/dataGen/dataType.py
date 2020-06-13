@@ -18,7 +18,9 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import Future
 from concurrent.futures import as_completed
 from logger import make_logger
-from itertools import chain
+from itertools import islice
+from concurrent_fetch.generator_chunks import chunks
+from multiprocessing.pool import Pool
 
 logger = make_logger('dataMidware', 'dataGetter_log')
 logger.propagate = False
@@ -81,15 +83,20 @@ def unwrap_thunk(thunk: Callable[[], T]) -> T:
     return thunk()
 
 
-def thunk_iter(iterator: RecordThunkIter,
-               max_threads: int = 10) -> Iterator[SpotRecord]:
+def thunk_iter_(iterator: RecordThunkIter,
+                max_threads: int = 10
+                ) -> Generator[Iterator[SpotRecord], None, None]:
     """
     It destruct the RecordThunkIter and execute RecordGen
     with threadpool.
     It only use the side effect of callback so nothing return.
     (Side effect namely record into database)
+
+    it is used as helper function for thunk_iter, but itself
+    is more suitable for overall update since it return
+    unevaluated record generator which can be parallelized
     """
-    generator_chain: Iterator = iter([])
+
     pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_threads)
     with pool:
         geniter_futures: Iterator[Future[Optional[RecordGen]]]
@@ -100,12 +107,21 @@ def thunk_iter(iterator: RecordThunkIter,
             try:
                 gen: Optional[RecordGen] = future.result()
                 if gen is not None:
-                    generator_chain = chain(
-                        generator_chain,
-                        filter(lambda n: n is not None, iter(gen)))
+                    yield (r for r in gen if r is not None)
             except Exception as exc:
                 logger.warning("future failed, ", exc)
-    return generator_chain
+
+
+def thunk_iter(iterator: RecordThunkIter, max_threads: int = 10,
+               ) -> Generator[SpotRecord, None, None]:
+    """
+    fully evaluated version.
+    This is not suitable for multiprocessig since
+    iter though iters will produce spot record dictionary
+    """
+    for iters in thunk_iter_(iterator, max_threads):
+        for it in iters:
+            yield it
 
 
 class WrongDidException(Exception):

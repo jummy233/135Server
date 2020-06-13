@@ -263,9 +263,7 @@ def get_data_points(
     logger.debug("[jianyanyuan get datapoints] %s", response)
 
     if response.status_code != 200:
-        logger.error(
-            'error response %s %s', response.content,
-            response.request.body)
+        logger.error('error response %s %s', response, response.request.body)
         return None
 
     rj = response.json()
@@ -284,5 +282,5 @@ def get_data_points(
             response.request.body)
         return None
 
-    logger.debug('correct authtoken %s', str(authtoken))
+    # logger.debug('correct authtoken %s', str(authtoken))
     return rj['data']['asData']

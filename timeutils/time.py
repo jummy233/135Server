@@ -149,7 +149,7 @@ def date_range_iter(create_time: dt, countback: timedelta) \
     date_tuple = (now - countback, now)
     while date_tuple[0] > create_time:
         yield date_tuple
-        # advance the datetuple.
+        # the datetuple.
         # ((2020, 1, 3), (2020, 1 2)) -> ((2020, 1, 2), (202, 1, 1))
         start, _ = date_tuple
         date_tuple = (start - countback, start)

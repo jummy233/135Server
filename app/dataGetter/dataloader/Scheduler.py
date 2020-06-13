@@ -31,27 +31,41 @@ from typing import NamedTuple
 from typing import Iterator
 from datetime import datetime as dt
 from datetime import timedelta
+from copy import deepcopy
 from app.dataGetter.dataGen import JianYanYuanData
 from app.dataGetter.dataGen import XiaoMiData
 from app.dataGetter.dataGen.dataType import RecordThunkIter, RecordGen
-from app.dataGetter.dataGen.dataType import thunk_iter
+from app.dataGetter.dataGen.dataType import thunk_iter, thunk_iter_
 from app.dataGetter.dataGen.dataType import DataSource
 from app.dataGetter.dataGen.dataType import device_source
 from app.dataGetter.dataGen.dataType import SpotData, SpotRecord, Device
+from app.modelOperations import commit
 from concurrent.futures import ThreadPoolExecutor
-from itertools import chain
+from itertools import chain, takewhile
+from concurrent_fetch import chunks
 from timeutils.time import PeriodicTimer
-from app.modelcoro import record_send, device_send
-from multiprocessing import Pool
+from app.modelcoro import record_send, record__no_commit_send, device_send
+from concurrent_fetch import chunks
+from multiprocessing.pool import Pool
+from concurrent_fetch.mpnext import mptraversal
+import os
 import logging
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 
 T = TypeVar('T')
 
-""" typed for scheduling one record query """
-FetchMsg = Tuple[int, Tuple[dt, dt]]
+"""
+typed for scheduling one record query
+FetchMsg [did, chunk_size, max_threads, tuple(timerange)]
+"""
+
+FetchMsg = Tuple[Optional[int],     # did
+                 Optional[int],     # chunk_size
+                 Optional[int],     # max_threads
+                 Optional[Tuple[dt, dt]]]
+ALLMSG = (None, None, None, None)
 
 
 class ActorExit(Exception):
@@ -68,6 +82,7 @@ class Actor(ABC, Generic[T]):
 
     def recv(self):
         msg = self._queue.get()
+        print(f"--> reveived {self} \n", msg)
         if msg is ActorExit:
             raise ActorExit()
         return msg
@@ -77,6 +92,9 @@ class Actor(ABC, Generic[T]):
         self.send(ActorExit)
 
     def start(self):
+        """
+        start to listen to message
+        """
         if not self._proc:
             t = threading.Thread(target=self._bootstrap)
             self._terminated = threading.Event()
@@ -137,23 +155,52 @@ class FetchActor(Actor):
 
         while True:
             msg: FetchMsg = self.recv()
-            did, time_range = msg
+            print("--> Fetech Actro: msg", msg)
+            # if it is a overall update, did and time_range will be
+            # none.
+            # if all parameters of spot_record() are none it will
+            # start a all fetch, which has its own fetching rule
+            # embeded in it's corresponding SpotData implementation.
+            did, chsz, max_threads, time_range = msg
 
             jobs: RecordThunkIter
             jobs = self.datagen.spot_record(did, time_range)
-            print("jobs: ", list(jobs))
-
-            generator_chain: Iterator[SpotRecord] = thunk_iter(jobs)
 
             with self.datagen.app.app_context():
-                with Pool(5) as pool:
-                    for n in pool.imap_unordered(record_send, generator_chain):
-                        pass
+                """
+                Order of package is completely random. It depends on IO.
+                buffer is used to improve execution record speed and
+                avoid the speed difference between network IO and db IO
+                cause thread pool piles up too much jobs.
+                """
+                for jobchunk in chunks(jobs,
+                                       size=chsz if chsz is not None else 10):
+                    logger.warning("actor start new chunk")
+                    buf = iter([])  # temporary accumulator.
+
+                    logger.warning("actor fetching")
+                    for gen in thunk_iter_(jobchunk,
+                                           max_threads=max_threads
+                                           if max_threads else 30):
+                        buf = chain(buf, gen)
+                    logger.warning("actor recording")
+
+                    for r in buf:
+                        # spped up a bit.
+                        record__no_commit_send(r)
+                    commit()
 
             print(threading.enumerate())
 
 
 class UpdateMsg:
+    """
+    massage format: (DataSource, (did, (dt, dt)))
+    to do a overall update on a specific source replace
+    did with None.
+    use DataSource.ALL to update all sources.
+    """
+
     def __init__(self, tag: DataSource, payload: FetchMsg):
         self._tag: DataSource = tag
         self._payload = payload
@@ -163,7 +210,7 @@ class UpdateMsg:
         return self._tag
 
     @property
-    def payload(self) -> Tuple:
+    def payload(self) -> FetchMsg:
         return self._payload
 
 
@@ -187,11 +234,17 @@ class UpdateActor(Actor):
     def run(self):
         while True:
             msg: UpdateMsg = self.recv()
+            print("--> UPdate actor ", msg)
             if msg.tag is DataSource.ALL:
-                self.overall_update()
+                """
+                ignore payload
+                """
+                self.jianyanyuan_actor.send(ALLMSG)
+                self.xiaomi_actor.send(ALLMSG)
+
             elif msg.tag is DataSource.JIANYANYUAN:
-                __import__('pdb').set_trace()
                 self.jianyanyuan_actor.send(msg.payload)
+
             elif msg.tag is DataSource.XIAOMI:
                 self.xiaomi_actor.send(msg.payload)
 
@@ -199,9 +252,6 @@ class UpdateActor(Actor):
         super().close()
         self.jianyanyuan_actor.close()
         self.xiaomi_actor.close()
-
-    def overall_update(self):
-        """ update all data """
 
 
 class ScheduleTable(NamedTuple):
@@ -267,15 +317,33 @@ class UpdateScheduler:
         self.app = app
 
     def start(self):
+        self.update_actor.start()
         self.overall_timer.start()
         self.realtime_timer.start()
-        self.update_actor.start()
 
     def close(self):
         self.update_actor.close()
 
     def force_overall_update(self):
-        self.update_actor.send(UpdateMsg(DataSource.ALL, ()))
+        """
+        jianyanyuan data is more dense, data received is faster than
+        db recording speed.
+
+        xiaomi data is more IO bound because:
+            1. the limitation of 300 records per query.
+            2. data is recorded only when it is significantly differnt
+               than the previous record.
+            3. it reocrd evey 1 min.
+        it means most of queries will be useless query sice there is
+        no data for most datetime. But we still need to construct all
+        possible datetime to avoid miss out any data.
+        """
+        # DEBUG
+        # self.update_actor.send(UpdateMsg(DataSource.JIANYANYUAN,
+        #                                 (None, 30, 30, None)))
+
+        self.update_actor.send(UpdateMsg(DataSource.XIAOMI,
+                                         (None, 500, 50, None)))
 
     def update_device(self):
         """
@@ -314,7 +382,7 @@ class UpdateScheduler:
 
         onlines = [
             UpdateMsg(device_source(d.device_name),
-                      (d.device_id,
+                      (d.device_id, 20,
                        (dt.now() - timedelta(minutes=5), dt.now())))
             for d in devices]
 
